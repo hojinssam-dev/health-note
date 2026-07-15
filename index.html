@@ -3584,7 +3584,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -3809,7 +3809,7 @@ prevNoteEditSaveBtn.addEventListener('click', async () => {
   const noteEntry = currentLogs.find(e => e.id === activeNoteEntryId);
   if(!noteEntry) return;
   noteEntry.nextNote = prevNoteEditInput.value.trim();
-  await saveLogs();
+  await syncLogChanges([noteEntry], []);
   refreshPrevNoteBanner();
 });
 
@@ -3818,7 +3818,7 @@ prevNoteDeleteBtn.addEventListener('click', () => {
   if(!noteEntry) return;
   showConfirmModal('메모 삭제', '이 메모를 삭제할까요?', async () => {
     noteEntry.nextNote = '';
-    await saveLogs();
+    await syncLogChanges([noteEntry], []);
     refreshPrevNoteBanner();
   }, '삭제');
 });
@@ -4183,6 +4183,74 @@ confirmModal.addEventListener('click', (ev) => {
 });
 
 function logKey(memberId){ return 'workout-log:' + memberId; }
+
+/* ---------- 운동 일지 저장 방식: 일지 한 개당 문서 한 개 (예전엔 전체를 한 덩어리로 저장했음) ---------- */
+function logsCollection(memberId){
+  return db.collection('users').doc(memberId).collection('logs');
+}
+
+async function loadLogsForMember(memberId){
+  const snap = await logsCollection(memberId).get();
+  return snap.docs.map(d => d.data());
+}
+
+/* entriesToSave: 새로 만들었거나 바뀐 일지들, idsToDelete: 삭제된 일지 id들.
+   바뀐 것만 정확히 골라서 쓰기 때문에, 기록이 아무리 많이 쌓여도 매번 전체를 다시 쓰지 않는다. */
+async function syncLogChanges(entriesToSave, idsToDelete){
+  try{
+    const batch = db.batch();
+    (entriesToSave || []).forEach(entry => {
+      batch.set(logsCollection(currentMemberId).doc(entry.id), entry);
+    });
+    (idsToDelete || []).forEach(id => {
+      batch.delete(logsCollection(currentMemberId).doc(id));
+    });
+    await batch.commit();
+    return true;
+  }catch(err){
+    console.error('일지 저장 오류:', err);
+    return false;
+  }
+}
+
+async function deleteAllLogsForMember(memberId){
+  const snap = await logsCollection(memberId).get();
+  const docs = snap.docs;
+  for(let i = 0; i < docs.length; i += 450){
+    const chunk = docs.slice(i, i + 450);
+    const batch = db.batch();
+    chunk.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+  }
+}
+
+/* 예전 방식(하나의 큰 덩어리)으로 저장된 회원이면, 한 번만 새 구조로 옮겨준다. */
+async function migrateLogsIfNeeded(memberId){
+  const migratedFlag = await storageGetWithRetry('logs-migrated:' + memberId, false);
+  if(migratedFlag && migratedFlag.value === 'true') return;
+
+  try{
+    const oldResult = await storageGetWithRetry(logKey(memberId), false);
+    if(oldResult && oldResult.value){
+      const oldLogs = JSON.parse(oldResult.value);
+      if(Array.isArray(oldLogs) && oldLogs.length > 0){
+        for(let i = 0; i < oldLogs.length; i += 450){
+          const chunk = oldLogs.slice(i, i + 450);
+          const batch = db.batch();
+          chunk.forEach(entry => {
+            if(!entry.id) entry.id = Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+            batch.set(logsCollection(memberId).doc(entry.id), entry);
+          });
+          await batch.commit();
+        }
+      }
+    }
+  }catch(err){
+    console.error('일지 마이그레이션 오류:', err);
+    return; // 실패하면 마이그레이션 완료 표시를 하지 않고, 다음에 다시 시도한다
+  }
+  await storageSetWithRetry('logs-migrated:' + memberId, 'true', false);
+}
 
 function pad2(n){ return String(n).padStart(2, '0'); }
 
@@ -5190,8 +5258,8 @@ async function openMember(memberId){
   viewLog.classList.add('active');
 
   try{
-    const result = await storageGetWithRetry(logKey(memberId), false);
-    currentLogs = result ? JSON.parse(result.value) : [];
+    await migrateLogsIfNeeded(memberId);
+    currentLogs = await loadLogsForMember(memberId);
   }catch(err){
     currentLogs = [];
   }
@@ -5574,11 +5642,13 @@ function renderDayDetail(){
 }
 
 async function deleteDayEntries(dateStr){
+  const idsToDelete = currentLogs.filter(e => e.date === dateStr).map(e => e.id);
   currentLogs = currentLogs.filter(e => e.date !== dateStr);
   if(selectedDetailDate === dateStr) selectedDetailDate = null;
   renderCalendar();
   renderDayDetail();
-  await saveLogs();
+  const ok = await syncLogChanges([], idsToDelete);
+  if(!ok) showCopyToast('삭제에 실패했어요. 잠시 후 다시 시도해주세요.');
 }
 
 /* ---------- 날짜 단위 일지 복사 · 붙여넣기 ---------- */
@@ -5628,19 +5698,21 @@ function pasteDayClipboard(targetDate){
     '일지 붙여넣기',
     `${formatDate(sourceDate)} 일지(${count}개 종목)를 ${formatDate(targetDate)}에 붙여넣을까요?${warning}`,
     async () => {
-      dayClipboard.entries.forEach(entryTemplate => {
+      const newEntries = dayClipboard.entries.map(entryTemplate => {
         const newId = Date.now().toString(36) + Math.random().toString(36).slice(2,6) + Math.random().toString(36).slice(2,4);
-        currentLogs.push({
+        return {
           ...JSON.parse(JSON.stringify(entryTemplate)),
           id: newId,
           date: targetDate,
           sessionNo: null,
-        });
+        };
       });
+      newEntries.forEach(e => currentLogs.push(e));
       dayClipboard = null;
       updateClipboardBanner();
       selectedDetailDate = targetDate;
-      await saveLogs();
+      const ok = await syncLogChanges(newEntries, []);
+      if(!ok) showCopyToast('붙여넣기 저장에 실패했어요. 잠시 후 다시 시도해주세요.');
       renderCalendar();
       renderDayDetail();
       showCopyToast('일지를 붙여넣었어요.');
@@ -5734,16 +5806,12 @@ calSwipeArea.addEventListener('touchcancel', () => {
   swipeTracking = false;
 }, { passive: true });
 
-async function saveLogs(){
-  const ok = await storageSetWithRetry(logKey(currentMemberId), JSON.stringify(currentLogs), false);
-  if(!ok) showCopyToast('일지 저장에 실패했어요. 잠시 후 다시 시도해주세요.');
-}
-
 async function deleteLogEntry(id){
   currentLogs = currentLogs.filter(e => e.id !== id);
   renderCalendar();
   renderDayDetail();
-  await saveLogs();
+  const ok = await syncLogChanges([], [id]);
+  if(!ok) showCopyToast('삭제에 실패했어요. 잠시 후 다시 시도해주세요.');
 }
 
 /* ---------- 새 일지 작성 화면 (View 3) ---------- */
@@ -6113,14 +6181,19 @@ async function addLogEntry(opts){
   }
 
   // 수정 모드: 이 날짜에 있던 기록 중, 화면에 더 이상 없는(사용자가 삭제한) 항목은 실제로 삭제
+  let deletedIds = [];
   if(entryMode === 'edit' && entryEditDate){
     const presentEditIds = new Set(
       blocks.map(b => b.getAttribute('data-edit-id')).filter(Boolean)
     );
+    deletedIds = currentLogs
+      .filter(e => e.date === entryEditDate && !presentEditIds.has(e.id))
+      .map(e => e.id);
     currentLogs = currentLogs.filter(e => !(e.date === entryEditDate && !presentEditIds.has(e.id)));
   }
 
   let addedAny = false;
+  const savedEntries = [];
 
   blocks.forEach(block => {
     const exercise = block.querySelector('.exercise-name-input').value.trim();
@@ -6156,20 +6229,25 @@ async function addLogEntry(opts){
     };
 
     const editId = block.getAttribute('data-edit-id');
+    let finalEntry;
     if(editId){
       const target = currentLogs.find(e => e.id === editId);
       if(target){
         Object.assign(target, entryData);
+        finalEntry = target;
       } else {
         const newId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-        currentLogs.push({ id: newId, ...entryData });
+        finalEntry = { id: newId, ...entryData };
+        currentLogs.push(finalEntry);
         block.setAttribute('data-edit-id', newId);
       }
     } else {
       const newId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-      currentLogs.push({ id: newId, ...entryData });
+      finalEntry = { id: newId, ...entryData };
+      currentLogs.push(finalEntry);
       block.setAttribute('data-edit-id', newId);
     }
+    savedEntries.push(finalEntry);
     addedAny = true;
   });
 
@@ -6179,7 +6257,8 @@ async function addLogEntry(opts){
     await copyDateToClipboard(dateVal);
   }
 
-  await saveLogs();
+  const ok = await syncLogChanges(savedEntries, deletedIds);
+  if(!ok) showCopyToast('일지 저장에 실패했어요. 잠시 후 다시 시도해주세요.');
   selectedDetailDate = dateVal;
 
   // 저장 후에는 이 날짜를 계속 "수정" 상태로 취급해서, 화면에 머무는 동안 이어서 저장해도
@@ -6763,6 +6842,7 @@ accountWithdrawBtn.addEventListener('click', () => {
                 await db.collection('usernames').doc(usernameDocId(myId)).delete();
               }
             }
+            await deleteAllLogsForMember(uid);
             await db.collection('users').doc(uid).delete();
           }catch(err){
             console.error('탈퇴 데이터 정리 오류:', err);
@@ -6823,15 +6903,8 @@ async function loadAdminMemberList(){
     const info = docSnap.data();
     let recordCount = 0;
     try{
-      const userDoc = await db.collection('users').doc(info.uid).get();
-      if(userDoc.exists){
-        const data = userDoc.data().data || {};
-        const logRaw = data[`workout-log:${info.uid}`];
-        if(logRaw){
-          const parsed = JSON.parse(logRaw);
-          recordCount = new Set(parsed.map(e => e.date)).size;
-        }
-      }
+      const logsSnap = await logsCollection(info.uid).get();
+      recordCount = new Set(logsSnap.docs.map(d => d.data().date)).size;
     }catch(err){
       console.error('회원 기록 조회 오류:', id, err);
     }
@@ -6875,6 +6948,7 @@ async function loadAdminMemberList(){
         `"${row.id}" 님의 저장된 운동 기록·사진 등 모든 데이터를 삭제할까요? 로그인 계정 자체는 남아있어요. 이 작업은 되돌릴 수 없어요.`,
         async () => {
           try{
+            await deleteAllLogsForMember(row.uid);
             await db.collection('users').doc(row.uid).delete();
             await db.collection('usernames').doc(row.id).delete();
             showCopyToast('회원 데이터를 삭제했어요.');
