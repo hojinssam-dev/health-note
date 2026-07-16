@@ -2233,6 +2233,10 @@
     margin-bottom: 20px;
     white-space: pre-line;
   }
+  #emailReminderModal .modal-sub{
+    font-size: 15px;
+    text-align: justify;
+  }
   .modal-actions{
     display:flex;
     flex-direction:column;
@@ -3652,7 +3656,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '1.5.2';
+const APP_VERSION = '1.5.3';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4116,6 +4120,7 @@ const photoFullscreenCloseBtn = document.getElementById('photoFullscreenCloseBtn
 let fsScale = 1, fsPanX = 0, fsPanY = 0;
 let fsStartDist = 0, fsStartScale = 1;
 let fsStartPanX = 0, fsStartPanY = 0, fsStartTouchX = 0, fsStartTouchY = 0;
+let fsPinchMidX = 0, fsPinchMidY = 0;
 let fsIsPanning = false;
 let fsLastTapTime = 0;
 
@@ -4145,11 +4150,23 @@ function fsTouchDist(touches){
   const dy = touches[0].clientY - touches[1].clientY;
   return Math.sqrt(dx*dx + dy*dy);
 }
+function fsTouchMid(touches, rect){
+  return {
+    x: (touches[0].clientX + touches[1].clientX) / 2 - rect.left,
+    y: (touches[0].clientY + touches[1].clientY) / 2 - rect.top,
+  };
+}
 
 photoFullscreenViewport.addEventListener('touchstart', (e) => {
   if(e.touches.length === 2){
+    const rect = photoFullscreenViewport.getBoundingClientRect();
     fsStartDist = fsTouchDist(e.touches);
     fsStartScale = fsScale;
+    fsStartPanX = fsPanX;
+    fsStartPanY = fsPanY;
+    const mid = fsTouchMid(e.touches, rect);
+    fsPinchMidX = mid.x;
+    fsPinchMidY = mid.y;
   } else if(e.touches.length === 1){
     fsIsPanning = true;
     fsStartTouchX = e.touches[0].clientX;
@@ -4162,8 +4179,21 @@ photoFullscreenViewport.addEventListener('touchstart', (e) => {
 photoFullscreenViewport.addEventListener('touchmove', (e) => {
   if(e.touches.length === 2){
     e.preventDefault();
+    const rect = photoFullscreenViewport.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
     const dist = fsTouchDist(e.touches);
-    fsScale = Math.min(Math.max(fsStartScale * (dist / fsStartDist), 1), 5);
+    const newScale = Math.min(Math.max(fsStartScale * (dist / fsStartDist), 1), 5);
+
+    // 손가락 벌리기 시작 지점 아래에 있던 사진 속 지점이, 확대된 뒤에도 계속 그 손가락 아래에 있도록 이동값을 보정
+    const contentX = (fsPinchMidX - centerX - fsStartPanX) / fsStartScale;
+    const contentY = (fsPinchMidY - centerY - fsStartPanY) / fsStartScale;
+    const mid = fsTouchMid(e.touches, rect);
+
+    fsPanX = mid.x - centerX - newScale * contentX;
+    fsPanY = mid.y - centerY - newScale * contentY;
+    fsScale = newScale;
     applyFsTransform();
   } else if(e.touches.length === 1 && fsIsPanning && fsScale > 1){
     e.preventDefault();
