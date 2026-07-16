@@ -2047,6 +2047,7 @@
     border-radius: var(--radius-s);
     background: #000;
     display:block;
+    cursor: zoom-in;
   }
   .photo-lightbox-meta{
     font-family: 'IBM Plex Mono', monospace;
@@ -2054,6 +2055,48 @@
     color: var(--brass-bright);
     margin: 10px 0 4px;
     text-align:center;
+  }
+
+  .photo-fullscreen-overlay{
+    display:none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: #000;
+  }
+  .photo-fullscreen-overlay.open{ display:block; }
+  .photo-fullscreen-viewport{
+    position: absolute;
+    inset: 0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow: hidden;
+    touch-action: none;
+  }
+  .photo-fullscreen-viewport img{
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    transform-origin: center;
+    will-change: transform;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+  .photo-fullscreen-close{
+    position: absolute;
+    top: max(16px, env(safe-area-inset-top));
+    right: 16px;
+    z-index: 1001;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(35,44,41,0.8);
+    border: 1px solid var(--line);
+    color: var(--chalk);
+    font-size: 22px;
+    line-height: 1;
+    cursor:pointer;
   }
 
   /* Dynamic set rows within an exercise block */
@@ -3288,6 +3331,13 @@
         <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
       </button>
     </div>
+    <div class="password-field-wrap" id="promptModalInput3Wrap" style="display:none;">
+      <input id="promptModalInput3" class="modal-input" type="text">
+      <button type="button" class="password-toggle-btn" data-target="promptModalInput3" title="비밀번호 보기" style="display:none;">
+        <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+      </button>
+    </div>
     <div class="login-error" id="promptModalError" style="display:none;"></div>
     <div class="modal-actions">
       <button class="modal-btn modal-btn-primary" id="promptModalSubmitBtn">확인</button>
@@ -3420,6 +3470,17 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="emailReminderModal">
+  <div class="modal-box">
+    <div class="modal-title">이메일 등록을 해주세요</div>
+    <div class="modal-sub">아이디·비밀번호를 잊어버렸을 때 찾을 수 있어요.<br>화면 좌측 상단 설정 아이콘(⚙)을 누르고, "내 계정"에서 복구 이메일을 등록할 수 있어요.</div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-primary" id="emailReminderCloseBtn">닫기</button>
+      <button class="modal-btn" id="emailReminderDismissTodayBtn">오늘은 그만 보기</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="photoLightbox">
   <div class="photo-lightbox-box">
     <img id="photoLightboxImg" src="" alt="사진">
@@ -3428,6 +3489,13 @@
       <button class="modal-btn modal-btn-danger" id="photoLightboxDeleteBtn">사진 삭제</button>
       <button class="modal-btn" id="photoLightboxCloseBtn">닫기</button>
     </div>
+  </div>
+</div>
+
+<div class="photo-fullscreen-overlay" id="photoFullscreenViewer">
+  <button type="button" class="photo-fullscreen-close" id="photoFullscreenCloseBtn">×</button>
+  <div class="photo-fullscreen-viewport" id="photoFullscreenViewport">
+    <img id="photoFullscreenImg" src="" alt="사진 크게 보기">
   </div>
 </div>
 
@@ -3584,7 +3652,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.2';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4030,14 +4098,103 @@ photoLightbox.addEventListener('click', (ev) => {
 photoLightboxDeleteBtn.addEventListener('click', () => {
   const id = lightboxPhotoId;
   if(!id) return;
+  closePhotoLightbox();
   showConfirmModal('사진 삭제', '이 사진을 삭제할까요?', async () => {
     currentBodyPhotos = currentBodyPhotos.filter(p => p.id !== id);
-    closePhotoLightbox();
     renderBodyPhotos();
     const ok = await storageSetWithRetry(photoKey(currentMemberId), JSON.stringify(currentBodyPhotos), false);
     if(!ok) showCopyToast('삭제 내용을 저장하지 못했어요. 다시 시도해주세요.');
   });
 });
+
+/* ---------- 사진 전체화면 보기 (핀치줌/팬) ---------- */
+const photoFullscreenViewer = document.getElementById('photoFullscreenViewer');
+const photoFullscreenImg = document.getElementById('photoFullscreenImg');
+const photoFullscreenViewport = document.getElementById('photoFullscreenViewport');
+const photoFullscreenCloseBtn = document.getElementById('photoFullscreenCloseBtn');
+
+let fsScale = 1, fsPanX = 0, fsPanY = 0;
+let fsStartDist = 0, fsStartScale = 1;
+let fsStartPanX = 0, fsStartPanY = 0, fsStartTouchX = 0, fsStartTouchY = 0;
+let fsIsPanning = false;
+let fsLastTapTime = 0;
+
+function applyFsTransform(){
+  photoFullscreenImg.style.transform = `translate(${fsPanX}px, ${fsPanY}px) scale(${fsScale})`;
+}
+
+function openPhotoFullscreen(){
+  if(!photoLightboxImg.src) return;
+  photoFullscreenImg.src = photoLightboxImg.src;
+  fsScale = 1; fsPanX = 0; fsPanY = 0;
+  applyFsTransform();
+  photoFullscreenViewer.classList.add('open');
+}
+function closePhotoFullscreen(){
+  photoFullscreenViewer.classList.remove('open');
+  photoFullscreenImg.src = '';
+}
+photoLightboxImg.addEventListener('click', openPhotoFullscreen);
+photoFullscreenCloseBtn.addEventListener('click', closePhotoFullscreen);
+photoFullscreenViewer.addEventListener('click', (ev) => {
+  if(ev.target === photoFullscreenViewer) closePhotoFullscreen();
+});
+
+function fsTouchDist(touches){
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx*dx + dy*dy);
+}
+
+photoFullscreenViewport.addEventListener('touchstart', (e) => {
+  if(e.touches.length === 2){
+    fsStartDist = fsTouchDist(e.touches);
+    fsStartScale = fsScale;
+  } else if(e.touches.length === 1){
+    fsIsPanning = true;
+    fsStartTouchX = e.touches[0].clientX;
+    fsStartTouchY = e.touches[0].clientY;
+    fsStartPanX = fsPanX;
+    fsStartPanY = fsPanY;
+  }
+}, { passive: true });
+
+photoFullscreenViewport.addEventListener('touchmove', (e) => {
+  if(e.touches.length === 2){
+    e.preventDefault();
+    const dist = fsTouchDist(e.touches);
+    fsScale = Math.min(Math.max(fsStartScale * (dist / fsStartDist), 1), 5);
+    applyFsTransform();
+  } else if(e.touches.length === 1 && fsIsPanning && fsScale > 1){
+    e.preventDefault();
+    fsPanX = fsStartPanX + (e.touches[0].clientX - fsStartTouchX);
+    fsPanY = fsStartPanY + (e.touches[0].clientY - fsStartTouchY);
+    applyFsTransform();
+  }
+}, { passive: false });
+
+photoFullscreenViewport.addEventListener('touchend', (e) => {
+  if(e.touches.length > 0) return;
+  fsIsPanning = false;
+
+  const now = Date.now();
+  if(now - fsLastTapTime < 300){
+    // 더블탭: 확대되어 있으면 원래대로, 아니면 2배로 확대
+    if(fsScale > 1){
+      fsScale = 1; fsPanX = 0; fsPanY = 0;
+    } else {
+      fsScale = 2;
+    }
+    applyFsTransform();
+    fsLastTapTime = 0;
+  } else {
+    fsLastTapTime = now;
+    if(fsScale <= 1){
+      fsScale = 1; fsPanX = 0; fsPanY = 0;
+      applyFsTransform();
+    }
+  }
+}, { passive: true });
 
 const WEEKDAY_NAMES = ['일','월','화','수','목','금','토'];
 let currentMemberId = null;
@@ -5064,12 +5221,10 @@ function makeBlock(){
       });
     }
     row.querySelector('.remove-set-btn').addEventListener('click', () => {
-      if(setRowsEl.children.length > 1){
-        row.remove();
-        renumberSets();
-        updateSummary();
-        updatePrevRowHints();
-      }
+      row.remove();
+      renumberSets();
+      updateSummary();
+      updatePrevRowHints();
     });
     renumberSets();
     updateSummary();
@@ -5305,6 +5460,31 @@ async function checkFeatureAnnouncement(){
 featureAnnounceCloseBtn.addEventListener('click', async () => {
   featureAnnounceModal.classList.remove('open');
   await storageSetWithRetry(FEATURE_ANNOUNCE_KEY, 'true', false);
+});
+
+/* ---------- 복구 이메일 등록 안내 팝업 (등록 전까지 매번 노출, '오늘은 그만 보기' 선택 시 당일만 숨김) ---------- */
+const emailReminderModal = document.getElementById('emailReminderModal');
+const emailReminderCloseBtn = document.getElementById('emailReminderCloseBtn');
+const emailReminderDismissTodayBtn = document.getElementById('emailReminderDismissTodayBtn');
+const EMAIL_REMINDER_DISMISS_KEY = 'email-reminder-dismissed-date';
+
+function checkEmailReminder(){
+  const currentEmail = auth.currentUser ? auth.currentUser.email : '';
+  const hasRealEmail = currentEmail && !currentEmail.endsWith('@ptdiary.app');
+  if(hasRealEmail) return;
+
+  let dismissedDate = null;
+  try{ dismissedDate = localStorage.getItem(EMAIL_REMINDER_DISMISS_KEY); }catch(err){}
+  if(dismissedDate === todayStr()) return;
+
+  emailReminderModal.classList.add('open');
+}
+emailReminderCloseBtn.addEventListener('click', () => {
+  emailReminderModal.classList.remove('open');
+});
+emailReminderDismissTodayBtn.addEventListener('click', () => {
+  emailReminderModal.classList.remove('open');
+  try{ localStorage.setItem(EMAIL_REMINDER_DISMISS_KEY, todayStr()); }catch(err){}
 });
 
 /* ---------- 튜토리얼 ---------- */
@@ -6419,6 +6599,7 @@ async function enterMemberHome(){
   }
   pendingSignupUsername = null;
   await openMember(member.id);
+  checkEmailReminder();
   if(isNewMember){
     showTutorialView();
   } else {
@@ -6550,6 +6731,7 @@ const promptModalTitle = document.getElementById('promptModalTitle');
 const promptModalSub = document.getElementById('promptModalSub');
 const promptModalInput1 = document.getElementById('promptModalInput1');
 const promptModalInput2 = document.getElementById('promptModalInput2');
+const promptModalInput3 = document.getElementById('promptModalInput3');
 const promptModalError = document.getElementById('promptModalError');
 const promptModalSubmitBtn = document.getElementById('promptModalSubmitBtn');
 const promptModalCancelBtn = document.getElementById('promptModalCancelBtn');
@@ -6564,8 +6746,12 @@ function openPromptModal({ title, sub, fields, submitLabel, onSubmit }){
   promptModalSubmitBtn.textContent = submitLabel || '확인';
   promptModalSubmitBtn.disabled = false;
 
-  const inputs = [promptModalInput1, promptModalInput2];
-  const wraps = [document.getElementById('promptModalInput1Wrap'), document.getElementById('promptModalInput2Wrap')];
+  const inputs = [promptModalInput1, promptModalInput2, promptModalInput3];
+  const wraps = [
+    document.getElementById('promptModalInput1Wrap'),
+    document.getElementById('promptModalInput2Wrap'),
+    document.getElementById('promptModalInput3Wrap'),
+  ];
   inputs.forEach((input, i) => {
     const f = fields[i];
     const wrap = wraps[i];
@@ -6603,7 +6789,7 @@ promptModalSubmitBtn.addEventListener('click', async () => {
   promptModalError.style.display = 'none';
   promptModalSubmitBtn.disabled = true;
   try{
-    await promptModalOnSubmit(promptModalInput1.value.trim(), promptModalInput2.value.trim());
+    await promptModalOnSubmit(promptModalInput1.value.trim(), promptModalInput2.value.trim(), promptModalInput3.value.trim());
   }catch(err){
     promptModalError.textContent = (err && err.message) || '오류가 발생했어요. 다시 시도해주세요.';
     promptModalError.style.display = 'block';
@@ -6762,11 +6948,13 @@ accountChangePasswordBtn.addEventListener('click', () => {
     fields: [
       { type: 'password', placeholder: '현재 비밀번호', autocomplete: 'current-password' },
       { type: 'password', placeholder: '새 비밀번호 (6자리 이상)', autocomplete: 'new-password' },
+      { type: 'password', placeholder: '새 비밀번호 확인', autocomplete: 'new-password' },
     ],
     submitLabel: '변경하기',
-    onSubmit: async (currentPassword, newPassword) => {
+    onSubmit: async (currentPassword, newPassword, newPasswordConfirm) => {
       if(!currentPassword) throw new Error('현재 비밀번호를 입력해주세요.');
       if(!newPassword || newPassword.length < 6) throw new Error('새 비밀번호는 6자리 이상이어야 해요.');
+      if(newPassword !== newPasswordConfirm) throw new Error('비밀번호가 일치하지 않아요.');
       try{
         await reauthenticate(currentPassword);
       }catch(err){
