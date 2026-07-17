@@ -1883,6 +1883,15 @@
     border-radius: 20px;
     padding: 3px 10px;
   }
+  .day-detail-time{
+    margin-left: auto;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: normal;
+    color: var(--muted);
+    white-space: nowrap;
+  }
   .day-detail .log-entry{ background: var(--surface-raised); }
   .day-detail-actions{
     display:flex;
@@ -3656,7 +3665,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.2';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4473,11 +4482,15 @@ async function loadMonthLogs(memberId, year, month){
 /* ---------- 총 기록일 수: 매번 전체를 다시 세지 않고, 값 하나만 유지·갱신 ---------- */
 async function ensureTotalWorkoutDaysInitialized(memberId){
   const flag = await storageGetWithRetry('total-days-initialized:' + memberId, false);
-  if(flag && flag.value === 'true') return;
+  if(flag && flag.value === 'true'){
+    const userDoc = await db.collection('users').doc(memberId).get();
+    return (userDoc.exists && typeof userDoc.data().totalWorkoutDays === 'number') ? userDoc.data().totalWorkoutDays : 0;
+  }
   const allLogs = await loadLogsForMember(memberId); // 이 초기 계산 이후로는 전체를 다시 읽지 않는다
   const totalDays = new Set(allLogs.map(e => e.date)).size;
   await db.collection('users').doc(memberId).set({ totalWorkoutDays: totalDays }, { merge: true });
   await storageSetWithRetry('total-days-initialized:' + memberId, 'true', false);
+  return totalDays;
 }
 
 /* 지금 이 날짜에 대해, 화면(로드된 달)에 기록이 남아있는지 확인 (이 날짜가 속한 달은 항상 로드되어 있다고 가정) */
@@ -5499,43 +5512,38 @@ async function openMember(memberId){
   viewLog.classList.add('active');
 
   try{
-    await migrateLogsIfNeeded(memberId);
-    await ensureTotalWorkoutDaysInitialized(memberId);
-    const userDoc = await db.collection('users').doc(memberId).get();
-    member.totalWorkoutDays = (userDoc.exists && typeof userDoc.data().totalWorkoutDays === 'number')
-      ? userDoc.data().totalWorkoutDays : 0;
+    await migrateLogsIfNeeded(memberId); // 아직 새 구조로 안 옮겨진 회원이면, 나머지 조회 전에 먼저 끝나야 함
     loadedMonthsCache = {};
     currentLogs = [];
-    await loadMonthLogs(memberId, calViewDate.getFullYear(), calViewDate.getMonth());
-    // '이번 주' 집계가 달 경계에 걸쳐도 정확하도록 지난달도 같이 불러온다
     const prevMonthDate = new Date(calViewDate.getFullYear(), calViewDate.getMonth() - 1, 1);
-    await loadMonthLogs(memberId, prevMonthDate.getFullYear(), prevMonthDate.getMonth());
+    // 서로 상관없는 조회들은 순서대로 기다리지 않고 한 번에 동시에 실행해서 로딩 시간을 줄인다
+    const [totalDays] = await Promise.all([
+      ensureTotalWorkoutDaysInitialized(memberId),
+      loadMonthLogs(memberId, calViewDate.getFullYear(), calViewDate.getMonth()),
+      // '이번 주' 집계가 달 경계에 걸쳐도 정확하도록 지난달도 같이 불러온다
+      loadMonthLogs(memberId, prevMonthDate.getFullYear(), prevMonthDate.getMonth()),
+    ]);
+    member.totalWorkoutDays = totalDays;
   }catch(err){
     currentLogs = [];
   }
 
   updateMemberInfoBar(member);
   renderWeekCountBadge(logWeekCountBadge);
-
-  try{
-    const photoResult = await storageGetWithRetry(photoKey(memberId), false);
-    currentBodyPhotos = photoResult ? JSON.parse(photoResult.value) : [];
-  }catch(err){
-    currentBodyPhotos = [];
-  }
-  bodyPhotosPanel.style.display = 'none';
-  bodyPhotosTabArrow.classList.remove('open');
-  renderBodyPhotos();
-
-  try{
-    const dismissedResult = await storageGetWithRetry(dismissedNoteKey(memberId), false);
-    dismissedNoteId = dismissedResult ? dismissedResult.value : null;
-  }catch(err){
-    dismissedNoteId = null;
-  }
-
   renderCalendar();
   renderDayDetail();
+
+  // 사진·메모는 달력과 상관없는 정보라, 달력을 먼저 그린 뒤 뒤에서 따로(동시에) 불러온다
+  bodyPhotosPanel.style.display = 'none';
+  bodyPhotosTabArrow.classList.remove('open');
+  Promise.all([
+    storageGetWithRetry(photoKey(memberId), false).catch(() => null),
+    storageGetWithRetry(dismissedNoteKey(memberId), false).catch(() => null),
+  ]).then(([photoResult, dismissedResult]) => {
+    currentBodyPhotos = photoResult ? JSON.parse(photoResult.value) : [];
+    renderBodyPhotos();
+    dismissedNoteId = dismissedResult ? dismissedResult.value : null;
+  });
 }
 
 /* ---------- 새 기능 안내 팝업 (한 번만 표시) ---------- */
@@ -5850,12 +5858,18 @@ async function renderDayDetail(){
   }
 
   const comparisons = await Promise.all(entries.map(e => getComparison(e, selectedDetailDate)));
+  const dayStartTime = entries[0].startTime;
+  const dayEndTime = entries[0].endTime;
+  const dayTimeText = (dayStartTime || dayEndTime)
+    ? `${dayStartTime ? formatTimeAMPM(dayStartTime) : '--:--'} ~ ${dayEndTime ? formatTimeAMPM(dayEndTime) : '--:--'}`
+    : '';
 
   dayDetail.innerHTML = `
     <div class="day-detail">
       <div class="day-detail-label">
         ${formatDate(selectedDetailDate)}
         ${entries[0].sessionNo ? `<span class="pt-session-badge">PT ${entries[0].sessionNo}${entries[0].ptTotal ? '/' + entries[0].ptTotal : ''}회</span>` : ''}
+        ${dayTimeText ? `<span class="day-detail-time">${dayTimeText}</span>` : ''}
       </div>
       ${entries.map((e, i) => {
         const c = colorForEntry(e);
