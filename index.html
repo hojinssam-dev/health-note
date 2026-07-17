@@ -3665,7 +3665,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '1.6.2';
+const APP_VERSION = '1.6.3';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4424,29 +4424,44 @@ async function deleteAllLogsForMember(memberId){
 /* 예전 방식(하나의 큰 덩어리)으로 저장된 회원이면, 한 번만 새 구조로 옮겨준다. */
 async function migrateLogsIfNeeded(memberId){
   const migratedFlag = await storageGetWithRetry('logs-migrated:' + memberId, false);
-  if(migratedFlag && migratedFlag.value === 'true') return;
-
-  try{
-    const oldResult = await storageGetWithRetry(logKey(memberId), false);
-    if(oldResult && oldResult.value){
-      const oldLogs = JSON.parse(oldResult.value);
-      if(Array.isArray(oldLogs) && oldLogs.length > 0){
-        for(let i = 0; i < oldLogs.length; i += 450){
-          const chunk = oldLogs.slice(i, i + 450);
-          const batch = db.batch();
-          chunk.forEach(entry => {
-            if(!entry.id) entry.id = Date.now().toString(36) + Math.random().toString(36).slice(2,8);
-            batch.set(logsCollection(memberId).doc(entry.id), entry);
-          });
-          await batch.commit();
+  if(!migratedFlag || migratedFlag.value !== 'true'){
+    try{
+      const oldResult = await storageGetWithRetry(logKey(memberId), false);
+      if(oldResult && oldResult.value){
+        const oldLogs = JSON.parse(oldResult.value);
+        if(Array.isArray(oldLogs) && oldLogs.length > 0){
+          for(let i = 0; i < oldLogs.length; i += 450){
+            const chunk = oldLogs.slice(i, i + 450);
+            const batch = db.batch();
+            chunk.forEach(entry => {
+              if(!entry.id) entry.id = Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+              batch.set(logsCollection(memberId).doc(entry.id), entry);
+            });
+            await batch.commit();
+          }
         }
       }
+    }catch(err){
+      console.error('일지 마이그레이션 오류:', err);
+      return; // 실패하면 마이그레이션 완료 표시를 하지 않고, 다음에 다시 시도한다
     }
-  }catch(err){
-    console.error('일지 마이그레이션 오류:', err);
-    return; // 실패하면 마이그레이션 완료 표시를 하지 않고, 다음에 다시 시도한다
+    await storageSetWithRetry('logs-migrated:' + memberId, 'true', false);
   }
-  await storageSetWithRetry('logs-migrated:' + memberId, 'true', false);
+
+  // 예전 방식으로 저장돼 있던 통짜 데이터는 이제 안 쓰니까 지운다. (마이그레이션이 이번에 됐든, 예전에 이미 됐는데
+  // 아직 안 지워졌든 상관없이 한 번은 꼭 실행됨) 안 지우면 회원 문서에 계속 남아서, 사소한 설정 하나
+  // 읽고 쓸 때도 매번 이 큰 데이터까지 같이 오가며 느려진다.
+  const cleanedFlag = await storageGetWithRetry('old-log-cleaned:' + memberId, false);
+  if(!cleanedFlag || cleanedFlag.value !== 'true'){
+    try{
+      await db.collection('users').doc(memberId).update({
+        [`data.${logKey(memberId)}`]: firebase.firestore.FieldValue.delete(),
+      });
+    }catch(err){
+      console.error('예전 일지 데이터 정리 오류:', err);
+    }
+    await storageSetWithRetry('old-log-cleaned:' + memberId, 'true', false);
+  }
 }
 
 function pad2(n){ return String(n).padStart(2, '0'); }
