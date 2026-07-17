@@ -3665,7 +3665,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '1.6.3';
+const APP_VERSION = '1.6.4';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4506,6 +4506,29 @@ async function ensureTotalWorkoutDaysInitialized(memberId){
   await db.collection('users').doc(memberId).set({ totalWorkoutDays: totalDays }, { merge: true });
   await storageSetWithRetry('total-days-initialized:' + memberId, 'true', false);
   return totalDays;
+}
+
+/* '이전 기록 찾기'가 exerciseKey 필드를 기준으로 조회하는데, 이 필드가 생기기 전에 저장된 기존 기록에는
+   이 값이 없어서 찾지 못했다. 한 번만 전체를 읽어서 빠진 기록에 값을 채워 넣는다. */
+async function ensureExerciseKeyBackfilled(memberId){
+  const flag = await storageGetWithRetry('exercisekey-backfilled:' + memberId, false);
+  if(flag && flag.value === 'true') return;
+  try{
+    const allLogs = await loadLogsForMember(memberId);
+    const needsBackfill = allLogs.filter(e => !e.exerciseKey && e.exercise);
+    for(let i = 0; i < needsBackfill.length; i += 450){
+      const chunk = needsBackfill.slice(i, i + 450);
+      const batch = db.batch();
+      chunk.forEach(entry => {
+        batch.update(logsCollection(memberId).doc(entry.id), { exerciseKey: entry.exercise.trim().toLowerCase() });
+      });
+      await batch.commit();
+    }
+  }catch(err){
+    console.error('exerciseKey 채우기 오류:', err);
+    return; // 실패하면 완료 표시를 안 하고 다음에 다시 시도한다
+  }
+  await storageSetWithRetry('exercisekey-backfilled:' + memberId, 'true', false);
 }
 
 /* 지금 이 날짜에 대해, 화면(로드된 달)에 기록이 남아있는지 확인 (이 날짜가 속한 달은 항상 로드되어 있다고 가정) */
@@ -5528,6 +5551,7 @@ async function openMember(memberId){
 
   try{
     await migrateLogsIfNeeded(memberId); // 아직 새 구조로 안 옮겨진 회원이면, 나머지 조회 전에 먼저 끝나야 함
+    ensureExerciseKeyBackfilled(memberId); // 달력 표시와 상관없어서 뒤에서 따로(기다리지 않고) 처리
     loadedMonthsCache = {};
     currentLogs = [];
     const prevMonthDate = new Date(calViewDate.getFullYear(), calViewDate.getMonth() - 1, 1);
