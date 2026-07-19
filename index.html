@@ -2885,8 +2885,8 @@
   <button type="button" class="install-banner-dismiss" id="installDismissBtn" aria-label="닫기">✕</button>
 </div>
 <div class="install-banner" id="updateBanner" style="display:none;">
-  <span class="install-banner-text">새 버전이 나왔어요! 새로고침하면 최신 내용으로 업데이트돼요.</span>
-  <button type="button" class="install-banner-action" id="updateReloadBtn">새로고침</button>
+  <span class="install-banner-text">새 버전이 나왔어요! ⚙ 설정에서 "새 버전 받기"를 눌러주세요.</span>
+  <button type="button" class="install-banner-action" id="updateReloadBtn">새 버전 받기</button>
   <button type="button" class="install-banner-dismiss" id="updateDismissBtn" aria-label="닫기">✕</button>
 </div>
 <div class="rest-timer-done-overlay" id="restTimerDoneOverlay">
@@ -3378,6 +3378,7 @@
     </div>
     <div class="modal-actions">
       <button class="modal-btn" id="settingsMyAccountBtn">내 계정</button>
+      <button class="modal-btn" id="settingsCheckUpdateBtn">새 버전 받기</button>
       <button class="modal-btn" id="settingsTutorialBtn">사용법 튜토리얼 보기</button>
       <button class="modal-btn" id="settingsAdminBtn" style="display:none;">관리자 페이지</button>
       <button class="modal-btn" id="settingsLogoutBtn">로그아웃</button>
@@ -3532,9 +3533,19 @@ let swRegistration = null;
 function showUpdateBanner(){
   updateBanner.style.display = 'flex';
 }
-updateReloadBtn.addEventListener('click', () => {
-  window.location.reload();
-});
+
+/* 자동 감지가 안 됐을 때를 위한 수동 확인: 새 버전이 있는지 직접 확인하고, 있으면 반영해서 새로고침한다 */
+async function checkForNewVersionManually(){
+  showCopyToast('새 버전을 확인하고 있어요...');
+  try{
+    if(swRegistration) await swRegistration.update();
+  }catch(err){
+    console.error('업데이트 확인 오류:', err);
+  }
+  setTimeout(() => { window.location.reload(); }, 800);
+}
+
+updateReloadBtn.addEventListener('click', checkForNewVersionManually);
 updateDismissBtn.addEventListener('click', () => {
   updateBanner.style.display = 'none';
 });
@@ -3676,7 +3687,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.9.0';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -7063,12 +7074,18 @@ settingsModal.addEventListener('click', (ev) => {
 const myAccountModal = document.getElementById('myAccountModal');
 const myAccountCancelBtn = document.getElementById('myAccountCancelBtn');
 const settingsMyAccountBtn = document.getElementById('settingsMyAccountBtn');
+const settingsCheckUpdateBtn = document.getElementById('settingsCheckUpdateBtn');
 const accountIdValue = document.getElementById('accountIdValue');
 const accountRecoveryEmailValue = document.getElementById('accountRecoveryEmailValue');
 const accountChangeIdBtn = document.getElementById('accountChangeIdBtn');
 const accountChangePasswordBtn = document.getElementById('accountChangePasswordBtn');
 const accountRecoveryEmailBtn = document.getElementById('accountRecoveryEmailBtn');
 const accountWithdrawBtn = document.getElementById('accountWithdrawBtn');
+
+settingsCheckUpdateBtn.addEventListener('click', () => {
+  closeSettingsModal();
+  checkForNewVersionManually();
+});
 
 async function reauthenticate(currentPassword){
   const user = auth.currentUser;
