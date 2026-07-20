@@ -2755,6 +2755,24 @@
     letter-spacing: 0.5px;
   }
 
+  .undo-fab{
+    position: fixed;
+    right: 16px;
+    bottom: max(20px, calc(env(safe-area-inset-bottom) + 10px));
+    z-index: 300;
+    background: linear-gradient(160deg, var(--brass-bright), var(--brass));
+    color: #201A0D;
+    border: none;
+    border-radius: 24px;
+    padding: 12px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: 'Noto Sans KR', sans-serif;
+    box-shadow: var(--shadow-md);
+    cursor: pointer;
+  }
+  .undo-fab:active{ transform: scale(0.96); }
+
   .rest-timer-done-overlay{
     display:none;
     position: fixed;
@@ -2889,6 +2907,8 @@
   <button type="button" class="install-banner-action" id="updateReloadBtn">새 버전 받기</button>
   <button type="button" class="install-banner-dismiss" id="updateDismissBtn" aria-label="닫기">✕</button>
 </div>
+<button type="button" class="undo-fab" id="undoFab" style="display:none;">되돌리기</button>
+
 <div class="rest-timer-done-overlay" id="restTimerDoneOverlay">
   <div class="rest-timer-done-box">
     <div>⏱ 타이머가 끝났어요</div>
@@ -3686,7 +3706,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4451,6 +4471,98 @@ async function syncLogChanges(entriesToSave, idsToDelete){
     return false;
   }
 }
+
+/* ---------- 되돌리기 / 원래대로 (스냅샷 방식) ----------
+   각 저장·삭제 작업 전후로, 그 작업이 건드린 일지들의 "이전 상태"와 "이후 상태"를 각각 기록해둔다.
+   되돌리기는 '이전 상태'를 다시 적용하고, 원래대로는 '이후 상태'를 다시 적용한다. */
+let undoSnapshot = null; // { before: {id: entryOrNull}, after: {id: entryOrNull}, memberId }
+let undoMode = 'none'; // 'none' | 'undo' | 'redo'
+
+function captureEntrySnapshot(ids){
+  const map = {};
+  ids.forEach(id => {
+    const entry = currentLogs.find(e => e.id === id);
+    map[id] = entry ? JSON.parse(JSON.stringify(entry)) : null;
+  });
+  return map;
+}
+
+function recordUndoSnapshot(before, after){
+  undoSnapshot = { before, after, memberId: currentMemberId };
+  undoMode = 'undo';
+  updateUndoFab();
+}
+
+async function applyEntrySnapshot(snapshotMap){
+  const affectedDates = new Set();
+  Object.keys(snapshotMap).forEach(id => {
+    const existing = currentLogs.find(e => e.id === id);
+    if(existing) affectedDates.add(existing.date);
+  });
+  Object.values(snapshotMap).forEach(value => {
+    if(value) affectedDates.add(value.date);
+  });
+  const hadEntriesBefore = {};
+  affectedDates.forEach(date => { hadEntriesBefore[date] = dateHasEntries(date); });
+
+  const batch = db.batch();
+  Object.entries(snapshotMap).forEach(([id, value]) => {
+    const ref = logsCollection(currentMemberId).doc(id);
+    if(value === null){
+      batch.delete(ref);
+      currentLogs = currentLogs.filter(e => e.id !== id);
+    } else {
+      batch.set(ref, value);
+      const idx = currentLogs.findIndex(e => e.id === id);
+      if(idx >= 0) currentLogs[idx] = value; else currentLogs.push(value);
+    }
+  });
+
+  try{
+    await batch.commit();
+  }catch(err){
+    console.error('되돌리기 저장 오류:', err);
+    showCopyToast('되돌리기에 실패했어요. 잠시 후 다시 시도해주세요.');
+    return;
+  }
+
+  // 이 작업으로 날짜별 기록 유무가 바뀌었으면 총 기록일 수도 정확히 맞춰준다
+  let delta = 0;
+  affectedDates.forEach(date => {
+    const hasNow = dateHasEntries(date);
+    if(hasNow && !hadEntriesBefore[date]) delta += 1;
+    else if(!hasNow && hadEntriesBefore[date]) delta -= 1;
+  });
+  if(delta !== 0) await adjustTotalWorkoutDays(delta);
+
+  renderCalendar();
+  renderDayDetail();
+}
+
+const undoFab = document.getElementById('undoFab');
+function updateUndoFab(){
+  if(undoMode === 'none' || !undoSnapshot || undoSnapshot.memberId !== currentMemberId){
+    undoFab.style.display = 'none';
+    return;
+  }
+  undoFab.style.display = 'block';
+  undoFab.textContent = undoMode === 'undo' ? '되돌리기' : '원래대로';
+}
+
+undoFab.addEventListener('click', () => {
+  if(!undoSnapshot) return;
+  const isUndo = undoMode === 'undo';
+  showConfirmModal(
+    isUndo ? '되돌리기' : '원래대로',
+    isUndo ? '방금 했던 작업을 되돌릴까요?' : '되돌리기 전 상태로 다시 돌아갈까요?',
+    async () => {
+      await applyEntrySnapshot(isUndo ? undoSnapshot.before : undoSnapshot.after);
+      undoMode = isUndo ? 'redo' : 'undo';
+      updateUndoFab();
+    },
+    isUndo ? '되돌리기' : '원래대로'
+  );
+});
 
 async function deleteAllLogsForMember(memberId){
   const snap = await logsCollection(memberId).get();
@@ -5604,6 +5716,9 @@ async function openMember(memberId){
   if(!member) return;
 
   currentMemberId = memberId;
+  undoSnapshot = null;
+  undoMode = 'none';
+  updateUndoFab();
   logMemberName.textContent = formatDateHintStyle(todayStr());
   calViewDate = new Date();
   selectedDetailDate = null;
@@ -6052,6 +6167,7 @@ async function renderDayDetail(){
 
 async function deleteDayEntries(dateStr){
   const idsToDelete = currentLogs.filter(e => e.date === dateStr).map(e => e.id);
+  const beforeSnapshot = captureEntrySnapshot(idsToDelete);
   currentLogs = currentLogs.filter(e => e.date !== dateStr);
   if(selectedDetailDate === dateStr) selectedDetailDate = null;
   renderCalendar();
@@ -6059,6 +6175,11 @@ async function deleteDayEntries(dateStr){
   const ok = await syncLogChanges([], idsToDelete);
   if(!ok) showCopyToast('삭제에 실패했어요. 잠시 후 다시 시도해주세요.');
   if(idsToDelete.length > 0) await adjustTotalWorkoutDays(-1);
+  if(ok && idsToDelete.length > 0){
+    const afterSnapshot = {};
+    idsToDelete.forEach(id => { afterSnapshot[id] = null; });
+    recordUndoSnapshot(beforeSnapshot, afterSnapshot);
+  }
 }
 
 /* ---------- 날짜 단위 일지 복사 · 붙여넣기 ---------- */
@@ -6126,6 +6247,12 @@ function pasteDayClipboard(targetDate){
       const ok = await syncLogChanges(newEntries, []);
       if(!ok) showCopyToast('붙여넣기 저장에 실패했어요. 잠시 후 다시 시도해주세요.');
       if(existingCount === 0 && newEntries.length > 0) await adjustTotalWorkoutDays(1);
+      if(ok && newEntries.length > 0){
+        const beforeSnapshot = {};
+        const afterSnapshot = {};
+        newEntries.forEach(e => { beforeSnapshot[e.id] = null; afterSnapshot[e.id] = e; });
+        recordUndoSnapshot(beforeSnapshot, afterSnapshot);
+      }
       renderCalendar();
       renderDayDetail();
       showCopyToast('일지를 붙여넣었어요.');
@@ -6223,12 +6350,14 @@ calSwipeArea.addEventListener('touchcancel', () => {
 async function deleteLogEntry(id){
   const target = currentLogs.find(e => e.id === id);
   const dateStr = target ? target.date : null;
+  const beforeSnapshot = captureEntrySnapshot([id]);
   currentLogs = currentLogs.filter(e => e.id !== id);
   renderCalendar();
   renderDayDetail();
   const ok = await syncLogChanges([], [id]);
   if(!ok) showCopyToast('삭제에 실패했어요. 잠시 후 다시 시도해주세요.');
   if(dateStr && !dateHasEntries(dateStr)) await adjustTotalWorkoutDays(-1);
+  if(ok) recordUndoSnapshot(beforeSnapshot, { [id]: null });
 }
 
 /* ---------- 새 일지 작성 화면 (View 3) ---------- */
@@ -6637,8 +6766,17 @@ async function addLogEntry(opts){
     deletedIds = currentLogs
       .filter(e => e.date === entryEditDate && !presentEditIds.has(e.id))
       .map(e => e.id);
-    currentLogs = currentLogs.filter(e => !(e.date === entryEditDate && !presentEditIds.has(e.id)));
   }
+
+  // 되돌리기용: 이 작업이 건드릴 모든 일지의 '이전 상태'를 먼저 기록해둔다 (아직 아무것도 바꾸기 전)
+  const touchedIds = [...deletedIds];
+  blocks.forEach(b => {
+    const id = b.getAttribute('data-edit-id');
+    if(id) touchedIds.push(id);
+  });
+  const beforeSnapshot = captureEntrySnapshot(touchedIds);
+
+  currentLogs = currentLogs.filter(e => !(deletedIds.includes(e.id)));
 
   let addedAny = false;
   const savedEntries = [];
@@ -6711,6 +6849,10 @@ async function addLogEntry(opts){
   const dateHasEntriesAfter = dateHasEntries(dateVal);
   if(dateHasEntriesAfter && !dateHadEntriesBefore) await adjustTotalWorkoutDays(1);
   else if(!dateHasEntriesAfter && dateHadEntriesBefore) await adjustTotalWorkoutDays(-1);
+  if(ok){
+    const allTouchedIds = [...new Set([...touchedIds, ...savedEntries.map(e => e.id)])];
+    recordUndoSnapshot(beforeSnapshot, captureEntrySnapshot(allTouchedIds));
+  }
   selectedDetailDate = dateVal;
 
   // 저장 후에는 이 날짜를 계속 "수정" 상태로 취급해서, 화면에 머무는 동안 이어서 저장해도
