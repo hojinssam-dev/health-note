@@ -3687,7 +3687,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.9.2';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4509,6 +4509,30 @@ async function loadMonthLogs(memberId, year, month){
     .where('date', '<=', end)
     .get();
   loadedMonthsCache[key] = true;
+  const existingIds = new Set(currentLogs.map(e => e.id));
+  snap.docs.forEach(d => {
+    const entry = d.data();
+    if(!existingIds.has(entry.id)) currentLogs.push(entry);
+  });
+}
+
+/* 화면을 최대한 빨리 띄우기 위해, 이번 주 분량만 먼저 빠르게 불러온다 (달 전체는 이 다음에 뒤에서 마저 불러옴) */
+function weekDateRange(date){
+  const dow = date.getDay();
+  const sunday = new Date(date.getFullYear(), date.getMonth(), date.getDate() - dow);
+  const saturday = new Date(sunday.getFullYear(), sunday.getMonth(), sunday.getDate() + 6);
+  return {
+    start: toDateStr(sunday.getFullYear(), sunday.getMonth(), sunday.getDate()),
+    end: toDateStr(saturday.getFullYear(), saturday.getMonth(), saturday.getDate()),
+  };
+}
+
+async function loadWeekLogs(memberId, date){
+  const { start, end } = weekDateRange(date);
+  const snap = await logsCollection(memberId)
+    .where('date', '>=', start)
+    .where('date', '<=', end)
+    .get();
   const existingIds = new Set(currentLogs.map(e => e.id));
   snap.docs.forEach(d => {
     const entry = d.data();
@@ -5347,8 +5371,8 @@ function makeBlock(){
       row.innerHTML = `
         <div class="set-row-main">
           <span class="set-label">세트</span>
-          <input type="number" class="set-minutes swipe-adjustable" min="0" step="1" placeholder="분" value="${data.minutes || ''}">
-          <input type="number" class="set-seconds swipe-adjustable" min="0" max="59" step="1" placeholder="초" value="${data.seconds || ''}">
+          <input type="number" inputmode="numeric" class="set-minutes swipe-adjustable" min="0" step="1" placeholder="분" value="${data.minutes || ''}">
+          <input type="number" inputmode="numeric" class="set-seconds swipe-adjustable" min="0" max="59" step="1" placeholder="초" value="${data.seconds || ''}">
           <button type="button" class="remove-set-btn" title="이 세트 삭제">×</button>
         </div>
         <div class="set-row-prev-hint" style="display:none;">이전 기록이에요</div>
@@ -5360,8 +5384,8 @@ function makeBlock(){
       row.innerHTML = `
         <div class="set-row-main">
           <span class="set-label">세트</span>
-          <input type="number" class="set-weight swipe-adjustable" min="0" step="0.5" placeholder="무게(kg)" value="${data.weight || ''}">
-          <input type="number" class="set-reps swipe-adjustable" min="0" step="1" placeholder="횟수" value="${data.reps || ''}">
+          <input type="number" inputmode="decimal" class="set-weight swipe-adjustable" min="0" step="0.5" placeholder="무게(kg)" value="${data.weight || ''}">
+          <input type="number" inputmode="numeric" class="set-reps swipe-adjustable" min="0" step="1" placeholder="횟수" value="${data.reps || ''}">
           <button type="button" class="set-add-drop-btn" title="드롭세트 추가">+드롭</button>
           <button type="button" class="remove-set-btn" title="이 세트 삭제">×</button>
         </div>
@@ -5547,7 +5571,6 @@ function makeBlock(){
 
 function resetBlocks(){
   exerciseBlocks.innerHTML = '';
-  exerciseBlocks.appendChild(makeBlock());
 }
 
 addExerciseTab.addEventListener('click', () => {
@@ -5576,15 +5599,8 @@ async function openMember(memberId){
     ensureExerciseKeyBackfilled(memberId); // 달력 표시와 상관없어서 뒤에서 따로(기다리지 않고) 처리
     loadedMonthsCache = {};
     currentLogs = [];
-    const prevMonthDate = new Date(calViewDate.getFullYear(), calViewDate.getMonth() - 1, 1);
-    // 서로 상관없는 조회들은 순서대로 기다리지 않고 한 번에 동시에 실행해서 로딩 시간을 줄인다
-    const [totalDays] = await Promise.all([
-      ensureTotalWorkoutDaysInitialized(memberId),
-      loadMonthLogs(memberId, calViewDate.getFullYear(), calViewDate.getMonth()),
-      // '이번 주' 집계가 달 경계에 걸쳐도 정확하도록 지난달도 같이 불러온다
-      loadMonthLogs(memberId, prevMonthDate.getFullYear(), prevMonthDate.getMonth()),
-    ]);
-    member.totalWorkoutDays = totalDays;
+    // 1단계: 이번 주 분량만 먼저 빠르게 불러와서 화면부터 최대한 빨리 그린다
+    await loadWeekLogs(memberId, new Date());
   }catch(err){
     currentLogs = [];
   }
@@ -5593,6 +5609,27 @@ async function openMember(memberId){
   renderWeekCountBadge(logWeekCountBadge);
   renderCalendar();
   renderDayDetail();
+
+  // 2단계: 이번 달 · 지난달 나머지는 화면을 그린 뒤 뒤에서 마저 불러오고, 끝나면 달력을 한 번 더 갱신한다
+  (async () => {
+    try{
+      const prevMonthDate = new Date(calViewDate.getFullYear(), calViewDate.getMonth() - 1, 1);
+      const [totalDays] = await Promise.all([
+        ensureTotalWorkoutDaysInitialized(memberId),
+        loadMonthLogs(memberId, calViewDate.getFullYear(), calViewDate.getMonth()),
+        // '이번 주' 집계가 달 경계에 걸쳐도 정확하도록 지난달도 같이 불러온다
+        loadMonthLogs(memberId, prevMonthDate.getFullYear(), prevMonthDate.getMonth()),
+      ]);
+      if(currentMemberId !== memberId) return; // 그 사이 다른 회원으로 전환됐으면 반영하지 않는다
+      member.totalWorkoutDays = totalDays;
+      updateMemberInfoBar(member);
+      renderWeekCountBadge(logWeekCountBadge);
+      renderCalendar();
+      renderDayDetail();
+    }catch(err){
+      console.error('달 전체 데이터 불러오기 오류:', err);
+    }
+  })();
 
   // 사진·메모는 달력과 상관없는 정보라, 달력을 먼저 그린 뒤 뒤에서 따로(동시에) 불러온다
   bodyPhotosPanel.style.display = 'none';
