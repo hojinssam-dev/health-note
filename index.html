@@ -3482,11 +3482,10 @@
 
 <div class="modal-overlay" id="featureAnnounceModal">
   <div class="modal-box feature-announce-box">
-    <div class="feature-announce-title">휴식 타이머 추가</div>
-    <div class="feature-announce-desc">운동 종목마다<br>"휴식 타이머" 버튼이 생겼어요.</div>
+    <div class="feature-announce-title">자동 저장 기능 추가</div>
+    <div class="feature-announce-desc">20초간 아무 동작 없으면<br>자동저장이 돼요.</div>
     <div class="feature-announce-demo">
-      <div class="feature-announce-demo-btn">휴식 타이머</div>
-      <div class="feature-announce-demo-hand">👆</div>
+      <div class="feature-announce-demo-btn" id="featureAutoSaveDemo">⏱ 20초</div>
     </div>
     <button type="button" class="login-btn" id="featureAnnounceCloseBtn">확인했어요</button>
   </div>
@@ -3687,7 +3686,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '1.9.2';
+const APP_VERSION = '2.0.0';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -3963,9 +3962,30 @@ function resetSaveButtonState(){
   entrySaved = false;
   logAddBtn.textContent = '저장';
 }
+
+/* 20초간 아무 입력이 없으면 자동 저장 */
+const AUTO_SAVE_DELAY = 20000;
+let autoSaveTimer = null;
+
+function clearAutoSaveTimer(){
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = null;
+}
+
+function scheduleAutoSave(){
+  clearAutoSaveTimer();
+  autoSaveTimer = setTimeout(async () => {
+    if(!formTouchedSinceOpen) return; // 그 사이에 이미 저장됐거나 변경 사항이 없으면 하지 않음
+    if(!viewEntry.classList.contains('active')) return; // 이미 화면을 나갔으면 하지 않음
+    await addLogEntry({ stay: true });
+    showCopyToast('자동 저장됐어요.');
+  }, AUTO_SAVE_DELAY);
+}
+
 function markFormDirty(){
   formTouchedSinceOpen = true;
   if(entrySaved) resetSaveButtonState();
+  scheduleAutoSave();
 }
 
 entryLogForm.addEventListener('input', markFormDirty);
@@ -5647,7 +5667,7 @@ async function openMember(memberId){
 /* ---------- 새 기능 안내 팝업 (한 번만 표시) ---------- */
 const featureAnnounceModal = document.getElementById('featureAnnounceModal');
 const featureAnnounceCloseBtn = document.getElementById('featureAnnounceCloseBtn');
-const FEATURE_ANNOUNCE_KEY = 'feature-announce-resttimer-seen';
+const FEATURE_ANNOUNCE_KEY = 'feature-announce-autosave-seen';
 
 async function checkFeatureAnnouncement(){
   try{
@@ -6226,6 +6246,7 @@ function openEntryForm(){
   resetBlocks();
   resetSaveButtonState();
   formTouchedSinceOpen = false;
+  clearAutoSaveTimer();
 
   entryStartTimeInput.value = formatTimeHHMM(new Date());
   entryEndTimeInput.value = '';
@@ -6240,6 +6261,7 @@ function editEntry(entryId){
   if(!entry) return;
   const member = members.find(m => m.id === currentMemberId);
   const dayEntries = currentLogs.filter(e => e.date === entry.date);
+  clearAutoSaveTimer();
 
   entryMode = 'edit';
   entryEditDate = entry.date;
@@ -6574,6 +6596,7 @@ async function copyEntry(entryId){
 }
 
 async function closeEntryForm(){
+  clearAutoSaveTimer();
   const dateToShow = entryDateInput.value;
   entryMode = 'add';
   entryEditDate = null;
@@ -6734,8 +6757,8 @@ entryBackBtn.addEventListener('click', () => {
   }
 });
 openEntryTab.addEventListener('click', openEntryForm);
-logAddBtn.addEventListener('click', () => addLogEntry({ stay: true }));
-logAddCopyBtn.addEventListener('click', () => addLogEntry({ copy: true, end: true }));
+logAddBtn.addEventListener('click', () => { clearAutoSaveTimer(); addLogEntry({ stay: true }); });
+logAddCopyBtn.addEventListener('click', () => { clearAutoSaveTimer(); addLogEntry({ copy: true, end: true }); });
 
 /* ---------- 공개 소개(랜딩) 화면 · 개인정보처리방침 · 이용약관 ---------- */
 const viewLanding = document.getElementById('view-landing');
