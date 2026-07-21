@@ -3680,7 +3680,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.2.1';
+const APP_VERSION = '2.2.2';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4654,9 +4654,10 @@ async function loadWeekLogs(memberId, date){
   });
 }
 
-/* ---------- 총 기록일 수: 매번 전체를 다시 세지 않고, 값 하나만 유지·갱신 ---------- */
+/* ---------- 총 기록일 수: 매번 전체를 다시 세지 않고, 값 하나만 유지·갱신 ----------
+   (total-days-recount-v2: 예전 버그로 숫자가 어긋난 사용자들을 위해, 한 번만 처음부터 다시 정확히 센다) */
 async function ensureTotalWorkoutDaysInitialized(memberId){
-  const flag = await storageGetWithRetry('total-days-initialized:' + memberId, false);
+  const flag = await storageGetWithRetry('total-days-recount-v2:' + memberId, false);
   if(flag && flag.value === 'true'){
     const userDoc = await db.collection('users').doc(memberId).get();
     return (userDoc.exists && typeof userDoc.data().totalWorkoutDays === 'number') ? userDoc.data().totalWorkoutDays : 0;
@@ -4664,7 +4665,7 @@ async function ensureTotalWorkoutDaysInitialized(memberId){
   const allLogs = await loadLogsForMember(memberId); // 이 초기 계산 이후로는 전체를 다시 읽지 않는다
   const totalDays = new Set(allLogs.map(e => e.date)).size;
   await db.collection('users').doc(memberId).set({ totalWorkoutDays: totalDays }, { merge: true });
-  await storageSetWithRetry('total-days-initialized:' + memberId, 'true', false);
+  await storageSetWithRetry('total-days-recount-v2:' + memberId, 'true', false);
   return totalDays;
 }
 
