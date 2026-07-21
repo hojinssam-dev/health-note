@@ -1142,6 +1142,32 @@
     color: var(--muted);
     white-space: nowrap;
   }
+  .cal-grid-wrap{
+    position: relative;
+  }
+  .cal-loading-overlay{
+    position: absolute;
+    inset: 0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index: 5;
+  }
+  .cal-grid-wrap.loading .cal-grid{
+    opacity: 0.35;
+  }
+  .cal-loading-spinner{
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 3px solid var(--line);
+    border-top-color: var(--brass);
+    animation: calSpin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes calSpin{
+    to{ transform: rotate(360deg); }
+  }
   .member-info-memo{
     font-size: 13px;
     color: var(--muted);
@@ -2395,6 +2421,31 @@
     flex-direction:column;
     gap: 12px;
   }
+  .admin-summary{
+    display:flex;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+  .admin-summary-item{
+    flex:1;
+    background: var(--surface);
+    border: 1px solid var(--brass);
+    border-radius: var(--radius-m);
+    padding: 16px;
+    text-align:center;
+  }
+  .admin-summary-num{
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 32px;
+    color: var(--brass-bright);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .admin-summary-label{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
   .admin-member-row{
     background: var(--surface);
     border: 1px solid var(--line);
@@ -3113,7 +3164,12 @@
       <div class="cal-weekdays">
         <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
       </div>
-      <div class="cal-grid" id="calGrid"></div>
+      <div class="cal-grid-wrap">
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="cal-loading-overlay" id="calLoadingOverlay" style="display:none;">
+          <div class="cal-loading-spinner"></div>
+        </div>
+      </div>
     </div>
 
     <div id="dayDetail"></div>
@@ -3690,7 +3746,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.2.3';
+const APP_VERSION = '2.4.0';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -3826,6 +3882,7 @@ const entryBackBtn = document.getElementById('entryBackBtn');
 const logMemberName = document.getElementById('logMemberName');
 const logWeekCountBadge = document.getElementById('logWeekCountBadge');
 const headerInfoLine = document.getElementById('headerInfoLine');
+const calLoadingOverlay = document.getElementById('calLoadingOverlay');
 const memberInfoMemo = document.getElementById('memberInfoMemo');
 
 function buildHeaderInfoText(){
@@ -4010,6 +4067,7 @@ const prevMonthBtn = document.getElementById('prevMonthBtn');
 const nextMonthBtn = document.getElementById('nextMonthBtn');
 const calMonthLabel = document.getElementById('calMonthLabel');
 const calGrid = document.getElementById('calGrid');
+const calGridWrap = document.querySelector('.cal-grid-wrap');
 const dayDetail = document.getElementById('dayDetail');
 const clipboardBanner = document.getElementById('clipboardBanner');
 const clipboardBannerText = document.getElementById('clipboardBannerText');
@@ -5730,6 +5788,8 @@ async function openMember(memberId){
   logMemberName.textContent = formatDateHintStyle(todayStr());
   calViewDate = new Date();
   selectedDetailDate = null;
+  loadedMonthsCache = {};
+  currentLogs = [];
 
   viewLanding.classList.remove('active');
   viewPrivacy.classList.remove('active');
@@ -5737,12 +5797,19 @@ async function openMember(memberId){
   viewLogin.classList.remove('active');
   viewLog.classList.add('active');
 
+  // 0단계: 데이터를 하나도 못 받아온 상태라도, 달력 틀(요일별 숫자 칸)은 곧바로 그려서
+  // 로그인하자마자 빈 화면으로 안 보이게 한다. 기록(색깔 태그)은 아래에서 이어서 채운다.
+  updateMemberInfoBar(member);
+  renderWeekCountBadge(logWeekCountBadge);
+  renderCalendar();
+  renderDayDetail();
+  calGridWrap.classList.add('loading');
+  calLoadingOverlay.style.display = 'flex';
+
   try{
     await migrateLogsIfNeeded(memberId); // 아직 새 구조로 안 옮겨진 회원이면, 나머지 조회 전에 먼저 끝나야 함
     ensureExerciseKeyBackfilled(memberId); // 달력 표시와 상관없어서 뒤에서 따로(기다리지 않고) 처리
-    loadedMonthsCache = {};
-    currentLogs = [];
-    // 1단계: 이번 주 분량만 먼저 빠르게 불러와서 화면부터 최대한 빨리 그린다
+    // 1단계: 이번 주 분량만 먼저 빠르게 불러와서 실제 기록을 채운다
     await loadWeekLogs(memberId, new Date());
   }catch(err){
     currentLogs = [];
@@ -5752,6 +5819,8 @@ async function openMember(memberId){
   renderWeekCountBadge(logWeekCountBadge);
   renderCalendar();
   renderDayDetail();
+  calGridWrap.classList.remove('loading');
+  calLoadingOverlay.style.display = 'none';
 
   // 2단계: 이번 달 · 지난달 나머지는 화면을 그린 뒤 뒤에서 마저 불러오고, 끝나면 달력을 한 번 더 갱신한다
   (async () => {
@@ -7046,7 +7115,11 @@ async function lookupEmailByUsername(rawId){
 
 async function registerUsername(rawId, email, uid){
   const docId = usernameDocId(rawId);
-  await db.collection('usernames').doc(docId).set({ email, uid });
+  await db.collection('usernames').doc(docId).set({
+    email,
+    uid,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+  });
 }
 
 function friendlyAuthError(err){
@@ -7503,6 +7576,15 @@ async function loadAdminMemberList(){
     return;
   }
 
+  const todayD = todayStr();
+  const totalCount = usernamesSnap.docs.length;
+  const todayCount = usernamesSnap.docs.filter(d => {
+    const createdAt = d.data().createdAt;
+    if(!createdAt || !createdAt.toDate) return false;
+    const dt = createdAt.toDate();
+    return toDateStr(dt.getFullYear(), dt.getMonth(), dt.getDate()) === todayD;
+  }).length;
+
   const rows = await Promise.all(usernamesSnap.docs.map(async (docSnap) => {
     const id = docSnap.id;
     const info = docSnap.data();
@@ -7517,7 +7599,18 @@ async function loadAdminMemberList(){
     return { id, uid: info.uid, email: info.email, hasRealEmail, recordCount };
   }));
 
-  adminMemberList.innerHTML = '';
+  adminMemberList.innerHTML = `
+    <div class="admin-summary">
+      <div class="admin-summary-item">
+        <div class="admin-summary-num">${totalCount}</div>
+        <div class="admin-summary-label">전체 가입자</div>
+      </div>
+      <div class="admin-summary-item">
+        <div class="admin-summary-num">${todayCount}</div>
+        <div class="admin-summary-label">오늘 신규 가입</div>
+      </div>
+    </div>
+  `;
   rows.forEach(row => {
     const div = document.createElement('div');
     div.className = 'admin-member-row';
