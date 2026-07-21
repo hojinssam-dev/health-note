@@ -3316,6 +3316,16 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="infoModal">
+  <div class="modal-box">
+    <div class="modal-title" id="infoModalTitle">안내</div>
+    <div class="modal-sub" id="infoModalSub"></div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-primary" id="infoModalOkBtn">확인</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="unsavedChangesModal">
   <div class="modal-box">
     <div class="modal-title">저장하지 않은 내용이 있어요</div>
@@ -3680,7 +3690,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.2.2';
+const APP_VERSION = '2.2.3';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4392,6 +4402,20 @@ actionCopyBtn.addEventListener('click', () => {
 actionCancelBtn.addEventListener('click', closeActionModal);
 actionModal.addEventListener('click', (ev) => {
   if(ev.target === actionModal) closeActionModal();
+});
+
+/* 확인을 직접 눌러야만 닫히는 안내 모달 (배경 클릭·자동 사라짐 없음) */
+const infoModal = document.getElementById('infoModal');
+const infoModalTitle = document.getElementById('infoModalTitle');
+const infoModalSub = document.getElementById('infoModalSub');
+const infoModalOkBtn = document.getElementById('infoModalOkBtn');
+function showInfoModal(title, sub){
+  infoModalTitle.textContent = title;
+  infoModalSub.textContent = sub;
+  infoModal.classList.add('open');
+}
+infoModalOkBtn.addEventListener('click', () => {
+  infoModal.classList.remove('open');
 });
 
 /* 삭제 확인용 공용 모달 */
@@ -6725,6 +6749,7 @@ async function closeEntryForm(){
   }
   renderCalendar();
   renderDayDetail();
+  refreshCalendarHeaderStats();
 }
 
 async function addLogEntry(opts){
@@ -7389,7 +7414,7 @@ accountRecoveryEmailBtn.addEventListener('click', () => {
         await db.collection('usernames').doc(usernameDocId(myId)).set({ email: newEmail, uid: auth.currentUser.uid }, { merge: true });
       }
       closePromptModal();
-      showCopyToast('확인 이메일을 보냈어요. 메일함에서 링크를 눌러야 최종 등록돼요.');
+      showInfoModal('복구 이메일 등록', '확인 이메일을 보냈어요. 메일함에서 링크를 눌러야 최종 등록돼요.');
     },
   });
 });
