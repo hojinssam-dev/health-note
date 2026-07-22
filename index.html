@@ -2302,6 +2302,165 @@
     margin-top: 10px;
   }
 
+  .find-exercise-row{
+    margin: -6px 0 12px;
+  }
+  .find-exercise-link{
+    background: none;
+    border: none;
+    color: var(--brass-bright);
+    font-size: 11.5px;
+    font-family: 'Noto Sans KR', sans-serif;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .exercise-picker-box{
+    max-width: 420px;
+    max-height: 82vh;
+    display:flex;
+    flex-direction:column;
+  }
+  .ep-tabs{
+    display:flex;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .ep-tab{
+    flex:1;
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    border-radius: var(--radius-s);
+    padding: 9px 4px;
+    font-size: 12.5px;
+    font-family: 'Noto Sans KR', sans-serif;
+    cursor:pointer;
+  }
+  .ep-tab.active{
+    background: var(--brass);
+    border-color: var(--brass);
+    color: #201A0D;
+    font-weight: 700;
+  }
+  .ep-panel{
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+  }
+  .ep-body-tabs{
+    display:flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .ep-body-tab{
+    flex-shrink:0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    border-radius: 16px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: 'Noto Sans KR', sans-serif;
+    cursor:pointer;
+    white-space: nowrap;
+  }
+  .ep-body-tab.active{
+    background: var(--surface-raised);
+    border-color: var(--brass);
+    color: var(--brass-bright);
+  }
+  .ep-grid{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .ep-item{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    padding: 10px 6px 8px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap: 6px;
+    cursor:pointer;
+    text-align:center;
+  }
+  .ep-item:active{ border-color: var(--brass); }
+  .ep-item svg{ width: 36px; height: 36px; color: var(--brass-bright); }
+  .ep-item span{ font-size: 11px; color: var(--chalk); line-height: 1.3; }
+
+  .ep-photo-intro{
+    font-size: 13px;
+    color: var(--muted);
+    text-align:center;
+    margin-bottom: 16px;
+  }
+  .ep-photo-btn{
+    display:block;
+    width:100%;
+    background: linear-gradient(160deg, var(--brass-bright), var(--brass));
+    color: #201A0D;
+    border:none;
+    border-radius: var(--radius-s);
+    padding: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor:pointer;
+    margin-bottom: 14px;
+  }
+  .ep-photo-preview{
+    margin-bottom: 12px;
+  }
+  .ep-photo-preview img{
+    width: 100%;
+    max-height: 220px;
+    object-fit: contain;
+    border-radius: var(--radius-s);
+    background: #000;
+  }
+  .ep-photo-status{
+    text-align:center;
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .ep-photo-result{
+    background: var(--surface-raised);
+    border: 1px solid var(--brass);
+    border-radius: var(--radius-m);
+    padding: 14px;
+    text-align:center;
+    margin-bottom: 10px;
+  }
+  .ep-photo-result-name{
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    color: var(--brass-bright);
+    margin-bottom: 10px;
+  }
+  .ep-photo-result-btn{
+    background: linear-gradient(160deg, var(--brass-bright), var(--brass));
+    color: #201A0D;
+    border:none;
+    border-radius: var(--radius-s);
+    padding: 9px 16px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor:pointer;
+  }
+  .ep-photo-limit{
+    text-align:center;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
   .feature-announce-box{
     text-align:center;
   }
@@ -3382,6 +3541,35 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="exercisePickerModal">
+  <div class="modal-box exercise-picker-box">
+    <div class="modal-title">종목 찾기</div>
+    <div class="ep-tabs">
+      <button type="button" class="ep-tab active" data-ep-tab="browse">부위별로 찾기</button>
+      <button type="button" class="ep-tab" data-ep-tab="photo">📷 사진으로 찾기</button>
+    </div>
+
+    <div class="ep-panel" id="epBrowsePanel">
+      <div class="ep-body-tabs" id="epBodyTabs"></div>
+      <div class="ep-grid" id="epGrid"></div>
+    </div>
+
+    <div class="ep-panel" id="epPhotoPanel" style="display:none;">
+      <div class="ep-photo-intro">기구 사진을 찍으면 AI가 이름을 찾아드려요.</div>
+      <input type="file" accept="image/*" capture="environment" id="epPhotoInput" style="display:none;">
+      <button type="button" class="ep-photo-btn" id="epPhotoTakeBtn">📷 사진 찍기 / 올리기</button>
+      <div class="ep-photo-preview" id="epPhotoPreview" style="display:none;">
+        <img id="epPhotoPreviewImg" src="" alt="촬영한 사진">
+      </div>
+      <div class="ep-photo-status" id="epPhotoStatus"></div>
+      <div class="ep-photo-result" id="epPhotoResult" style="display:none;"></div>
+      <div class="ep-photo-limit" id="epPhotoLimit"></div>
+    </div>
+
+    <button class="modal-cancel" id="exercisePickerCloseBtn">닫기</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="unsavedChangesModal">
   <div class="modal-box">
     <div class="modal-title">저장하지 않은 내용이 있어요</div>
@@ -3746,7 +3934,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.4.0';
+const APP_VERSION = '2.5.0';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5354,6 +5542,9 @@ function makeBlock(){
         </svg>
       </button>
     </div>
+    <div class="find-exercise-row">
+      <button type="button" class="find-exercise-link">🔍 이름을 모르겠나요? 종목 찾기</button>
+    </div>
     <div class="color-swatches">
       ${BODY_PART_COLOR_CHOICES.map((choice, i) => `<button type="button" class="swatch ${choice.color === '#FFFFFF' ? 'swatch-default' : ''} ${i === 0 ? 'active' : ''}" data-color="${choice.color}" title="${choice.label}" ${choice.color === '#FFFFFF' ? '' : `style="background:${choice.color}"`}>${choice.color === '#FFFFFF' ? 'A' : ''}</button>`).join('')}
       <input type="hidden" class="color-value" value="#FFFFFF">
@@ -5395,6 +5586,20 @@ function makeBlock(){
   const colorValueEl = block.querySelector('.color-value');
   const colorSwatches = [...block.querySelectorAll('.swatch')];
   const prevHintEl = block.querySelector('.prev-record-hint');
+  const findExerciseRow = block.querySelector('.find-exercise-row');
+  const findExerciseLink = block.querySelector('.find-exercise-link');
+
+  function updateFindExerciseVisibility(){
+    findExerciseRow.style.display = nameInputEl.value.trim() ? 'none' : 'block';
+  }
+  updateFindExerciseVisibility();
+  nameInputEl.addEventListener('input', updateFindExerciseVisibility);
+  findExerciseLink.addEventListener('click', () => {
+    openExercisePicker((chosenName) => {
+      nameInputEl.value = chosenName;
+      nameInputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  });
 
   async function updatePrevHint(){
     const name = nameInputEl.value.trim();
@@ -6434,6 +6639,257 @@ async function deleteLogEntry(id){
 }
 
 /* ---------- 새 일지 작성 화면 (View 3) ---------- */
+
+/* ---------- 종목 찾기: 부위별 아이콘 도감 + 사진으로 AI에게 물어보기 ---------- */
+const EP_ICON = {
+  bar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="4" cy="12" r="2.5"></circle><circle cx="20" cy="12" r="2.5"></circle><line x1="6.5" y1="12" x2="17.5" y2="12"></line></svg>',
+  bench: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="10" width="18" height="4" rx="1"></rect><line x1="6" y1="14" x2="6" y2="19"></line><line x1="18" y1="14" x2="18" y2="19"></line><circle cx="5" cy="6" r="2"></circle><circle cx="19" cy="6" r="2"></circle><line x1="7" y1="6" x2="17" y2="6"></line></svg>',
+  seatedMachine: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="13" width="7" height="7" rx="1"></rect><line x1="7.5" y1="13" x2="7.5" y2="6"></line><path d="M11 9h6"></path><circle cx="19" cy="9" r="2"></circle></svg>',
+  pulldown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 4l4 3 4-3"></path><line x1="12" y1="7" x2="12" y2="14"></line><rect x="8" y="16" width="8" height="5" rx="1"></rect></svg>',
+  legMachine: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="6" width="9" height="6" rx="1"></rect><path d="M12 9h4"></path><circle cx="19" cy="9" r="2.5"></circle><line x1="7" y1="12" x2="7" y2="20"></line></svg>',
+  bodyweight: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="4" r="2"></circle><line x1="12" y1="6" x2="12" y2="14"></line><line x1="7" y1="9" x2="17" y2="9"></line><line x1="12" y1="14" x2="8" y2="21"></line><line x1="12" y1="14" x2="16" y2="21"></line></svg>',
+  cardio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="17" r="3"></circle><circle cx="18" cy="17" r="3"></circle><path d="M6 17l4-8h4l4 8"></path><path d="M10 9h4"></path></svg>',
+  dumbbell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="10" width="3" height="4"></rect><rect x="19" y="10" width="3" height="4"></rect><line x1="5" y1="12" x2="19" y2="12"></line><rect x="4" y="9" width="2" height="6"></rect><rect x="18" y="9" width="2" height="6"></rect></svg>',
+  cable: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="4" r="2"></circle><line x1="12" y1="6" x2="12" y2="16"></line><line x1="8" y1="16" x2="16" y2="16"></line></svg>',
+  core: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="8" width="16" height="8" rx="2"></rect><path d="M8 12h8"></path></svg>',
+};
+
+const EXERCISE_LIBRARY = {
+  가슴: [
+    { name: '벤치프레스', icon: EP_ICON.bench },
+    { name: '인클라인 벤치프레스', icon: EP_ICON.bench },
+    { name: '체스트프레스 머신', icon: EP_ICON.seatedMachine },
+    { name: '펙덱 플라이', icon: EP_ICON.seatedMachine },
+    { name: '딥스', icon: EP_ICON.bodyweight },
+    { name: '케이블 크로스오버', icon: EP_ICON.cable },
+  ],
+  등: [
+    { name: '랫풀다운', icon: EP_ICON.pulldown },
+    { name: '시티드 로우', icon: EP_ICON.seatedMachine },
+    { name: '풀업', icon: EP_ICON.bodyweight },
+    { name: '데드리프트', icon: EP_ICON.bar },
+    { name: '바벨 로우', icon: EP_ICON.bar },
+    { name: '원암 덤벨 로우', icon: EP_ICON.dumbbell },
+  ],
+  하체: [
+    { name: '스쿼트', icon: EP_ICON.bar },
+    { name: '레그프레스', icon: EP_ICON.legMachine },
+    { name: '레그컬', icon: EP_ICON.legMachine },
+    { name: '레그익스텐션', icon: EP_ICON.legMachine },
+    { name: '런지', icon: EP_ICON.bodyweight },
+    { name: '카프레이즈', icon: EP_ICON.legMachine },
+    { name: '힙쓰러스트', icon: EP_ICON.bar },
+  ],
+  어깨: [
+    { name: '숄더프레스 머신', icon: EP_ICON.seatedMachine },
+    { name: '덤벨 숄더프레스', icon: EP_ICON.dumbbell },
+    { name: '사이드 레터럴레이즈', icon: EP_ICON.dumbbell },
+    { name: '페이스풀', icon: EP_ICON.cable },
+    { name: '업라이트로우', icon: EP_ICON.bar },
+  ],
+  팔: [
+    { name: '바벨컬', icon: EP_ICON.bar },
+    { name: '덤벨컬', icon: EP_ICON.dumbbell },
+    { name: '케이블 푸시다운', icon: EP_ICON.cable },
+    { name: '트라이셉스 익스텐션', icon: EP_ICON.dumbbell },
+    { name: '해머컬', icon: EP_ICON.dumbbell },
+  ],
+  복근: [
+    { name: '크런치', icon: EP_ICON.core },
+    { name: '복근머신', icon: EP_ICON.seatedMachine },
+    { name: '플랭크', icon: EP_ICON.core },
+    { name: '행잉 레그레이즈', icon: EP_ICON.bodyweight },
+  ],
+  유산소: [
+    { name: '러닝', icon: EP_ICON.cardio },
+    { name: '사이클', icon: EP_ICON.cardio },
+    { name: '로잉머신', icon: EP_ICON.cardio },
+    { name: '스텝퍼', icon: EP_ICON.cardio },
+  ],
+};
+
+const exercisePickerModal = document.getElementById('exercisePickerModal');
+const exercisePickerCloseBtn = document.getElementById('exercisePickerCloseBtn');
+const epBodyTabs = document.getElementById('epBodyTabs');
+const epGrid = document.getElementById('epGrid');
+const epTabs = [...document.querySelectorAll('.ep-tab')];
+const epBrowsePanel = document.getElementById('epBrowsePanel');
+const epPhotoPanel = document.getElementById('epPhotoPanel');
+const epPhotoInput = document.getElementById('epPhotoInput');
+const epPhotoTakeBtn = document.getElementById('epPhotoTakeBtn');
+const epPhotoPreview = document.getElementById('epPhotoPreview');
+const epPhotoPreviewImg = document.getElementById('epPhotoPreviewImg');
+const epPhotoStatus = document.getElementById('epPhotoStatus');
+const epPhotoResult = document.getElementById('epPhotoResult');
+const epPhotoLimit = document.getElementById('epPhotoLimit');
+
+let exercisePickerCallback = null;
+let epBodyTabsBuilt = false;
+const AI_LOOKUP_DAILY_LIMIT = 10;
+
+function buildExercisePickerBrowseTabs(){
+  if(epBodyTabsBuilt) return; // 처음 열 때 딱 한 번만 그려서, 평소에는 아예 만들지도 않는다
+  epBodyTabsBuilt = true;
+  const parts = Object.keys(EXERCISE_LIBRARY);
+  epBodyTabs.innerHTML = parts.map((p, i) =>
+    `<button type="button" class="ep-body-tab ${i === 0 ? 'active' : ''}" data-part="${p}">${p}</button>`
+  ).join('');
+  function renderGrid(part){
+    epGrid.innerHTML = EXERCISE_LIBRARY[part].map(ex =>
+      `<div class="ep-item" data-name="${ex.name}">${ex.icon}<span>${ex.name}</span></div>`
+    ).join('');
+  }
+  epBodyTabs.querySelectorAll('.ep-body-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      epBodyTabs.querySelectorAll('.ep-body-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      renderGrid(tab.dataset.part);
+    });
+  });
+  epGrid.addEventListener('click', (ev) => {
+    const item = ev.target.closest('.ep-item');
+    if(!item) return;
+    if(exercisePickerCallback) exercisePickerCallback(item.dataset.name);
+    closeExercisePicker();
+  });
+  renderGrid(parts[0]);
+}
+
+function openExercisePicker(callback){
+  exercisePickerCallback = callback;
+  buildExercisePickerBrowseTabs();
+  epTabs.forEach(t => t.classList.remove('active'));
+  epTabs[0].classList.add('active');
+  epBrowsePanel.style.display = 'block';
+  epPhotoPanel.style.display = 'none';
+  exercisePickerModal.classList.add('open');
+  updateAiLookupLimitDisplay();
+}
+function closeExercisePicker(){
+  exercisePickerModal.classList.remove('open');
+  exercisePickerCallback = null;
+}
+exercisePickerCloseBtn.addEventListener('click', closeExercisePicker);
+exercisePickerModal.addEventListener('click', (ev) => {
+  if(ev.target === exercisePickerModal) closeExercisePicker();
+});
+epTabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    epTabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const which = tab.dataset.epTab;
+    epBrowsePanel.style.display = which === 'browse' ? 'block' : 'none';
+    epPhotoPanel.style.display = which === 'photo' ? 'block' : 'none';
+    if(which === 'browse') buildExercisePickerBrowseTabs();
+  });
+});
+
+/* 하루 사용 횟수를 기기가 아니라 계정(Firestore)에 저장해서, 앱을 지웠다 깔아도 계속 유지되게 한다 */
+function aiLookupCountKey(){
+  return 'ai-lookup-count:' + todayStr();
+}
+async function getAiLookupCountToday(){
+  try{
+    const result = await storageGetWithRetry(aiLookupCountKey(), false);
+    return result ? parseInt(result.value, 10) || 0 : 0;
+  }catch(err){
+    return 0;
+  }
+}
+async function incrementAiLookupCountToday(current){
+  await storageSetWithRetry(aiLookupCountKey(), String(current + 1), false);
+}
+async function updateAiLookupLimitDisplay(){
+  const count = await getAiLookupCountToday();
+  const remaining = Math.max(0, AI_LOOKUP_DAILY_LIMIT - count);
+  epPhotoLimit.textContent = `오늘 사용 가능 횟수: ${remaining}/${AI_LOOKUP_DAILY_LIMIT}`;
+  epPhotoTakeBtn.disabled = remaining <= 0;
+  epPhotoTakeBtn.style.opacity = remaining <= 0 ? '0.5' : '1';
+}
+
+epPhotoTakeBtn.addEventListener('click', () => epPhotoInput.click());
+epPhotoInput.addEventListener('change', async () => {
+  const file = epPhotoInput.files[0];
+  epPhotoInput.value = '';
+  if(!file) return;
+
+  const count = await getAiLookupCountToday();
+  if(count >= AI_LOOKUP_DAILY_LIMIT){
+    epPhotoStatus.textContent = '오늘 사용 가능한 횟수를 다 썼어요. 내일 다시 시도해주세요.';
+    return;
+  }
+
+  epPhotoResult.style.display = 'none';
+  epPhotoStatus.textContent = '사진을 확인하고 있어요...';
+
+  try{
+    const { base64, mediaType, dataUrl } = await resizeImageForAiLookup(file);
+    epPhotoPreviewImg.src = dataUrl;
+    epPhotoPreview.style.display = 'block';
+
+    const idToken = await auth.currentUser.getIdToken();
+    const res = await fetch('/.netlify/functions/identify-exercise', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+      body: JSON.stringify({ imageBase64: base64, mediaType }),
+    });
+    await incrementAiLookupCountToday(count);
+    updateAiLookupLimitDisplay();
+
+    if(!res.ok){
+      epPhotoStatus.textContent = '인식에 실패했어요. 다시 시도해주세요.';
+      return;
+    }
+    const data = await res.json();
+    if(!data.name){
+      epPhotoStatus.textContent = '기구를 알아보지 못했어요. 더 가까이서 다시 찍어보시겠어요?';
+      return;
+    }
+    epPhotoStatus.textContent = '';
+    epPhotoResult.style.display = 'block';
+    epPhotoResult.innerHTML = `
+      <div class="ep-photo-result-name">${data.name}</div>
+      <button type="button" class="ep-photo-result-btn" id="epPhotoUseBtn">이 이름 사용하기</button>
+    `;
+    document.getElementById('epPhotoUseBtn').addEventListener('click', () => {
+      if(exercisePickerCallback) exercisePickerCallback(data.name);
+      closeExercisePicker();
+    });
+  }catch(err){
+    console.error('AI 종목 인식 오류:', err);
+    epPhotoStatus.textContent = '인식 중 오류가 발생했어요. 다시 시도해주세요.';
+  }
+});
+
+function resizeImageForAiLookup(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const maxSize = 800;
+        let { width, height } = img;
+        if(width > height && width > maxSize){
+          height = Math.round(height * (maxSize / width));
+          width = maxSize;
+        } else if(height > maxSize){
+          width = Math.round(width * (maxSize / height));
+          height = maxSize;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        resolve({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg', dataUrl });
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 function openEntryForm(){
   const member = members.find(m => m.id === currentMemberId);
@@ -7596,7 +8052,14 @@ async function loadAdminMemberList(){
       console.error('회원 기록 조회 오류:', id, err);
     }
     const hasRealEmail = info.email && !info.email.endsWith(SYNTHETIC_EMAIL_DOMAIN);
-    return { id, uid: info.uid, email: info.email, hasRealEmail, recordCount };
+    let joinedText = '가입일 기록 없음';
+    if(info.createdAt && info.createdAt.toDate){
+      const dt = info.createdAt.toDate();
+      const dateStr = toDateStr(dt.getFullYear(), dt.getMonth(), dt.getDate());
+      const timeStr = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+      joinedText = `${dateStr} ${timeStr} 가입`;
+    }
+    return { id, uid: info.uid, email: info.email, hasRealEmail, recordCount, joinedText };
   }));
 
   adminMemberList.innerHTML = `
@@ -7617,6 +8080,7 @@ async function loadAdminMemberList(){
     div.innerHTML = `
       <div class="admin-member-id">${row.id}</div>
       <div class="admin-member-meta">
+        ${row.joinedText}<br>
         복구 이메일: ${row.hasRealEmail ? row.email : '없음'}<br>
         운동 기록: ${row.recordCount}일 · UID: ${row.uid}
       </div>
