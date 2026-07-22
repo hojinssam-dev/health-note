@@ -2394,6 +2394,49 @@
   }
   .ep-item:active{ border-color: var(--brass); }
   .ep-item svg{ width: 36px; height: 36px; color: var(--brass-bright); }
+  .ep-item-photo{
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: var(--radius-s);
+    border: 1px solid var(--line);
+    cursor: zoom-in;
+  }
+  .ep-zoom-overlay{
+    position: fixed;
+    inset: 0;
+    z-index: 950;
+    background: rgba(0,0,0,0.88);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding: 24px;
+    gap: 14px;
+  }
+  .ep-zoom-overlay img{
+    max-width: 100%;
+    max-height: 65vh;
+    object-fit: contain;
+    border-radius: var(--radius-m);
+  }
+  .ep-zoom-name{
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    color: var(--brass-bright);
+    letter-spacing: 0.5px;
+  }
+  .ep-zoom-actions{
+    display:flex;
+    gap: 10px;
+    width: 100%;
+    max-width: 320px;
+  }
+  .ep-zoom-actions .modal-cancel,
+  .ep-zoom-actions .ep-photo-result-btn{
+    flex: 1;
+    margin: 0;
+  }
   .ep-item span{ font-size: 11px; color: var(--chalk); line-height: 1.3; }
 
   .ep-photo-comingsoon{
@@ -3588,6 +3631,15 @@
   </div>
 </div>
 
+<div class="ep-zoom-overlay" id="epZoomOverlay" style="display:none;">
+  <img id="epZoomImg" src="" alt="확대된 사진">
+  <div class="ep-zoom-name" id="epZoomName"></div>
+  <div class="ep-zoom-actions">
+    <button type="button" class="modal-cancel" id="epZoomCloseBtn">닫기</button>
+    <button type="button" class="ep-photo-result-btn" id="epZoomUseBtn">이 이름 사용하기</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="unsavedChangesModal">
   <div class="modal-box">
     <div class="modal-title">저장하지 않은 내용이 있어요</div>
@@ -3952,7 +4004,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.5.2';
+const APP_VERSION = '2.6.1';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6700,11 +6752,12 @@ const EP_ICON = {
 
 const EXERCISE_LIBRARY = {
   가슴: [
-    { name: '벤치프레스', icon: EP_ICON.benchPress },
-    { name: '인클라인 벤치프레스', icon: EP_ICON.inclineBenchPress },
-    { name: '체스트프레스 머신', icon: EP_ICON.seatedChestMachine },
-    { name: '펙덱 플라이', icon: EP_ICON.pecDeckFly },
-    { name: '딥스', icon: EP_ICON.dips },
+    { name: '벤치프레스', photo: 'ex-photos/benchpress.jpg' },
+    { name: '인클라인벤치프레스', photo: 'ex-photos/inclinebenchpress.jpg' },
+    { name: '벤치프레스머신', photo: 'ex-photos/benchpressmachine.jpg' },
+    { name: '인클라인벤치프레스머신', photo: 'ex-photos/inclinebenchpressmachine.jpg' },
+    { name: '딥스', photo: 'ex-photos/dips.jpg' },
+    { name: '펙덱플라이', photo: 'ex-photos/pecdeckfly.jpg' },
     { name: '케이블 크로스오버', icon: EP_ICON.cableCrossover },
   ],
   등: [
@@ -6779,9 +6832,12 @@ function buildExercisePickerBrowseTabs(){
     `<button type="button" class="ep-body-tab ${i === 0 ? 'active' : ''}" data-part="${p}">${p}</button>`
   ).join('');
   function renderGrid(part){
-    epGrid.innerHTML = EXERCISE_LIBRARY[part].map(ex =>
-      `<div class="ep-item" data-name="${ex.name}">${ex.icon}<span>${ex.name}</span></div>`
-    ).join('');
+    epGrid.innerHTML = EXERCISE_LIBRARY[part].map(ex => {
+      const visual = ex.photo
+        ? `<img src="${ex.photo}" alt="${ex.name}" class="ep-item-photo">`
+        : ex.icon;
+      return `<div class="ep-item" data-name="${ex.name}">${visual}<span>${ex.name}</span></div>`;
+    }).join('');
   }
   epBodyTabs.querySelectorAll('.ep-body-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -6793,11 +6849,39 @@ function buildExercisePickerBrowseTabs(){
   epGrid.addEventListener('click', (ev) => {
     const item = ev.target.closest('.ep-item');
     if(!item) return;
+    if(ev.target.classList.contains('ep-item-photo')){
+      openExercisePhotoZoom(ev.target.src, item.dataset.name);
+      return;
+    }
     if(exercisePickerCallback) exercisePickerCallback(item.dataset.name);
     closeExercisePicker();
   });
   renderGrid(parts[0]);
 }
+
+/* 사진을 눌렀을 때 크게 확대해서 보여주는 팝업 */
+const epZoomOverlay = document.getElementById('epZoomOverlay');
+const epZoomImg = document.getElementById('epZoomImg');
+const epZoomName = document.getElementById('epZoomName');
+const epZoomCloseBtn = document.getElementById('epZoomCloseBtn');
+const epZoomUseBtn = document.getElementById('epZoomUseBtn');
+let epZoomExerciseName = null;
+
+function openExercisePhotoZoom(src, name){
+  epZoomImg.src = src;
+  epZoomName.textContent = name;
+  epZoomExerciseName = name;
+  epZoomOverlay.style.display = 'flex';
+}
+function closeExercisePhotoZoom(){
+  epZoomOverlay.style.display = 'none';
+}
+epZoomCloseBtn.addEventListener('click', closeExercisePhotoZoom);
+epZoomUseBtn.addEventListener('click', () => {
+  if(exercisePickerCallback && epZoomExerciseName) exercisePickerCallback(epZoomExerciseName);
+  closeExercisePhotoZoom();
+  closeExercisePicker();
+});
 
 function openExercisePicker(callback){
   exercisePickerCallback = callback;
