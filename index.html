@@ -4004,7 +4004,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.6.1';
+const APP_VERSION = '2.6.2';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5037,6 +5037,19 @@ function dateHasEntries(dateStr){
   return currentLogs.some(e => e.date === dateStr);
 }
 
+/* 운동 종목을 드래그로 정렬한 순서를 저장(order)해뒀다가, 불러올 때도 그 순서대로 보여준다.
+   order가 없는 예전 기록은 원래 배열 순서를 그대로 유지(안정 정렬)한다. */
+function sortEntriesByOrder(entries){
+  return entries
+    .map((e, i) => ({ e, i }))
+    .sort((a, b) => {
+      const oa = typeof a.e.order === 'number' ? a.e.order : a.i;
+      const ob = typeof b.e.order === 'number' ? b.e.order : b.i;
+      return oa - ob;
+    })
+    .map(x => x.e);
+}
+
 async function adjustTotalWorkoutDays(delta){
   if(!delta) return;
   const member = members.find(m => m.id === currentMemberId);
@@ -5736,7 +5749,7 @@ function makeBlock(){
 
   async function updateExerciseMemoHint(){
     const name = nameInputEl.value.trim();
-    if(!name || entryMode !== 'add'){
+    if(!name || block.getAttribute('data-edit-id')){
       exMemoBanner.style.display = 'none';
       return;
     }
@@ -5958,11 +5971,11 @@ function makeBlock(){
   setRowsEl.addEventListener('input', () => { setRowsManuallyEdited = true; });
 
   async function applyPrevSetRows(){
-    if(entryMode !== 'add' || setRowsManuallyEdited) return;
+    if(block.getAttribute('data-edit-id') || setRowsManuallyEdited) return;
     const name = nameInputEl.value.trim();
     const dateVal = (entryDateInput && entryDateInput.value) || todayStr();
     const prev = name ? await findPreviousExercise(name, dateVal) : null;
-    if(entryMode !== 'add' || setRowsManuallyEdited) return; // 조회 도중 상태가 바뀌었으면 무시
+    if(block.getAttribute('data-edit-id') || setRowsManuallyEdited) return; // 조회 도중 상태가 바뀌었으면 무시
     if(prev && prev.setRows && prev.setRows.length){
       const mode = prev.recordMode === 'time' ? 'time' : 'reps';
       prevCompareRows = prev.setRows;
@@ -6399,7 +6412,7 @@ function renderCalendar(){
 
   for(let day=1; day<=daysInMonth; day++){
     const dateStr = toDateStr(y, m, day);
-    const entries = currentLogs.filter(e => e.date === dateStr);
+    const entries = sortEntriesByOrder(currentLogs.filter(e => e.date === dateStr));
     const isToday = dateStr === todayD;
     const hasEntries = entries.length > 0;
 
@@ -6435,7 +6448,7 @@ async function renderDayDetail(){
     dayDetail.innerHTML = '';
     return;
   }
-  const entries = currentLogs.filter(e => e.date === selectedDetailDate);
+  const entries = sortEntriesByOrder(currentLogs.filter(e => e.date === selectedDetailDate));
   if(entries.length === 0){
     selectedDetailDate = null;
     dayDetail.innerHTML = '';
@@ -6546,7 +6559,7 @@ function updateClipboardBanner(){
 }
 
 function copyDayToClipboard(dateStr){
-  const entries = currentLogs.filter(e => e.date === dateStr);
+  const entries = sortEntriesByOrder(currentLogs.filter(e => e.date === dateStr));
   if(entries.length === 0) return;
   dayClipboard = {
     sourceDate: dateStr,
@@ -6580,7 +6593,10 @@ function pasteDayClipboard(targetDate){
     '일지 붙여넣기',
     `${formatDate(sourceDate)} 일지(${count}개 종목)를 ${formatDate(targetDate)}에 붙여넣을까요?${warning}`,
     async () => {
-      const newEntries = dayClipboard.entries.map(entryTemplate => {
+      const existingMaxOrder = currentLogs
+        .filter(e => e.date === targetDate)
+        .reduce((max, e) => Math.max(max, typeof e.order === 'number' ? e.order : 0), -1);
+      const newEntries = dayClipboard.entries.map((entryTemplate, i) => {
         const newId = Date.now().toString(36) + Math.random().toString(36).slice(2,6) + Math.random().toString(36).slice(2,4);
         const cloned = JSON.parse(JSON.stringify(entryTemplate));
         return {
@@ -6589,6 +6605,7 @@ function pasteDayClipboard(targetDate){
           date: targetDate,
           exerciseKey: (cloned.exercise || '').trim().toLowerCase(),
           sessionNo: null,
+          order: existingMaxOrder + 1 + i,
         };
       });
       newEntries.forEach(e => currentLogs.push(e));
@@ -7048,7 +7065,7 @@ function editEntry(entryId){
   const entry = currentLogs.find(e => e.id === entryId);
   if(!entry) return;
   const member = members.find(m => m.id === currentMemberId);
-  const dayEntries = currentLogs.filter(e => e.date === entry.date);
+  const dayEntries = sortEntriesByOrder(currentLogs.filter(e => e.date === entry.date));
   clearAutoSaveTimer();
 
   entryMode = 'edit';
@@ -7229,7 +7246,7 @@ function comparisonTextLocal(entry, dateStr){
 }
 
 function buildDayText(dateStr){
-  const dayEntries = currentLogs.filter(e => e.date === dateStr);
+  const dayEntries = sortEntriesByOrder(currentLogs.filter(e => e.date === dateStr));
   const lines = [];
   const DIVIDER = '─'.repeat(20);
 
@@ -7435,7 +7452,7 @@ async function addLogEntry(opts){
   let addedAny = false;
   const savedEntries = [];
 
-  blocks.forEach(block => {
+  blocks.forEach((block, blockIndex) => {
     const exercise = block.querySelector('.exercise-name-input').value.trim();
     if(!exercise) return;
 
@@ -7467,6 +7484,7 @@ async function addLogEntry(opts){
       nextNote: nextNote,
       startTime: entryStartTimeInput.value,
       endTime: entryEndTimeInput.value,
+      order: blockIndex,
     };
 
     const editId = block.getAttribute('data-edit-id');
