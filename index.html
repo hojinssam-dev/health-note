@@ -3142,9 +3142,8 @@
   <button type="button" class="install-banner-dismiss" id="installDismissBtn" aria-label="닫기">✕</button>
 </div>
 <div class="install-banner" id="updateBanner" style="display:none;">
-  <span class="install-banner-text">새 버전이 나왔어요! ⚙ 설정에서 "새 버전 받기"를 눌러주세요.</span>
+  <span class="install-banner-text">새 버전이 나왔어요! "새 버전 받기"를 눌러주세요.</span>
   <button type="button" class="install-banner-action" id="updateReloadBtn">새 버전 받기</button>
-  <button type="button" class="install-banner-dismiss" id="updateDismissBtn" aria-label="닫기">✕</button>
 </div>
 <div class="install-banner" id="clipboardBanner" style="display:none;">
   <span class="install-banner-text" id="clipboardBannerText"></span>
@@ -3844,7 +3843,6 @@
 /* 서비스 워커 등록: 파일을 기기에 저장해두고 다음부터는 Netlify 재접속 없이 바로 열리게 함 */
 const updateBanner = document.getElementById('updateBanner');
 const updateReloadBtn = document.getElementById('updateReloadBtn');
-const updateDismissBtn = document.getElementById('updateDismissBtn');
 let swRegistration = null;
 
 function showUpdateBanner(){
@@ -3863,9 +3861,6 @@ async function checkForNewVersionManually(){
 }
 
 updateReloadBtn.addEventListener('click', checkForNewVersionManually);
-updateDismissBtn.addEventListener('click', () => {
-  updateBanner.style.display = 'none';
-});
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
@@ -4004,7 +3999,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.9.7';
+const APP_VERSION = '2.9.8';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
