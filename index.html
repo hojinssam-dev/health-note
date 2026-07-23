@@ -4004,7 +4004,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.7.0';
+const APP_VERSION = '2.8.0';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6775,7 +6775,7 @@ const EXERCISE_LIBRARY = {
     { name: '인클라인벤치프레스머신', photo: 'ex-photos/inclinebenchpressmachine.jpg' },
     { name: '딥스', photo: 'ex-photos/dips.jpg' },
     { name: '펙덱플라이', photo: 'ex-photos/pecdeckfly.jpg' },
-    { name: '케이블 크로스오버', icon: EP_ICON.cableCrossover },
+    { name: '체스트프레스', photo: 'ex-photos/chestpress.jpg' },
   ],
   등: [
     { name: '랫풀다운', photo: 'ex-photos/latpulldown.jpg' },
@@ -6787,13 +6787,18 @@ const EXERCISE_LIBRARY = {
     { name: '덤벨로우', photo: 'ex-photos/dumbbellrow.jpg' },
   ],
   하체: [
-    { name: '스쿼트', icon: EP_ICON.squat },
-    { name: '레그프레스', icon: EP_ICON.legPress },
-    { name: '레그컬', icon: EP_ICON.legCurl },
-    { name: '레그익스텐션', icon: EP_ICON.legExtension },
-    { name: '런지', icon: EP_ICON.lunge },
-    { name: '카프레이즈', icon: EP_ICON.calfRaise },
-    { name: '힙쓰러스트', icon: EP_ICON.hipThrust },
+    { name: '스쿼트', photo: 'ex-photos/squat.jpg' },
+    { name: '고블린스쿼트', photo: 'ex-photos/gobletsquat.jpg' },
+    { name: '런지', photo: 'ex-photos/lunge.jpg' },
+    { name: '레그익스텐션', photo: 'ex-photos/legextension.jpg' },
+    { name: '레그컬', photo: 'ex-photos/legcurl.jpg' },
+    { name: '레그프레스머신', photo: 'ex-photos/legpressmachine.jpg' },
+    { name: '힙쓰러스트', photo: 'ex-photos/hipthrust.jpg' },
+    { name: '불가리안스플릿스쿼트', photo: 'ex-photos/bulgariansplitsquat.jpg' },
+    { name: '이너타이', photo: 'ex-photos/innerthigh.jpg' },
+    { name: '아웃타이', photo: 'ex-photos/outerthigh.jpg' },
+    { name: '링크아웃타이', photo: 'ex-photos/linkouterthigh.jpg' },
+    { name: '스탠딩아웃타이', photo: 'ex-photos/standingouterthigh.jpg' },
   ],
   어깨: [
     { name: '숄더프레스 머신', icon: EP_ICON.shoulderPressMachine },
