@@ -4004,7 +4004,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.9.2';
+const APP_VERSION = '2.9.3';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6782,6 +6782,7 @@ const EXERCISE_LIBRARY = {
     { name: '로우풀리', photo: 'ex-photos/rowpulley.jpg' },
     { name: '시티드로우', photo: 'ex-photos/seatedrow.jpg' },
     { name: '풀업', photo: 'ex-photos/pullup.jpg' },
+    { name: '어시스트풀업', photo: 'ex-photos/assistedpullup.jpg' },
     { name: '데드리프트', photo: 'ex-photos/deadlift.jpg' },
     { name: '바벨로우', photo: 'ex-photos/barbellrow.jpg' },
     { name: '덤벨로우', photo: 'ex-photos/dumbbellrow.jpg' },
@@ -6811,10 +6812,12 @@ const EXERCISE_LIBRARY = {
     { name: '페이스풀', photo: 'ex-photos/facepull.jpg' },
   ],
   팔: [
-    { name: '바벨컬', photo: 'ex-photos/barbellcurl.jpg' },
     { name: '덤벨컬', photo: 'ex-photos/dumbbellcurl.jpg' },
+    { name: '바벨컬', photo: 'ex-photos/barbellcurl.jpg' },
+    { name: '바이셉스컬', photo: 'ex-photos/bicepscurl.jpg' },
     { name: '케이블 푸시다운', photo: 'ex-photos/cablepushdown.jpg' },
-    { name: '트라이셉스 익스텐션', photo: 'ex-photos/tricepsextension.jpg' },
+    { name: '라잉 트라이셉스 익스텐션', photo: 'ex-photos/lyingtricepsextension.jpg' },
+    { name: '오버헤드 트라이셉스 익스텐션', photo: 'ex-photos/overheadtricepsextension.jpg' },
     { name: '해머컬', photo: 'ex-photos/hammercurl.jpg' },
   ],
   복근: [

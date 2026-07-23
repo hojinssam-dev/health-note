@@ -8,7 +8,7 @@
   사용자들은 예전 화면이 계속 캐시에서 나온다.
   member-roster.html의 APP_VERSION과 같은 값으로 맞춰서 올리는 걸 추천.
 */
-const CACHE_VERSION = '2.9.2';
+const CACHE_VERSION = '2.9.3';
 const CACHE_NAME = 'pt-diary-cache-v' + CACHE_VERSION;
 const PRECACHE_URLS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
