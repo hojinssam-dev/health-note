@@ -4004,7 +4004,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.9.1';
+const APP_VERSION = '2.9.2';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4625,7 +4625,7 @@ const BODY_PART_KEYWORDS = {
   '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈'],
   '어깨': ['숄더', '밀리터리', '사레레', '슈러그', '레터럴레이즈', '프론트레이즈', '리어델트', '업라이트로우'],
   '가슴': ['인클라인', '디클라인', '벤치', '딥스', '푸시업', '팔굽혀펴기'],
-  '복근': ['레그레이즈', '크런치', '리버스', '플랭크', '데드버그', '싯업', '윗몸일으키기'],
+  '복근': ['레그레이즈', '크런치', '리버스', '플랭크', '데드버그', '싯업', '윗몸일으키기', '러시안트위스트', '롤아웃'],
   '팔': ['바이셉스', '트라이셉스', '케이블푸시다운', '덤벨컬', '바벨컬'],
   '등': ['랫풀다운', '풀다운', '풀업', '로우풀리', '롱풀', '로우', '데드리프트'],
   '유산소': ['유산소', '러닝', '자전거', '워킹', '천국', '계단', '트레드밀', '트래드밀'],
@@ -6818,10 +6818,15 @@ const EXERCISE_LIBRARY = {
     { name: '해머컬', photo: 'ex-photos/hammercurl.jpg' },
   ],
   복근: [
-    { name: '크런치', photo: 'ex-photos/crunch.jpg' },
-    { name: '복근머신', photo: 'ex-photos/abmachine.jpg' },
     { name: '플랭크', photo: 'ex-photos/plank.jpg' },
+    { name: '사이드플랭크', photo: 'ex-photos/sideplank.jpg' },
+    { name: '크런치', photo: 'ex-photos/crunch.jpg' },
+    { name: '레그레이즈', photo: 'ex-photos/legraise.jpg' },
     { name: '행잉 레그레이즈', photo: 'ex-photos/hanginglegraise.jpg' },
+    { name: '러시안트위스트', photo: 'ex-photos/russiantwist.jpg' },
+    { name: '바이시클크런치', photo: 'ex-photos/bicyclecrunch.jpg' },
+    { name: 'AB롤아웃', photo: 'ex-photos/abrollout.jpg' },
+    { name: '디클라인싯업', photo: 'ex-photos/declinesitup.jpg' },
   ],
   유산소: [
     { name: '러닝', photo: 'ex-photos/running.jpg' },
