@@ -4004,7 +4004,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.6.2';
+const APP_VERSION = '2.7.0';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6778,12 +6778,13 @@ const EXERCISE_LIBRARY = {
     { name: '케이블 크로스오버', icon: EP_ICON.cableCrossover },
   ],
   등: [
-    { name: '랫풀다운', icon: EP_ICON.latPulldown },
-    { name: '시티드 로우', icon: EP_ICON.seatedRow },
-    { name: '풀업', icon: EP_ICON.pullUp },
-    { name: '데드리프트', icon: EP_ICON.deadlift },
-    { name: '바벨 로우', icon: EP_ICON.barbellRow },
-    { name: '원암 덤벨 로우', icon: EP_ICON.dumbbellRow },
+    { name: '랫풀다운', photo: 'ex-photos/latpulldown.jpg' },
+    { name: '로우풀리', photo: 'ex-photos/rowpulley.jpg' },
+    { name: '시티드로우', photo: 'ex-photos/seatedrow.jpg' },
+    { name: '풀업', photo: 'ex-photos/pullup.jpg' },
+    { name: '데드리프트', photo: 'ex-photos/deadlift.jpg' },
+    { name: '바벨로우', photo: 'ex-photos/barbellrow.jpg' },
+    { name: '덤벨로우', photo: 'ex-photos/dumbbellrow.jpg' },
   ],
   하체: [
     { name: '스쿼트', icon: EP_ICON.squat },
