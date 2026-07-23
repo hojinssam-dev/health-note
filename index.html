@@ -3999,7 +3999,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.9.8';
+const APP_VERSION = '2.10.0';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4622,12 +4622,21 @@ const BODY_PART_KEYWORDS = {
   '가슴': ['벤치', '딥스', '푸시업', '팔굽혀펴기'],
   '복근': ['레그레이즈', '크런치', '리버스', '플랭크', '데드버그', '싯업', '윗몸일으키기', '트위스트', '롤아웃'],
   '팔': ['바이셉스', '트라이셉스', '케이블푸시다운', '덤벨컬', '바벨컬'],
-  '등': ['랫풀다운', '풀다운', '풀업', '로우풀리', '롱풀', '로우', '데드리프트'],
+  '등': ['랫풀다운', '풀다운', '풀업', '로우풀리', '롱풀', '데드리프트', '레터럴로우', '로우로우', '어시스트풀업', '친업'],
   '유산소': ['유산소', '러닝', '자전거', '워킹', '천국', '계단', '트레드밀', '트래드밀'],
 };
 
 /* '인클라인', '디클라인'은 다른 부위 운동에도 흔히 붙는 말이라 일반 키워드로 넣지 않고,
    아래 특정 종목 이름(띄어쓰기 무시하고 정확히 일치할 때만)일 때만 가슴 색으로 인식한다 */
+/* 이런 글자가 이름에 들어간 종목은 '무게·횟수'가 아니라 '시간'으로 재는 게 자연스러워서,
+   이전 기록이 없는 새 종목일 때 기본 모드를 '시간'으로 잡아준다 */
+const TIME_MODE_KEYWORDS = ['플랭크', '매달리기', '월싯', '천국의 계단', '자전거', '사이클', '싸이클'];
+function defaultRecordModeForName(name){
+  const noSpace = (name || '').trim().replace(/\s+/g, '');
+  if(!noSpace) return 'reps';
+  return TIME_MODE_KEYWORDS.some(kw => noSpace.includes(kw.replace(/\s+/g, ''))) ? 'time' : 'reps';
+}
+
 const CHEST_EXACT_NAMES = ['인클라인프레스', '인클라인벤치프레스', '디클라인프레스', '디클라인벤치프레스'].map(n => n.replace(/\s+/g, ''));
 
 function detectBodyPartFromName(name){
@@ -4637,7 +4646,7 @@ function detectBodyPartFromName(name){
   if(CHEST_EXACT_NAMES.includes(noSpace)) return '가슴';
   for(const part of BODY_PARTS){
     const keywords = BODY_PART_KEYWORDS[part];
-    if(keywords && keywords.some(kw => trimmed.includes(kw))) return part;
+    if(keywords && keywords.some(kw => noSpace.includes(kw))) return part;
   }
   return null;
 }
@@ -6015,7 +6024,7 @@ function makeBlock(){
     } else {
       // 이름을 지우거나 이전 기록이 없는 종목으로 바꾸면, 자동으로 채워졌던 값도 초기화
       prevCompareRows = null;
-      setMode(recordMode);
+      setMode(defaultRecordModeForName(name));
     }
     updatePrevRowHints();
   }
@@ -8248,14 +8257,19 @@ async function loadAdminMemberList(){
     }
     const hasRealEmail = info.email && !info.email.endsWith(SYNTHETIC_EMAIL_DOMAIN);
     let joinedText = '가입일 기록 없음';
+    let createdAtMs = null;
     if(info.createdAt && info.createdAt.toDate){
       const dt = info.createdAt.toDate();
+      createdAtMs = dt.getTime();
       const dateStr = toDateStr(dt.getFullYear(), dt.getMonth(), dt.getDate());
       const timeStr = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
       joinedText = `${dateStr} ${timeStr} 가입`;
     }
-    return { id, uid: info.uid, email: info.email, hasRealEmail, recordCount, joinedText };
+    return { id, uid: info.uid, email: info.email, hasRealEmail, recordCount, joinedText, createdAtMs };
   }));
+
+  // 최근 가입자가 위로 오도록 정렬 (가입일 기록이 없는 경우는 맨 아래로)
+  rows.sort((a, b) => (b.createdAtMs ?? -Infinity) - (a.createdAtMs ?? -Infinity));
 
   adminMemberList.innerHTML = `
     <div class="admin-summary">
