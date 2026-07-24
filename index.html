@@ -4003,7 +4003,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.10.1';
+const APP_VERSION = '2.10.2';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6215,20 +6215,32 @@ async function openMember(memberId){
 /* ---------- 새 기능 안내 팝업 (한 번만 표시) ---------- */
 const featureAnnounceModal = document.getElementById('featureAnnounceModal');
 const featureAnnounceCloseBtn = document.getElementById('featureAnnounceCloseBtn');
-const FEATURE_ANNOUNCE_KEY = 'feature-announce-autosave-seen';
 
+/* 예전엔 이 값도 storageSetWithRetry로 여러 설정값이 뒤섞인 'data' 오브젝트 안에 저장했는데,
+   그 오브젝트는 읽고→고치고→통째로 다시 쓰는 방식이라, 비슷한 시점에 다른 저장(예: saveMembers)이
+   같이 일어나면 서로 덮어써서 '확인했어요'를 눌러도 저장이 씹히는 경우가 있었다.
+   그래서 이 플래그만 따로, 문서 최상위 필드로 저장해서 다른 저장과 절대 안 부딪히게 한다. */
 async function checkFeatureAnnouncement(){
+  const uid = currentUid();
+  if(!uid) return;
   try{
-    const result = await storageGetWithRetry(FEATURE_ANNOUNCE_KEY, false);
-    if(result && result.value === 'true') return;
+    const snap = await db.collection('users').doc(uid).get();
+    if(snap.exists && snap.data().featureAnnounceAutosaveSeen === true) return;
   }catch(err){
+    console.error('새 기능 안내 확인 조회 오류:', err);
     return;
   }
   featureAnnounceModal.classList.add('open');
 }
 featureAnnounceCloseBtn.addEventListener('click', async () => {
   featureAnnounceModal.classList.remove('open');
-  await storageSetWithRetry(FEATURE_ANNOUNCE_KEY, 'true', false);
+  const uid = currentUid();
+  if(!uid) return;
+  try{
+    await db.collection('users').doc(uid).set({ featureAnnounceAutosaveSeen: true }, { merge: true });
+  }catch(err){
+    console.error('새 기능 안내 확인 저장 오류:', err);
+  }
 });
 
 /* ---------- 복구 이메일 등록 안내 팝업 (등록 전까지 매번 노출, '오늘은 그만 보기' 선택 시 당일만 숨김) ---------- */
