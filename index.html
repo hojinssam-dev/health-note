@@ -1331,6 +1331,8 @@
     font-size: 13px;
     color: var(--muted);
     margin-top: 4px;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
   .log-entry-compare{
     font-family: 'IBM Plex Mono', monospace;
@@ -1492,6 +1494,8 @@
   }
   .exercise-memo-row .exercise-memo-text{
     color: var(--brass-bright);
+    white-space: pre-wrap;
+    word-break: break-word;
   }
   .prev-note-actions{
     display:flex;
@@ -3999,7 +4003,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.10.0';
+const APP_VERSION = '2.10.1';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5104,6 +5108,27 @@ async function adjustTotalWorkoutDays(delta){
   }
 }
 
+/* adjustTotalWorkoutDays는 델타(+1/-1)만 반영하는 방식이라, 네트워크 오류 등으로
+   한 번이라도 델타 반영이 누락되면 숫자가 실제 일지 개수와 어긋난 채로 계속 남는다.
+   그래서 달력을 열 때마다 뒤에서(화면을 막지 않고) 전체 일지를 다시 세어 보고,
+   표시된 숫자와 다르면 바로 고쳐서 화면에도 즉시 반영한다. */
+async function reconcileTotalWorkoutDays(memberId){
+  try{
+    const allLogs = await loadLogsForMember(memberId);
+    const actualTotal = new Set(allLogs.map(e => e.date)).size;
+    const member = members.find(m => m.id === memberId);
+    if(member && member.totalWorkoutDays !== actualTotal){
+      member.totalWorkoutDays = actualTotal;
+      await db.collection('users').doc(memberId).set({ totalWorkoutDays: actualTotal }, { merge: true });
+      if(currentMemberId === memberId){
+        updateMemberInfoBar(member);
+      }
+    }
+  }catch(err){
+    console.error('총 기록일 수 재확인 오류:', err);
+  }
+}
+
 function todayStr(){
   const d = new Date();
   return toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
@@ -6139,6 +6164,7 @@ async function openMember(memberId){
     await migrateLogsIfNeeded(memberId); // 아직 새 구조로 안 옮겨진 회원이면, 나머지 조회 전에 먼저 끝나야 함
     ensureExerciseKeyBackfilled(memberId); // 달력 표시와 상관없어서 뒤에서 따로(기다리지 않고) 처리
     ensureExerciseKeyNormalized(memberId); // 띄어쓰기 차이로 어긋난 기존 키도 뒤에서 바로잡기
+    reconcileTotalWorkoutDays(memberId); // "총 N일 기록" 숫자가 실제 일지 개수와 어긋나 있으면 뒤에서 바로잡기
     // 1단계: 이번 주 분량만 먼저 빠르게 불러와서 실제 기록을 채운다
     await loadWeekLogs(memberId, new Date());
   }catch(err){
