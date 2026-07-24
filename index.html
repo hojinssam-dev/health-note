@@ -4003,7 +4003,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.10.2';
+const APP_VERSION = '2.10.3';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6215,17 +6215,24 @@ async function openMember(memberId){
 /* ---------- 새 기능 안내 팝업 (한 번만 표시) ---------- */
 const featureAnnounceModal = document.getElementById('featureAnnounceModal');
 const featureAnnounceCloseBtn = document.getElementById('featureAnnounceCloseBtn');
+const FEATURE_ANNOUNCE_LOCAL_PREFIX = 'feature-announce-autosave-seen:';
 
-/* 예전엔 이 값도 storageSetWithRetry로 여러 설정값이 뒤섞인 'data' 오브젝트 안에 저장했는데,
-   그 오브젝트는 읽고→고치고→통째로 다시 쓰는 방식이라, 비슷한 시점에 다른 저장(예: saveMembers)이
-   같이 일어나면 서로 덮어써서 '확인했어요'를 눌러도 저장이 씹히는 경우가 있었다.
-   그래서 이 플래그만 따로, 문서 최상위 필드로 저장해서 다른 저장과 절대 안 부딪히게 한다. */
+/* Firestore 저장/조회가 늦거나(네트워크), 보안 규칙 등으로 실패하면 "확인했어요"를 눌러도
+   다음에 또 뜰 수 있다. 그래서 이 기기(브라우저)에는 곧바로 localStorage로도 남겨서,
+   Firestore 왕복과 상관없이 이 기기에서는 절대 다시 안 뜨게 하는 1차 방어선을 둔다.
+   Firestore 쪽 저장은 다른 기기에서도 안 뜨게 하려고 그대로 같이 시도한다. */
 async function checkFeatureAnnouncement(){
   const uid = currentUid();
   if(!uid) return;
   try{
+    if(localStorage.getItem(FEATURE_ANNOUNCE_LOCAL_PREFIX + uid) === 'true') return;
+  }catch(err){ /* localStorage를 못 쓰는 환경이면 무시하고 Firestore로 계속 확인 */ }
+  try{
     const snap = await db.collection('users').doc(uid).get();
-    if(snap.exists && snap.data().featureAnnounceAutosaveSeen === true) return;
+    if(snap.exists && snap.data().featureAnnounceAutosaveSeen === true){
+      try{ localStorage.setItem(FEATURE_ANNOUNCE_LOCAL_PREFIX + uid, 'true'); }catch(err){}
+      return;
+    }
   }catch(err){
     console.error('새 기능 안내 확인 조회 오류:', err);
     return;
@@ -6236,6 +6243,7 @@ featureAnnounceCloseBtn.addEventListener('click', async () => {
   featureAnnounceModal.classList.remove('open');
   const uid = currentUid();
   if(!uid) return;
+  try{ localStorage.setItem(FEATURE_ANNOUNCE_LOCAL_PREFIX + uid, 'true'); }catch(err){ /* 무시 */ }
   try{
     await db.collection('users').doc(uid).set({ featureAnnounceAutosaveSeen: true }, { merge: true });
   }catch(err){
