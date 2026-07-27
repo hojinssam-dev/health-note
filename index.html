@@ -4003,7 +4003,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.10.3';
+const APP_VERSION = '2.10.5';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5608,6 +5608,11 @@ function makeSwipeAdjustable(inputEl){
 
   function endDrag(){
     dragging = false;
+    // 무게 입력란은 0kg으로 내리면 아예 손을 안 댄 것처럼 비워서 '무게(kg)' 안내문구로 돌아가게 한다
+    if(inputEl.classList.contains('set-weight') && parseFloat(inputEl.value) === 0){
+      inputEl.value = '';
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    }
   }
   inputEl.addEventListener('touchend', endDrag, { passive: true });
   inputEl.addEventListener('touchcancel', endDrag, { passive: true });
@@ -5895,6 +5900,13 @@ function makeBlock(){
     }
   }
   setRowsEl.addEventListener('input', updateSummary);
+  setRowsEl.addEventListener('change', (ev) => {
+    // 무게칸에 직접 0을 입력하고 벗어나면, 손을 안 댄 것처럼 비워서 '무게(kg)' 안내문구로 돌아가게 한다
+    if(ev.target.classList.contains('set-weight') && parseFloat(ev.target.value) === 0){
+      ev.target.value = '';
+      updateSummary();
+    }
+  });
 
   function renumberSets(){
     let mainNum = 0;
@@ -6874,6 +6886,7 @@ const EXERCISE_LIBRARY = {
     { name: '데드리프트', photo: 'ex-photos/deadlift.jpg' },
     { name: '바벨로우', photo: 'ex-photos/barbellrow.jpg' },
     { name: '덤벨로우', photo: 'ex-photos/dumbbellrow.jpg' },
+    { name: '레터럴로우', photo: 'ex-photos/lateralrow.jpg' },
   ],
   하체: [
     { name: '스쿼트', photo: 'ex-photos/squat.jpg' },
@@ -6888,12 +6901,16 @@ const EXERCISE_LIBRARY = {
     { name: '아웃타이', photo: 'ex-photos/outerthigh.jpg' },
     { name: '링크 아웃타이', photo: 'ex-photos/linkouterthigh.jpg' },
     { name: '스탠딩 아웃타이', photo: 'ex-photos/standingouterthigh.jpg' },
+    { name: '핵프레스', photo: 'ex-photos/hackpress.jpg' },
+    { name: '핵스쿼트', photo: 'ex-photos/hacksquat.jpg' },
   ],
   어깨: [
     { name: '숄더프레스 머신', photo: 'ex-photos/shoulderpressmachine.jpg' },
     { name: '덤벨 숄더프레스', photo: 'ex-photos/dumbbellshoulderpress.jpg' },
     { name: '바벨 숄더프레스', photo: 'ex-photos/barbellshoulderpress.jpg' },
     { name: '사이드 레터럴레이즈', photo: 'ex-photos/lateralraise.jpg' },
+    { name: '스탠딩 레터럴레이즈', photo: 'ex-photos/standinglateralraise.jpg' },
+    { name: '사이드 레터럴레이즈 머신', photo: 'ex-photos/sidelateralraisemachine.jpg' },
     { name: '프론트레이즈', photo: 'ex-photos/frontraise.jpg' },
     { name: '업라이트로우', photo: 'ex-photos/uprightrow.jpg' },
     { name: '리어 델트플라이', photo: 'ex-photos/reardeltfly.jpg' },
