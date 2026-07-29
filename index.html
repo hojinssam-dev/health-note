@@ -4003,7 +4003,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.10.5';
+const APP_VERSION = '2.10.6';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4068,6 +4068,22 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+
+/* 오프라인 캐시(로컬 저장) 켜기: 한 번 받아온 데이터는 이 기기에 저장해뒀다가,
+   다음에 열 때는 그 캐시를 먼저 바로 보여주고 뒤에서 서버와 동기화한다.
+   synchronizeTabs: true를 줘서, 이 앱을 여러 탭으로 동시에 열어도(예: 관리자 페이지 탭 +
+   달력 탭) 캐시를 탭끼리 공유하면서 안전하게 동작하게 한다. */
+db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+  if(err.code === 'failed-precondition'){
+    // 이 브라우저의 다른 창/탭이 synchronizeTabs 없이 이미 캐시를 켠 상태 — 매우 드문 경우
+    console.warn('오프라인 캐시: 다른 탭과 충돌해서 이 탭에서는 못 켰어요.', err);
+  } else if(err.code === 'unimplemented'){
+    // 이 브라우저가 오프라인 캐시를 지원하지 않음 (예: 일부 사파리 프라이빗 모드)
+    console.warn('오프라인 캐시: 이 브라우저에서는 지원되지 않아요.', err);
+  } else {
+    console.error('오프라인 캐시 켜기 오류:', err);
+  }
+});
 const CLOUDINARY_CLOUD_NAME = 'qtdbzokj';
 
 function currentUid(){
