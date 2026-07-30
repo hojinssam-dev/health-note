@@ -1817,7 +1817,7 @@
   .cal-grid{
     display:grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 5px;
+    gap: 2px;
     transition: opacity .14s ease;
   }
   .cal-grid.fading{ opacity: 0; }
@@ -1826,10 +1826,10 @@
     min-width: 0;
     background: transparent;
     border: none;
-    padding: 5px 6px;
+    padding: 4px 3px;
     display:flex;
     flex-direction:column;
-    gap: 3px;
+    gap: 2px;
     transition: opacity .15s var(--ease);
   }
   .cal-cell.has-entries{ cursor:pointer; }
@@ -1852,15 +1852,18 @@
     border-radius: 50%;
   }
   .cal-tag{
-    font-size: 10px;
-    line-height: 1.5;
-    white-space: nowrap;
+    font-size: 9.5px;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
+    word-break: break-all;
     font-weight: 600;
     color: #fff;
     background: var(--muted);
-    padding: 1px 6px;
+    padding: 1px 3px;
     border-radius: 5px;
     box-sizing: border-box;
   }
@@ -4014,7 +4017,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.11.0';
+const APP_VERSION = '2.11.2';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4685,12 +4688,12 @@ function detectBodyPartFromName(name){
 const BODYPART_COLOR_KEY = 'bodypart-colors';
 const BODY_PART_COLOR_CHOICES = [
   { color: '#FFFFFF', label: '기본(흰색)' },
-  { color: '#C1614A', label: '빨강' },
-  { color: '#5B84A6', label: '파랑' },
-  { color: '#6B9C6E', label: '초록' },
-  { color: '#B08D3E', label: '노랑' },
-  { color: '#8B6FA6', label: '보라' },
-  { color: '#C97D42', label: '주황' },
+  { color: '#E0574A', label: '빨강' },
+  { color: '#4A90D0', label: '파랑' },
+  { color: '#4CAF6E', label: '초록' },
+  { color: '#E0A82E', label: '노랑' },
+  { color: '#9C6FDB', label: '보라' },
+  { color: '#E8862E', label: '주황' },
 ];
 const DEFAULT_BODYPART_COLORS = {
   '가슴': '#FFFFFF',
@@ -4703,8 +4706,25 @@ const DEFAULT_BODYPART_COLORS = {
 };
 let bodyPartColors = { ...DEFAULT_BODYPART_COLORS };
 
+/* 예전에 저장해둔 색(더 톤 다운된 버전)을 새 팔레트로 매핑한다.
+   회원이 예전에 골라서 저장해둔 색 값은 그대로 남아있으니, 화면에 보여줄 때
+   이 표를 거쳐서 예전 색이면 새 밝은 색으로 바꿔서 보여준다 (저장된 값 자체는 안 건드림). */
+const LEGACY_COLOR_UPGRADE = {
+  '#C1614A': '#E0574A', // 빨강
+  '#5B84A6': '#4A90D0', // 파랑
+  '#6B9C6E': '#4CAF6E', // 초록
+  '#B08D3E': '#E0A82E', // 노랑
+  '#8B6FA6': '#9C6FDB', // 보라
+  '#C97D42': '#E8862E', // 주황
+};
+function upgradeLegacyColor(hex){
+  if(!hex) return hex;
+  const upper = hex.toUpperCase();
+  return LEGACY_COLOR_UPGRADE[upper] || hex;
+}
+
 function colorForBodyPart(part){
-  return (part && bodyPartColors[part]) || '#FFFFFF';
+  return upgradeLegacyColor((part && bodyPartColors[part]) || '#FFFFFF');
 }
 
 /* 부위가 지정된 종목은 설정에서 고른 색을 항상 최신으로 반영하고,
@@ -4712,7 +4732,7 @@ function colorForBodyPart(part){
 function colorForEntry(e){
   if(!e) return '#FFFFFF';
   if(e.bodyPart) return colorForBodyPart(e.bodyPart);
-  return e.color || '#FFFFFF';
+  return upgradeLegacyColor(e.color || '#FFFFFF');
 }
 
 async function loadBodyPartColors(){
@@ -8468,7 +8488,9 @@ const bodyPartColorCancelBtn = document.getElementById('bodyPartColorCancelBtn')
 let bodyPartColorDraft = {};
 
 function renderBodyPartColorModal(){
-  bodyPartColorDraft = { ...bodyPartColors };
+  bodyPartColorDraft = Object.fromEntries(
+    Object.entries({ ...bodyPartColors }).map(([part, hex]) => [part, upgradeLegacyColor(hex)])
+  );
   bodyPartColorList.innerHTML = BODY_PARTS.map(part => {
     const current = bodyPartColorDraft[part] || '#FFFFFF';
     const swatchesHtml = BODY_PART_COLOR_CHOICES.map(choice => `
