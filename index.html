@@ -1817,19 +1817,20 @@
   .cal-grid{
     display:grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 2px;
+    gap: clamp(2px, 0.3vw, 6px);
     transition: opacity .14s ease;
   }
   .cal-grid.fading{ opacity: 0; }
   .cal-cell{
-    min-height: 68px;
+    min-height: clamp(68px, 7vw, 92px);
     min-width: 0;
     background: transparent;
     border: none;
-    padding: 4px 3px;
+    padding: clamp(4px, 0.6vw, 8px) clamp(3px, 0.5vw, 7px);
     display:flex;
     flex-direction:column;
-    gap: 2px;
+    align-items: center;
+    gap: clamp(2px, 0.35vw, 5px);
     transition: opacity .15s var(--ease);
   }
   .cal-cell.has-entries{ cursor:pointer; }
@@ -1837,7 +1838,7 @@
   .cal-cell.empty-cell{ background:transparent; border:none; box-shadow:none; }
   .cal-date-num{
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: clamp(11px, 1.1vw, 15px);
     color: var(--muted);
   }
   .cal-cell.is-today .cal-date-num{
@@ -1847,12 +1848,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 18px;
-    height: 18px;
+    width: clamp(18px, 1.9vw, 24px);
+    height: clamp(18px, 1.9vw, 24px);
     border-radius: 50%;
   }
   .cal-tag{
-    font-size: 9.5px;
+    font-size: clamp(9.5px, 1vw, 13px);
     line-height: 1.3;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -1860,10 +1861,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     word-break: break-all;
+    text-align: center;
     font-weight: 600;
     color: #fff;
     background: var(--muted);
-    padding: 1px 3px;
+    width: 100%;
+    padding: clamp(1px, 0.2vw, 3px) clamp(3px, 0.4vw, 6px);
     border-radius: 5px;
     box-sizing: border-box;
   }
@@ -4017,7 +4020,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.11.3';
+const APP_VERSION = '2.11.4';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
