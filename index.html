@@ -1824,33 +1824,44 @@
   .cal-cell{
     min-height: 68px;
     min-width: 0;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-s);
+    background: transparent;
+    border: none;
     padding: 5px 6px;
     display:flex;
     flex-direction:column;
-    gap: 2px;
-    transition: border-color .15s var(--ease), transform .15s var(--ease), box-shadow .15s var(--ease);
+    gap: 3px;
+    transition: opacity .15s var(--ease);
   }
-  .cal-cell.has-entries{ cursor:pointer; box-shadow: var(--shadow-sm); }
-  .cal-cell.has-entries:hover{ border-color: var(--brass); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  .cal-cell.has-entries{ cursor:pointer; }
+  .cal-cell.has-entries:hover{ opacity: .82; }
   .cal-cell.empty-cell{ background:transparent; border:none; box-shadow:none; }
-  .cal-cell.is-today{ border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass), var(--shadow-sm); }
   .cal-date-num{
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
     color: var(--muted);
   }
-  .cal-cell.is-today .cal-date-num{ color: var(--brass); font-weight: 600; }
+  .cal-cell.is-today .cal-date-num{
+    color: var(--bg);
+    font-weight: 700;
+    background: var(--brass);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+  }
   .cal-tag{
     font-size: 10px;
-    line-height: 1.35;
+    line-height: 1.5;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     font-weight: 600;
-    padding: 0 4px 0 0;
+    color: #fff;
+    background: var(--muted);
+    padding: 1px 6px;
+    border-radius: 5px;
     box-sizing: border-box;
   }
   .cal-tag-more{
@@ -3129,9 +3140,9 @@
   }
   .mode-btn:hover:not(.active){ border-color: var(--brass); color: var(--chalk); }
 
-  /* Default (black/unselected) exercise names get a legible light chip
-     since plain black text would be invisible on this dark theme */
+  /* 색이 지정 안 된(흰색/기본) 종목은 다른 색 칩들처럼 튀지 않는 무채색 칩으로 표시 */
   .cal-tag-plain{
+    background: var(--line);
     color: var(--chalk);
   }
   .log-entry-name-plain{
@@ -4003,7 +4014,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.10.8';
+const APP_VERSION = '2.11.0';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6540,7 +6551,7 @@ function renderCalendar(){
         ${entries.map(e => {
           const c = colorForEntry(e);
           const plain = isPlainColor(c);
-          return `<div class="cal-tag ${plain ? 'cal-tag-plain' : ''}" data-entry-id="${e.id}" ${plain ? '' : `style="color:${c}"`}>${escapeHtml(e.exercise)}</div>`;
+          return `<div class="cal-tag ${plain ? 'cal-tag-plain' : ''}" data-entry-id="${e.id}" ${plain ? '' : `style="background:${c}"`}>${escapeHtml(e.exercise)}</div>`;
         }).join('')}
       </div>`;
   }
