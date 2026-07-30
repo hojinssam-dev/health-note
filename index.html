@@ -4003,7 +4003,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.10.6';
+const APP_VERSION = '2.10.8';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6160,7 +6160,7 @@ addExerciseTab.addEventListener('click', () => {
 
 /* ---------- 회원 상세: 달력 화면 (View 2) ---------- */
 
-async function openMember(memberId){
+async function openMember(memberId, isNewMember){
   const member = members.find(m => m.id === memberId);
   if(!member) return;
 
@@ -6189,7 +6189,9 @@ async function openMember(memberId){
   calLoadingOverlay.style.display = 'flex';
 
   try{
-    await migrateLogsIfNeeded(memberId); // 아직 새 구조로 안 옮겨진 회원이면, 나머지 조회 전에 먼저 끝나야 함
+    // 신규 회원은 예전 방식 데이터 자체가 있을 수 없어서, 옮기고 정리하는 절차(서버 왕복 여러 번)를
+    // 통째로 건너뛴다 — 그래야 가입 직후 첫 달력 화면이 스피너 없이 바로 뜬다.
+    if(!isNewMember) await migrateLogsIfNeeded(memberId); // 아직 새 구조로 안 옮겨진 회원이면, 나머지 조회 전에 먼저 끝나야 함
     ensureExerciseKeyBackfilled(memberId); // 달력 표시와 상관없어서 뒤에서 따로(기다리지 않고) 처리
     ensureExerciseKeyNormalized(memberId); // 띄어쓰기 차이로 어긋난 기존 키도 뒤에서 바로잡기
     reconcileTotalWorkoutDays(memberId); // "총 N일 기록" 숫자가 실제 일지 개수와 어긋나 있으면 뒤에서 바로잡기
@@ -6903,6 +6905,9 @@ const EXERCISE_LIBRARY = {
     { name: '바벨로우', photo: 'ex-photos/barbellrow.jpg' },
     { name: '덤벨로우', photo: 'ex-photos/dumbbellrow.jpg' },
     { name: '레터럴로우', photo: 'ex-photos/lateralrow.jpg' },
+    { name: '와이드풀다운 리어', photo: 'ex-photos/widepulldownrear.jpg' },
+    { name: '와이드풀다운 프론트', photo: 'ex-photos/widepulldownfront.jpg' },
+    { name: '로우로우 머신', photo: 'ex-photos/lowrowmachine.jpg' },
   ],
   하체: [
     { name: '스쿼트', photo: 'ex-photos/squat.jpg' },
@@ -6910,7 +6915,7 @@ const EXERCISE_LIBRARY = {
     { name: '런지', photo: 'ex-photos/lunge.jpg' },
     { name: '레그익스텐션', photo: 'ex-photos/legextension.jpg' },
     { name: '레그컬', photo: 'ex-photos/legcurl.jpg' },
-    { name: '레그프레스 머신', photo: 'ex-photos/legpressmachine.jpg' },
+    { name: '파워레그프레스', photo: 'ex-photos/powerlegpress.jpg' },
     { name: '힙쓰러스트', photo: 'ex-photos/hipthrust.jpg' },
     { name: '불가리안 스플릿 스쿼트', photo: 'ex-photos/bulgariansplitsquat.jpg' },
     { name: '이너타이', photo: 'ex-photos/innerthigh.jpg' },
@@ -6939,6 +6944,7 @@ const EXERCISE_LIBRARY = {
     { name: '케이블 푸시다운', photo: 'ex-photos/cablepushdown.jpg' },
     { name: '라잉 트라이셉스 익스텐션', photo: 'ex-photos/lyingtricepsextension.jpg' },
     { name: '오버헤드 트라이셉스 익스텐션', photo: 'ex-photos/overheadtricepsextension.jpg' },
+    { name: '오버헤드 익스텐션 머신', photo: 'ex-photos/overheadextensionmachine.jpg' },
   ],
   복근: [
     { name: '플랭크', photo: 'ex-photos/plank.jpg' },
@@ -7817,7 +7823,7 @@ async function enterMemberHome(){
     await saveMembers();
   }
   pendingSignupUsername = null;
-  await openMember(member.id);
+  await openMember(member.id, isNewMember);
   checkEmailReminder();
   if(isNewMember){
     showTutorialView();
