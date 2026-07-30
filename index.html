@@ -4017,7 +4017,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.11.2';
+const APP_VERSION = '2.11.3';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4691,9 +4691,9 @@ const BODY_PART_COLOR_CHOICES = [
   { color: '#E0574A', label: '빨강' },
   { color: '#4A90D0', label: '파랑' },
   { color: '#4CAF6E', label: '초록' },
-  { color: '#E0A82E', label: '노랑' },
+  { color: '#E8BE1F', label: '노랑' },
   { color: '#9C6FDB', label: '보라' },
-  { color: '#E8862E', label: '주황' },
+  { color: '#E2672A', label: '주황' },
 ];
 const DEFAULT_BODYPART_COLORS = {
   '가슴': '#FFFFFF',
@@ -4713,9 +4713,11 @@ const LEGACY_COLOR_UPGRADE = {
   '#C1614A': '#E0574A', // 빨강
   '#5B84A6': '#4A90D0', // 파랑
   '#6B9C6E': '#4CAF6E', // 초록
-  '#B08D3E': '#E0A82E', // 노랑
+  '#B08D3E': '#E8BE1F', // 노랑 (예전 톤다운 버전)
+  '#E0A82E': '#E8BE1F', // 노랑 (주황이랑 구분 잘 안 되던 1차 버전)
   '#8B6FA6': '#9C6FDB', // 보라
-  '#C97D42': '#E8862E', // 주황
+  '#C97D42': '#E2672A', // 주황 (예전 톤다운 버전)
+  '#E8862E': '#E2672A', // 주황 (노랑이랑 구분 잘 안 되던 1차 버전)
 };
 function upgradeLegacyColor(hex){
   if(!hex) return hex;
