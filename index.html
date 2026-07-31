@@ -1856,7 +1856,11 @@
   }
   .cal-tag{
     font-size: clamp(9.5px, 1.4vw, 17px);
-    line-height: 1.3;
+    height: clamp(18px, 2.1vw, 26px);
+    line-height: clamp(18px, 2.1vw, 26px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1865,7 +1869,7 @@
     color: #fff;
     background: var(--muted);
     width: 100%;
-    padding: clamp(1px, 0.3vw, 4px) clamp(2px, 0.35vw, 5px);
+    padding: 0 clamp(2px, 0.35vw, 5px);
     border-radius: 5px;
     box-sizing: border-box;
   }
@@ -4019,7 +4023,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.11.6';
+const APP_VERSION = '2.11.7';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
