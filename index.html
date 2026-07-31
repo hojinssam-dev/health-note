@@ -1860,11 +1860,11 @@
     line-height: clamp(18px, 2.1vw, 26px);
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    text-align: center;
+    text-align: left;
     font-weight: 600;
     color: #fff;
     background: var(--muted);
@@ -3165,10 +3165,7 @@
   <button type="button" class="install-banner-action" id="installActionBtn" style="display:none;">홈 화면에 추가</button>
   <button type="button" class="install-banner-dismiss" id="installDismissBtn" aria-label="닫기">✕</button>
 </div>
-<div class="install-banner" id="updateBanner" style="display:none;">
-  <span class="install-banner-text">새 버전이 나왔어요! "새 버전 받기"를 눌러주세요.</span>
-  <button type="button" class="install-banner-action" id="updateReloadBtn">새 버전 받기</button>
-</div>
+
 <div class="install-banner" id="clipboardBanner" style="display:none;">
   <span class="install-banner-text" id="clipboardBannerText"></span>
   <button type="button" class="install-banner-dismiss" id="clipboardCancelBtn" aria-label="취소">✕</button>
@@ -3821,6 +3818,14 @@
 
 <div class="copy-toast" id="copyToast"></div>
 
+<div class="modal-overlay" id="updateBanner">
+  <div class="modal-box feature-announce-box">
+    <div class="feature-announce-title">새 버전이 나왔어요</div>
+    <div class="feature-announce-desc">계속 쓰려면 새 버전을 받아야 해요.<br>아래 버튼을 눌러주세요.</div>
+    <button type="button" class="login-btn" id="updateReloadBtn">새 버전 받기</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="featureAnnounceModal">
   <div class="modal-box feature-announce-box">
     <div class="feature-announce-title">자동 저장 기능 추가</div>
@@ -3870,7 +3875,7 @@ const updateReloadBtn = document.getElementById('updateReloadBtn');
 let swRegistration = null;
 
 function showUpdateBanner(){
-  updateBanner.style.display = 'flex';
+  updateBanner.classList.add('open');
 }
 
 /* 자동 감지가 안 됐을 때를 위한 수동 확인: 새 버전이 있는지 직접 확인하고, 있으면 반영해서 새로고침한다 */
@@ -4023,7 +4028,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.11.7';
+const APP_VERSION = '2.12.0';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
