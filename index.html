@@ -1874,7 +1874,7 @@
     white-space: nowrap;
     text-overflow: ellipsis;
     text-align: left;
-    line-height: 1;
+    line-height: 1.4;
   }
   .cal-tag-more{
     font-size: 10px;
@@ -4031,7 +4031,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.12.3';
+const APP_VERSION = '2.12.4';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
