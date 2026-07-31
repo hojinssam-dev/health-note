@@ -1857,14 +1857,9 @@
   .cal-tag{
     font-size: clamp(9.5px, 1.4vw, 17px);
     height: clamp(18px, 2.1vw, 26px);
-    line-height: clamp(18px, 2.1vw, 26px);
     display: flex;
     align-items: center;
-    justify-content: flex-start;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-align: left;
+    justify-content: center;
     font-weight: 600;
     color: #fff;
     background: var(--muted);
@@ -1872,6 +1867,13 @@
     padding: 0 clamp(2px, 0.35vw, 5px);
     border-radius: 5px;
     box-sizing: border-box;
+  }
+  .cal-tag-text{
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-align: left;
   }
   .cal-tag-more{
     font-size: 10px;
@@ -4028,7 +4030,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.12.0';
+const APP_VERSION = '2.12.1';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6584,7 +6586,7 @@ function renderCalendar(){
         ${entries.map(e => {
           const c = colorForEntry(e);
           const plain = isPlainColor(c);
-          return `<div class="cal-tag ${plain ? 'cal-tag-plain' : ''}" data-entry-id="${e.id}" ${plain ? '' : `style="background:${c}"`}>${escapeHtml(e.exercise)}</div>`;
+          return `<div class="cal-tag ${plain ? 'cal-tag-plain' : ''}" data-entry-id="${e.id}" ${plain ? '' : `style="background:${c}"`}><span class="cal-tag-text">${escapeHtml(e.exercise)}</span></div>`;
         }).join('')}
       </div>`;
   }
