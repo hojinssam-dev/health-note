@@ -1876,6 +1876,14 @@
     text-align: left;
     line-height: 1.4;
   }
+  /* 이 글자가 살짝 아래로 처져 보이는 건 iOS(아이폰·아이패드)의 폰트 렌더링 특성 때문이라,
+     안드로이드는 원래 문제없었다. @supports로 iOS의 WebKit 엔진만 정확히 골라서
+     이 미세 조정이 iOS에만 적용되고 안드로이드는 그대로 두게 한다. */
+  @supports (-webkit-touch-callout: none){
+    .cal-tag-text{
+      transform: translateY(-6%);
+    }
+  }
   .cal-tag-more{
     font-size: 10px;
     color: var(--muted);
@@ -4031,7 +4039,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.12.4';
+const APP_VERSION = '2.12.6';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
