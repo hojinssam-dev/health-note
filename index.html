@@ -74,6 +74,7 @@
     background:
       radial-gradient(1100px 600px at 50% -10%, #26302C 0%, transparent 60%),
       var(--bg);
+    background-attachment: fixed, fixed;
     color: var(--chalk);
     font-family: 'Noto Sans KR', sans-serif;
     min-height: 100vh;
@@ -85,11 +86,13 @@
     background:
       radial-gradient(1100px 600px at 50% -10%, #E3F0E0 0%, transparent 60%),
       var(--bg);
+    background-attachment: fixed, fixed;
   }
   body.theme-purple{
     background:
       radial-gradient(1100px 600px at 50% -10%, #EAE2F1 0%, transparent 60%),
       var(--bg);
+    background-attachment: fixed, fixed;
   }
 
   /* 홈 화면 추가 안내 배너 */
@@ -143,6 +146,16 @@
     width: 100%;
   }
 
+  /* 아이패드 가로모드처럼 화면이 넓어지면, 달력 영역도 그 폭을 같이 써서
+     양옆에 빈 공간만 남지 않게 한다. 너무 넓은 화면(데스크톱 등)에서는
+     다시 적당한 선에서 멈추도록 단계별로 최대 폭을 넓힌다. */
+  @media (min-width: 900px){
+    .wrap{ max-width: 1000px; }
+  }
+  @media (min-width: 1200px){
+    .wrap{ max-width: 1160px; }
+  }
+
   @media (max-width: 480px){
     .wrap{
       padding: 24px 16px 80px;
@@ -152,8 +165,7 @@
     }
     .header h1{ font-size: 36px; }
     .log-header h1{ font-size: 20px; }
-    .count-badge{ font-size: 12px; padding: 6px 10px; }
-  }
+    .count-badge{ font-size: 12px; padding: 6px 10px; }  }
 
   /* Header — locker room tag */
   .header{
@@ -4039,7 +4051,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.12.6';
+const APP_VERSION = '2.12.8';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
