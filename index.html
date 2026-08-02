@@ -4055,7 +4055,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.13.0';
+const APP_VERSION = '2.13.2';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4123,11 +4123,15 @@ const db = firebase.firestore();
 
 /* 오프라인 캐시(로컬 저장) 켜기: 한 번 받아온 데이터는 이 기기에 저장해뒀다가,
    다음에 열 때는 그 캐시를 먼저 바로 보여주고 뒤에서 서버와 동기화한다.
-   synchronizeTabs: true를 줘서, 이 앱을 여러 탭으로 동시에 열어도(예: 관리자 페이지 탭 +
-   달력 탭) 캐시를 탭끼리 공유하면서 안전하게 동작하게 한다. */
-db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+   synchronizeTabs는 일부러 안 켠다 — 이 옵션은 "같은 브라우저의 진짜 탭"끼리만
+   순서를 조율하는 기능인데, 아이패드에서 사파리로 홈화면에 추가한 앱과 크롬으로
+   홈화면에 추가한 앱은 서로의 존재를 모르는 완전히 별개의 앱이라 이 조율이 안 통한다.
+   그 상태에서 한쪽 앱이 백그라운드에 재워지면, 다른 쪽 앱이 "리더"가 정리되길
+   영원히 기다리며 멈춰버리는(로그인 등 아무 반응 없음) 문제가 생겼다. 꺼두면
+   각 앱이 서로 안 기다리고 독립적으로 동작해서 이 교착 상태 자체가 안 생긴다. */
+db.enablePersistence({ synchronizeTabs: false }).catch((err) => {
   if(err.code === 'failed-precondition'){
-    // 이 브라우저의 다른 창/탭이 synchronizeTabs 없이 이미 캐시를 켠 상태 — 매우 드문 경우
+    // 이 브라우저의 다른 탭이 이미 캐시를 켠 상태라 이 탭에서는 못 켰음 — 매우 드문 경우
     console.warn('오프라인 캐시: 다른 탭과 충돌해서 이 탭에서는 못 켰어요.', err);
   } else if(err.code === 'unimplemented'){
     // 이 브라우저가 오프라인 캐시를 지원하지 않음 (예: 일부 사파리 프라이빗 모드)
@@ -4731,7 +4735,7 @@ const BODY_PART_COLOR_CHOICES = [
   { color: '#4CAF6E', label: '초록' },
   { color: '#E8BE1F', label: '노랑' },
   { color: '#9C6FDB', label: '보라' },
-  { color: '#E2672A', label: '주황' },
+  { color: '#D1548C', label: '핑크' },
 ];
 const DEFAULT_BODYPART_COLORS = {
   '가슴': '#FFFFFF',
@@ -4754,8 +4758,9 @@ const LEGACY_COLOR_UPGRADE = {
   '#B08D3E': '#E8BE1F', // 노랑 (예전 톤다운 버전)
   '#E0A82E': '#E8BE1F', // 노랑 (주황이랑 구분 잘 안 되던 1차 버전)
   '#8B6FA6': '#9C6FDB', // 보라
-  '#C97D42': '#E2672A', // 주황 (예전 톤다운 버전)
-  '#E8862E': '#E2672A', // 주황 (노랑이랑 구분 잘 안 되던 1차 버전)
+  '#C97D42': '#D1548C', // 주황→핑크 (예전 톤다운 버전)
+  '#E8862E': '#D1548C', // 주황→핑크 (노랑이랑 구분 잘 안 되던 1차 버전)
+  '#E2672A': '#D1548C', // 주황→핑크 (빨강이랑 구분 잘 안 되던 2차 버전)
 };
 function upgradeLegacyColor(hex){
   if(!hex) return hex;
