@@ -1821,6 +1821,8 @@
     margin-bottom: 8px;
     letter-spacing: 0.4px;
   }
+  .cal-weekdays span:first-child{ color: #E0574A; }
+  .cal-weekdays span:last-child{ color: #4A90D0; }
   .cal-swipe-area{
     touch-action: pan-y;
     user-select: none;
@@ -1855,6 +1857,8 @@
     font-size: clamp(11px, 1.5vw, 19px);
     color: var(--muted);
   }
+  .cal-date-num.cal-date-sun{ color: #E0574A; }
+  .cal-date-num.cal-date-sat{ color: #4A90D0; }
   .cal-cell.is-today .cal-date-num{
     color: var(--bg);
     font-weight: 700;
@@ -4051,7 +4055,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.12.8';
+const APP_VERSION = '2.13.0';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6600,10 +6604,12 @@ function renderCalendar(){
     const entries = sortEntriesByOrder(currentLogs.filter(e => e.date === dateStr));
     const isToday = dateStr === todayD;
     const hasEntries = entries.length > 0;
+    const weekday = (firstWeekday + day - 1) % 7;
+    const weekendClass = weekday === 0 ? 'cal-date-sun' : (weekday === 6 ? 'cal-date-sat' : '');
 
     cellsHtml += `
       <div class="cal-cell ${hasEntries ? 'has-entries' : ''} ${isToday ? 'is-today' : ''}" data-date="${dateStr}">
-        <div class="cal-date-num">${day}</div>
+        <div class="cal-date-num ${weekendClass}">${day}</div>
         ${entries.map(e => {
           const c = colorForEntry(e);
           const plain = isPlainColor(c);
