@@ -4055,7 +4055,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.13.2';
+const APP_VERSION = '2.14.1';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4418,7 +4418,40 @@ const photoLightboxCloseBtn = document.getElementById('photoLightboxCloseBtn');
 let currentBodyPhotos = [];
 let lightboxPhotoId = null;
 
-function photoKey(memberId){ return 'body-photos:' + memberId; }
+/* 예전엔 사진 '목록 전체'를 하나의 값으로 저장해서, 여러 기기가 거의 동시에 사진을
+   올리면 나중에 쓴 쪽이 앞선 기기의 사진을 통째로 덮어써버리는 문제가 있었다.
+   이제는 사진 한 장 = 문서 한 개로 따로따로 저장해서, 서로 절대 안 부딪히게 한다. */
+function bodyPhotosCollection(memberId){
+  return db.collection('users').doc(memberId).collection('bodyPhotos');
+}
+function legacyPhotoKey(memberId){ return 'body-photos:' + memberId; }
+
+/* 예전 방식(목록 전체를 한 값으로 저장)으로 남아있는 사진이 있으면,
+   한 번만 새 방식(사진 한 장당 문서 하나)으로 옮겨준다. */
+async function migrateBodyPhotosIfNeeded(memberId){
+  const flag = await storageGetWithRetry('bodyphotos-migrated:' + memberId, false);
+  if(flag && flag.value === 'true') return;
+  try{
+    const legacy = await storageGetWithRetry(legacyPhotoKey(memberId), false);
+    const legacyPhotos = legacy ? JSON.parse(legacy.value) : [];
+    if(legacyPhotos.length > 0){
+      const batch = db.batch();
+      legacyPhotos.forEach(p => {
+        batch.set(bodyPhotosCollection(memberId).doc(p.id), { date: p.date, url: p.url });
+      });
+      await batch.commit();
+    }
+  }catch(err){
+    console.error('사진 옮기기 오류:', err);
+    return; // 실패하면 완료 표시를 안 하고 다음에 다시 시도한다
+  }
+  await storageSetWithRetry('bodyphotos-migrated:' + memberId, 'true', false);
+}
+
+async function loadBodyPhotos(memberId){
+  const snap = await bodyPhotosCollection(memberId).get();
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
 
 bodyPhotosTab.addEventListener('click', () => {
   const isOpen = bodyPhotosPanel.style.display !== 'none';
@@ -4482,13 +4515,14 @@ async function uploadToCloudinary(blob){
     const errData = await signRes.json().catch(() => ({}));
     throw new Error(errData.error || '업로드 인증에 실패했어요.');
   }
-  const { signature, timestamp, apiKey } = await signRes.json();
+  const { signature, timestamp, apiKey, folder } = await signRes.json();
 
   const formData = new FormData();
   formData.append('file', blob);
   formData.append('api_key', apiKey);
   formData.append('timestamp', timestamp);
   formData.append('signature', signature);
+  if(folder) formData.append('folder', folder);
 
   const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
     method: 'POST',
@@ -4514,13 +4548,13 @@ async function handlePhotoUpload(file){
   showCopyToast('사진을 업로드하는 중이에요...');
   try{
     const url = await uploadToCloudinary(blob);
+    const photo = { id, date: todayStr(), url };
 
-    currentBodyPhotos.push({ id, date: todayStr(), url });
+    await bodyPhotosCollection(currentMemberId).doc(id).set({ date: photo.date, url: photo.url });
+
+    currentBodyPhotos.push(photo);
     renderBodyPhotos();
-
-    const ok = await storageSetWithRetry(photoKey(currentMemberId), JSON.stringify(currentBodyPhotos), false);
-    if(!ok) showCopyToast('사진 목록 저장에 실패했어요. 잠시 후 다시 시도해주세요.');
-    else showCopyToast('사진이 등록됐어요.');
+    showCopyToast('사진이 등록됐어요.');
   }catch(err){
     console.error('사진 업로드 오류:', err);
     showCopyToast('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
@@ -4555,10 +4589,17 @@ photoLightboxDeleteBtn.addEventListener('click', () => {
   if(!id) return;
   closePhotoLightbox();
   showConfirmModal('사진 삭제', '이 사진을 삭제할까요?', async () => {
+    const prevPhotos = currentBodyPhotos;
     currentBodyPhotos = currentBodyPhotos.filter(p => p.id !== id);
     renderBodyPhotos();
-    const ok = await storageSetWithRetry(photoKey(currentMemberId), JSON.stringify(currentBodyPhotos), false);
-    if(!ok) showCopyToast('삭제 내용을 저장하지 못했어요. 다시 시도해주세요.');
+    try{
+      await bodyPhotosCollection(currentMemberId).doc(id).delete();
+    }catch(err){
+      console.error('사진 삭제 오류:', err);
+      currentBodyPhotos = prevPhotos;
+      renderBodyPhotos();
+      showCopyToast('삭제하지 못했어요. 다시 시도해주세요.');
+    }
   });
 });
 
@@ -6308,12 +6349,12 @@ async function openMember(memberId, isNewMember){
   // 사진·메모는 달력과 상관없는 정보라, 달력을 먼저 그린 뒤 뒤에서 따로(동시에) 불러온다
   bodyPhotosPanel.style.display = 'none';
   bodyPhotosTabArrow.classList.remove('open');
-  Promise.all([
-    storageGetWithRetry(photoKey(memberId), false).catch(() => null),
-    storageGetWithRetry(dismissedNoteKey(memberId), false).catch(() => null),
-  ]).then(([photoResult, dismissedResult]) => {
-    currentBodyPhotos = photoResult ? JSON.parse(photoResult.value) : [];
-    renderBodyPhotos();
+  (async () => {
+    await migrateBodyPhotosIfNeeded(memberId);
+    currentBodyPhotos = await loadBodyPhotos(memberId);
+    if(currentMemberId === memberId) renderBodyPhotos();
+  })();
+  storageGetWithRetry(dismissedNoteKey(memberId), false).then((dismissedResult) => {
     dismissedNoteId = dismissedResult ? dismissedResult.value : null;
   });
 }
