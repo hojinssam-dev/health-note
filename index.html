@@ -4055,7 +4055,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.14.1';
+const APP_VERSION = '2.14.2';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4451,6 +4451,37 @@ async function migrateBodyPhotosIfNeeded(memberId){
 async function loadBodyPhotos(memberId){
   const snap = await bodyPhotosCollection(memberId).get();
   return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+/* Cloudinary에서 직접 지운 사진은 파일 자체가 없어져서 깨진 이미지로 남는데,
+   그걸 목록에서도 조용히 정리해준다. 사진 하나하나가 실제로 열리는지 확인해서,
+   안 열리는(깨진) 것만 뒤에서(화면 안 막고) 기록까지 지운다. */
+function checkImageLoads(url){
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = url;
+  });
+}
+async function pruneBrokenBodyPhotos(memberId, photos){
+  if(!photos.length) return;
+  const results = await Promise.all(photos.map(p => checkImageLoads(p.url)));
+  const broken = photos.filter((p, i) => !results[i]);
+  if(!broken.length) return;
+  try{
+    const batch = db.batch();
+    broken.forEach(p => batch.delete(bodyPhotosCollection(memberId).doc(p.id)));
+    await batch.commit();
+  }catch(err){
+    console.error('깨진 사진 정리 오류:', err);
+    return;
+  }
+  if(currentMemberId === memberId){
+    const brokenIds = new Set(broken.map(p => p.id));
+    currentBodyPhotos = currentBodyPhotos.filter(p => !brokenIds.has(p.id));
+    renderBodyPhotos();
+  }
 }
 
 bodyPhotosTab.addEventListener('click', () => {
@@ -6353,6 +6384,7 @@ async function openMember(memberId, isNewMember){
     await migrateBodyPhotosIfNeeded(memberId);
     currentBodyPhotos = await loadBodyPhotos(memberId);
     if(currentMemberId === memberId) renderBodyPhotos();
+    pruneBrokenBodyPhotos(memberId, currentBodyPhotos); // 화면 막지 않고 뒤에서 깨진 사진만 조용히 정리
   })();
   storageGetWithRetry(dismissedNoteKey(memberId), false).then((dismissedResult) => {
     dismissedNoteId = dismissedResult ? dismissedResult.value : null;
