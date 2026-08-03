@@ -5,7 +5,9 @@
 //
 // 이 함수가 하는 일:
 // 1. 요청에 담긴 Firebase 로그인 토큰이 진짜인지 확인한다 (구글 공개키로 서명 검증).
-// 2. 진짜 로그인한 사용자가 맞으면, Cloudinary 업로드에 필요한 서명을 만들어 돌려준다.
+// 2. 진짜 로그인한 사용자가 맞으면, 그 사용자 전용 폴더(members/{uid})로 업로드할 수 있는
+//    서명을 만들어 돌려준다. 폴더 이름은 클라이언트가 보낸 값을 쓰지 않고, 여기서 검증한
+//    로그인 정보(uid)로 직접 만든다 — 그래야 다른 사람이 남의 폴더 이름을 흉내 낼 수 없다.
 // 3. 로그인 안 했거나 가짜 요청이면 거절한다.
 
 const crypto = require('crypto');
@@ -68,7 +70,7 @@ exports.handler = async (event) => {
       return { statusCode: 401, headers, body: JSON.stringify({ error: '로그인이 필요해요.' }) };
     }
     const idToken = authHeader.slice(7);
-    await verifyFirebaseIdToken(idToken);
+    const payload = await verifyFirebaseIdToken(idToken);
 
     const apiKey = process.env.CLOUDINARY_API_KEY;
     const apiSecret = process.env.CLOUDINARY_API_SECRET;
@@ -76,14 +78,17 @@ exports.handler = async (event) => {
       return { statusCode: 500, headers, body: JSON.stringify({ error: '서버에 Cloudinary 설정이 안 되어 있어요.' }) };
     }
 
+    // 폴더 이름은 클라이언트가 보낸 값이 아니라, 여기서 검증된 로그인 정보(uid)로 직접 만든다.
+    const folder = `members/${payload.sub}`;
     const timestamp = Math.round(Date.now() / 1000);
-    const paramsToSign = `timestamp=${timestamp}`;
+    // Cloudinary 서명 규칙: 실제로 업로드 때 같이 보낼 파라미터를 알파벳 순으로 나열해서 서명해야 한다.
+    const paramsToSign = `folder=${folder}&timestamp=${timestamp}`;
     const signature = crypto.createHash('sha1').update(paramsToSign + apiSecret).digest('hex');
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ signature, timestamp, apiKey }),
+      body: JSON.stringify({ signature, timestamp, apiKey, folder }),
     };
   } catch (err) {
     return { statusCode: 401, headers, body: JSON.stringify({ error: err.message || '인증에 실패했어요.' }) };
