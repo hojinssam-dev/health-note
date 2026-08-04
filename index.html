@@ -4055,7 +4055,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.14.2';
+const APP_VERSION = '2.14.3';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5912,6 +5912,15 @@ function makeBlock(){
   }
   updateFindExerciseVisibility();
   nameInputEl.addEventListener('input', updateFindExerciseVisibility);
+
+  /* 이름을 빠르게 입력하면 글자마다 서버 조회가 하나씩 나가는데, 연결이 느리거나
+     불안정한 기기에서는 그 응답들이 보낸 순서와 다르게 도착할 수 있다. 그러면 예전
+     글자 상태(예: "고블린스쿼")에 대한 낡은 응답이 뒤늦게 도착해서, 방금 완성된
+     이름("고블린스쿼트")에 대한 정확한 결과를 덮어써버리는 일이 생긴다.
+     그래서 입력할 때마다 번호표를 하나씩 올려두고, 조회가 끝났을 때 그 사이에 번호표가
+     더 올라갔으면(= 그 뒤에 또 입력이 있었으면) 낡은 응답이니 화면에 반영하지 않고 버린다. */
+  let nameInputGen = 0;
+  nameInputEl.addEventListener('input', () => { nameInputGen++; });
   findExerciseLink.addEventListener('click', () => {
     openExercisePicker((chosenName) => {
       nameInputEl.value = chosenName;
@@ -5920,6 +5929,7 @@ function makeBlock(){
   });
 
   async function updatePrevHint(){
+    const myGen = nameInputGen;
     const name = nameInputEl.value.trim();
     if(!name){
       prevHintEl.style.display = 'none';
@@ -5928,6 +5938,7 @@ function makeBlock(){
     }
     const dateVal = (entryDateInput && entryDateInput.value) || todayStr();
     const prev = await findPreviousExercise(name, dateVal);
+    if(myGen !== nameInputGen) return; // 그 사이에 또 입력이 있었으면 낡은 응답이니 버림
     if(!prev || !prev.setRows || !prev.setRows.length){
       prevHintEl.style.display = 'none';
       prevHintEl.textContent = '';
@@ -5983,6 +5994,7 @@ function makeBlock(){
   const exMemoText = exMemoBanner.querySelector('.exercise-memo-text');
 
   async function updateExerciseMemoHint(){
+    const myGen = nameInputGen;
     const name = nameInputEl.value.trim();
     if(!name || block.getAttribute('data-edit-id')){
       exMemoBanner.style.display = 'none';
@@ -5990,6 +6002,7 @@ function makeBlock(){
     }
     const dateVal = (entryDateInput && entryDateInput.value) || todayStr();
     const memoEntry = await findPreviousExerciseMemo(name, dateVal);
+    if(myGen !== nameInputGen) return; // 그 사이에 또 입력이 있었으면 낡은 응답이니 버림
     if(memoEntry){
       exMemoText.textContent = memoEntry.memo;
       exMemoBanner.style.display = 'flex';
@@ -6214,10 +6227,12 @@ function makeBlock(){
 
   async function applyPrevSetRows(){
     if(block.getAttribute('data-edit-id') || setRowsManuallyEdited) return;
+    const myGen = nameInputGen;
     const name = nameInputEl.value.trim();
     const dateVal = (entryDateInput && entryDateInput.value) || todayStr();
     const prev = name ? await findPreviousExercise(name, dateVal) : null;
     if(block.getAttribute('data-edit-id') || setRowsManuallyEdited) return; // 조회 도중 상태가 바뀌었으면 무시
+    if(myGen !== nameInputGen) return; // 그 사이에 또 입력이 있었으면 낡은 응답이니 버림
     if(prev && prev.setRows && prev.setRows.length){
       const mode = prev.recordMode === 'time' ? 'time' : 'reps';
       prevCompareRows = prev.setRows;
