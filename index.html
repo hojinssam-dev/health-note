@@ -1859,6 +1859,41 @@
   }
   .cal-date-num.cal-date-sun{ color: #E0574A; }
   .cal-date-num.cal-date-sat{ color: #4A90D0; }
+  .cal-cell.has-trainer-entry{
+    box-shadow: inset 0 0 0 2px var(--brass);
+    border-radius: 6px;
+  }
+  .row-trainer-toggles{
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .trainer-toggle-btn{
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: var(--radius-s);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .trainer-toggle-btn.active{
+    border-color: var(--brass);
+    background: var(--brass);
+    color: var(--bg);
+  }
+  .log-entry-locked{
+    opacity: 0.9;
+  }
+  .trainer-section-label{
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 700;
+    margin: 16px 0 8px;
+    padding: 0 4px;
+  }
   .cal-cell.is-today .cal-date-num{
     color: var(--bg);
     font-weight: 700;
@@ -3377,6 +3412,7 @@
           <button class="login-forgot-btn login-find-link" id="loginForgotBtn" type="button">비밀번호를 잊으셨나요?</button>
         </div>
         <button class="login-toggle-btn" id="loginToggleModeBtn" type="button">처음이신가요? 회원가입</button>
+        <button class="login-toggle-btn" id="trainerLoginBtn" type="button">트레이너 로그인</button>
       </div>
       <button type="button" class="landing-tutorial-tab" id="loginTutorialBtn">
         <span>📖 사용 방법 보기</span>
@@ -3389,6 +3425,7 @@
   <!-- VIEW 2: 나의 운동 달력 -->
   <div class="view" id="view-log">
     <div class="log-header">
+      <button class="back-btn" id="trainerBackToListBtn" style="display:none;">←</button>
       <button class="logout-btn" id="settingsBtn" title="설정">⚙</button>
       <div class="log-header-info">
         <div class="log-header-name-row">
@@ -3608,6 +3645,16 @@
     </div>
   </div>
 
+  <div class="view" id="view-trainer-members">
+    <div class="log-header">
+      <h1 class="admin-title">회원 목록</h1>
+      <button class="logout-btn" id="trainerMembersLogoutBtn" title="로그아웃">⎋</button>
+    </div>
+    <div class="admin-member-list" id="trainerMemberList">
+      <div class="admin-loading">불러오는 중...</div>
+    </div>
+  </div>
+
 </div>
 
 <div class="modal-overlay" id="actionModal">
@@ -3743,6 +3790,7 @@
     </div>
     <div class="modal-actions">
       <button class="modal-btn" id="settingsMyAccountBtn">내 계정</button>
+      <button class="modal-btn" id="settingsTrainerConnectBtn">트레이너와 연결</button>
       <button class="modal-btn" id="settingsCheckUpdateBtn">새 버전 받기</button>
       <button class="modal-btn" id="settingsTutorialBtn">사용법 튜토리얼 보기</button>
       <button class="modal-btn" id="settingsAdminBtn" style="display:none;">관리자 페이지</button>
@@ -3751,6 +3799,20 @@
     </div>
     <button class="modal-cancel" id="settingsCancelBtn">취소</button>
     <div class="app-version-label" id="appVersionLabel"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="trainerConnectModal">
+  <div class="modal-box">
+    <div class="modal-title">트레이너와 연결</div>
+    <div class="modal-sub" id="trainerConnectStatus">아직 연결된 트레이너가 없어요.</div>
+    <input id="trainerConnectIdInput" type="text" placeholder="트레이너 아이디" autocomplete="off">
+    <div class="login-error" id="trainerConnectError" style="display:none;"></div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-primary" id="trainerConnectSaveBtn">연결하기</button>
+      <button class="modal-btn modal-btn-danger" id="trainerConnectRemoveBtn" style="display:none;">연결 해제</button>
+    </div>
+    <button class="modal-cancel" id="trainerConnectCancelBtn">닫기</button>
   </div>
 </div>
 
@@ -4055,7 +4117,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.14.3';
+const APP_VERSION = '2.15.1';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4223,7 +4285,9 @@ function buildHeaderInfoText(){
 function updateMemberInfoBar(member){
   if(!member) return;
   headerInfoLine.textContent = buildHeaderInfoText();
-  memberInfoMemo.textContent = member.memo || '';
+  const canSeeNote = isAdmin() || isViewingAsTrainer;
+  memberInfoMemo.textContent = canSeeNote ? (member.memo || '') : '';
+  memberInfoMemo.style.display = canSeeNote ? '' : 'none';
 }
 
 /* 달력 화면 최상단의 "총 N일 기록" / "이번 주 N번째 운동"을 항상 같은 순서로,
@@ -5847,6 +5911,10 @@ function makeBlock(){
   block.className = 'exercise-block';
   block.setAttribute('data-block-id', id);
   block.innerHTML = `
+    <div class="block-row row-trainer-toggles" style="display:${isViewingAsTrainer ? 'flex' : 'none'};">
+      <button type="button" class="trainer-toggle-btn" data-toggle="locked">🔒 잠금</button>
+      <button type="button" class="trainer-toggle-btn" data-toggle="ptRecognized">✅ PT 인정</button>
+    </div>
     <div class="block-row row-exercise">
       <button type="button" class="block-drag-handle" title="드래그해서 순서 변경">⇅</button>
       <input type="text" class="exercise-name-input" placeholder="운동 종목, 예: 스쿼트" maxlength="40">
@@ -5901,6 +5969,10 @@ function makeBlock(){
   `;
 
   const nameInputEl = block.querySelector('.exercise-name-input');
+  const lockedToggleBtn = block.querySelector('[data-toggle="locked"]');
+  const ptRecognizedToggleBtn = block.querySelector('[data-toggle="ptRecognized"]');
+  lockedToggleBtn.addEventListener('click', () => lockedToggleBtn.classList.toggle('active'));
+  ptRecognizedToggleBtn.addEventListener('click', () => ptRecognizedToggleBtn.classList.toggle('active'));
   const colorValueEl = block.querySelector('.color-value');
   const colorSwatches = [...block.querySelectorAll('.swatch')];
   const prevHintEl = block.querySelector('.prev-record-hint');
@@ -6697,11 +6769,12 @@ function renderCalendar(){
     const entries = sortEntriesByOrder(currentLogs.filter(e => e.date === dateStr));
     const isToday = dateStr === todayD;
     const hasEntries = entries.length > 0;
+    const hasTrainerEntry = entries.some(e => e.locked);
     const weekday = (firstWeekday + day - 1) % 7;
     const weekendClass = weekday === 0 ? 'cal-date-sun' : (weekday === 6 ? 'cal-date-sat' : '');
 
     cellsHtml += `
-      <div class="cal-cell ${hasEntries ? 'has-entries' : ''} ${isToday ? 'is-today' : ''}" data-date="${dateStr}">
+      <div class="cal-cell ${hasEntries ? 'has-entries' : ''} ${isToday ? 'is-today' : ''} ${hasTrainerEntry ? 'has-trainer-entry' : ''}" data-date="${dateStr}">
         <div class="cal-date-num ${weekendClass}">${day}</div>
         ${entries.map(e => {
           const c = colorForEntry(e);
@@ -6758,15 +6831,16 @@ async function renderDayDetail(){
         const plain = isPlainColor(c);
         const comp = comparisons[i];
         const compClass = comp ? (comp.diff > 0 ? 'up' : comp.diff < 0 ? 'down' : 'flat') : '';
+        const canEdit = !e.locked || isViewingAsTrainer || isAdmin();
         return `
-        <div class="log-entry" data-id="${e.id}">
-          <div class="log-entry-body" data-entry-click="${e.id}">
-            <p class="log-entry-name ${plain ? 'log-entry-name-plain' : ''}" ${plain ? '' : `style="color:${c}"`}>${escapeHtml(e.exercise)}</p>
+        <div class="log-entry ${e.locked ? 'log-entry-locked' : ''}" data-id="${e.id}">
+          <div class="log-entry-body" ${canEdit ? `data-entry-click="${e.id}"` : ''}>
+            <p class="log-entry-name ${plain ? 'log-entry-name-plain' : ''}" ${plain ? '' : `style="color:${c}"`}>${e.locked ? '🔒 ' : ''}${escapeHtml(e.exercise)}</p>
             <div class="log-entry-stats">${statsLine(e)}</div>
             ${e.memo ? `<div class="log-entry-memo">${escapeHtml(e.memo)}</div>` : ''}
             ${comp ? `<div class="log-entry-compare ${compClass}">${comp.arrow} 지난 기록 대비 ${metricLabel(comp.type)} ${formatMetricDiff(comp.type, comp.diff)}</div>` : ''}
           </div>
-          <button class="log-del" data-logdel="${e.id}" title="기록 삭제">×</button>
+          ${canEdit ? `<button class="log-del" data-logdel="${e.id}" title="기록 삭제">×</button>` : ''}
         </div>
       `;
       }).join('')}
@@ -7399,6 +7473,8 @@ function editEntry(entryId){
     block.querySelector('.exercise-name-input').value = dayEntry.exercise;
     block._setColor(colorForEntry(dayEntry));
     block.querySelector('.stat-memo').value = dayEntry.memo || '';
+    if(dayEntry.locked) block.querySelector('[data-toggle="locked"]').classList.add('active');
+    if(dayEntry.ptRecognized) block.querySelector('[data-toggle="ptRecognized"]').classList.add('active');
     block._updatePrevHint();
     block._updateExerciseMemoHint();
 
@@ -7780,6 +7856,9 @@ async function addLogEntry(opts){
       }));
     }
 
+    const editId = block.getAttribute('data-edit-id');
+    const existingTarget = editId ? currentLogs.find(e => e.id === editId) : null;
+
     const entryData = {
       date: dateVal,
       exercise,
@@ -7794,12 +7873,21 @@ async function addLogEntry(opts){
       startTime: entryStartTimeInput.value,
       endTime: entryEndTimeInput.value,
       order: blockIndex,
+      // 새로 만드는 기록만 작성자를 지금 로그인한 사람으로 남기고, 수정할 땐 원래 작성자를 그대로 유지한다
+      authorId: existingTarget ? existingTarget.authorId : auth.currentUser.uid,
+      // 트레이너 화면에서만 토글이 보이니, 트레이너가 저장할 때만 이 값들을 반영하고
+      // 회원이 저장할 땐(토글 자체가 안 보이니) 원래 값을 그대로 유지한다
+      locked: isViewingAsTrainer
+        ? block.querySelector('[data-toggle="locked"]').classList.contains('active')
+        : (existingTarget ? !!existingTarget.locked : false),
+      ptRecognized: isViewingAsTrainer
+        ? block.querySelector('[data-toggle="ptRecognized"]').classList.contains('active')
+        : (existingTarget ? !!existingTarget.ptRecognized : false),
     };
 
-    const editId = block.getAttribute('data-edit-id');
     let finalEntry;
     if(editId){
-      const target = currentLogs.find(e => e.id === editId);
+      const target = existingTarget;
       if(target){
         Object.assign(target, entryData);
         finalEntry = target;
@@ -7896,8 +7984,19 @@ function showLandingView(){
   viewLogin.classList.remove('active');
   viewLog.classList.remove('active');
   viewEntry.classList.remove('active');
+  viewAdmin.classList.remove('active');
+  viewTrainerMembers.classList.remove('active');
 }
-landingStartBtn.addEventListener('click', showLoginView);
+landingStartBtn.addEventListener('click', () => {
+  pendingTrainerLogin = false;
+  showLoginView();
+});
+let pendingTrainerLogin = false;
+const trainerLoginBtn = document.getElementById('trainerLoginBtn');
+trainerLoginBtn.addEventListener('click', () => {
+  pendingTrainerLogin = true;
+  showLoginView();
+});
 landingPrivacyBtn.addEventListener('click', () => {
   viewLanding.classList.remove('active');
   viewPrivacy.classList.add('active');
@@ -7963,7 +8062,6 @@ function showLoginView(){
   loginError.style.display = 'none';
   updateLoginModeUI();
 }
-
 loginToggleModeBtn.addEventListener('click', () => {
   loginMode = loginMode === 'signin' ? 'signup' : 'signin';
   loginError.style.display = 'none';
@@ -7989,6 +8087,27 @@ async function enterMemberHome(){
     await saveMembers();
   }
   pendingSignupUsername = null;
+
+  if(pendingTrainerLogin){
+    pendingTrainerLogin = false;
+    let userDoc;
+    try{
+      userDoc = await db.collection('users').doc(uid).get();
+    }catch(err){
+      console.error('트레이너 확인 오류:', err);
+    }
+    if(userDoc && userDoc.exists && userDoc.data().isTrainer){
+      showTrainerMemberListView();
+      return;
+    } else {
+      showLoginView();
+      loginError.textContent = '트레이너로 지정된 계정이 아니에요.';
+      loginError.style.display = 'block';
+      await auth.signOut();
+      return;
+    }
+  }
+
   await openMember(member.id, isNewMember);
   checkEmailReminder();
   if(isNewMember){
@@ -8297,6 +8416,97 @@ myAccountModal.addEventListener('click', (ev) => {
   if(ev.target === myAccountModal) closeMyAccountModal();
 });
 
+/* ---------- 회원 쪽: 트레이너와 연결 ---------- */
+const trainerConnectModal = document.getElementById('trainerConnectModal');
+const trainerConnectIdInput = document.getElementById('trainerConnectIdInput');
+const trainerConnectStatus = document.getElementById('trainerConnectStatus');
+const trainerConnectError = document.getElementById('trainerConnectError');
+const trainerConnectSaveBtn = document.getElementById('trainerConnectSaveBtn');
+const trainerConnectRemoveBtn = document.getElementById('trainerConnectRemoveBtn');
+const trainerConnectCancelBtn = document.getElementById('trainerConnectCancelBtn');
+const settingsTrainerConnectBtn = document.getElementById('settingsTrainerConnectBtn');
+
+function closeTrainerConnectModal(){
+  trainerConnectModal.classList.remove('open');
+}
+
+async function refreshTrainerConnectModal(){
+  trainerConnectIdInput.value = '';
+  trainerConnectError.style.display = 'none';
+  trainerConnectStatus.textContent = '확인하는 중...';
+  trainerConnectRemoveBtn.style.display = 'none';
+  try{
+    const doc = await db.collection('users').doc(currentMemberId).get();
+    const trainerId = doc.exists ? doc.data().trainerId : null;
+    if(trainerId){
+      trainerConnectStatus.textContent = '트레이너와 연결되어 있어요.';
+      trainerConnectRemoveBtn.style.display = 'block';
+    } else {
+      trainerConnectStatus.textContent = '아직 연결된 트레이너가 없어요. 트레이너가 알려준 아이디를 입력해주세요.';
+    }
+  }catch(err){
+    trainerConnectStatus.textContent = '연결 상태를 확인하지 못했어요.';
+  }
+}
+
+settingsTrainerConnectBtn.addEventListener('click', () => {
+  closeSettingsModal();
+  refreshTrainerConnectModal();
+  trainerConnectModal.classList.add('open');
+});
+trainerConnectCancelBtn.addEventListener('click', closeTrainerConnectModal);
+trainerConnectModal.addEventListener('click', (ev) => {
+  if(ev.target === trainerConnectModal) closeTrainerConnectModal();
+});
+
+trainerConnectSaveBtn.addEventListener('click', async () => {
+  const rawId = trainerConnectIdInput.value.trim();
+  trainerConnectError.style.display = 'none';
+  if(!rawId){
+    trainerConnectError.textContent = '트레이너 아이디를 입력해주세요.';
+    trainerConnectError.style.display = 'block';
+    return;
+  }
+  const docId = usernameDocId(rawId);
+  trainerConnectSaveBtn.disabled = true;
+  try{
+    const snap = await db.collection('usernames').doc(docId).get();
+    if(!snap.exists){
+      trainerConnectError.textContent = '존재하지 않는 아이디예요.';
+      trainerConnectError.style.display = 'block';
+      return;
+    }
+    const trainerUid = snap.data().uid;
+    if(trainerUid === currentMemberId){
+      trainerConnectError.textContent = '본인 아이디는 연결할 수 없어요.';
+      trainerConnectError.style.display = 'block';
+      return;
+    }
+    await db.collection('users').doc(currentMemberId).set({ trainerId: trainerUid }, { merge: true });
+    showCopyToast('트레이너와 연결했어요.');
+    closeTrainerConnectModal();
+  }catch(err){
+    console.error('트레이너 연결 오류:', err);
+    trainerConnectError.textContent = '연결 중 오류가 발생했어요.';
+    trainerConnectError.style.display = 'block';
+  }finally{
+    trainerConnectSaveBtn.disabled = false;
+  }
+});
+
+trainerConnectRemoveBtn.addEventListener('click', () => {
+  showConfirmModal('연결 해제', '트레이너와의 연결을 해제할까요?', async () => {
+    try{
+      await db.collection('users').doc(currentMemberId).set({ trainerId: firebase.firestore.FieldValue.delete() }, { merge: true });
+      showCopyToast('연결을 해제했어요.');
+      closeTrainerConnectModal();
+    }catch(err){
+      console.error('트레이너 연결 해제 오류:', err);
+      showCopyToast('해제 중 오류가 발생했어요.');
+    }
+  }, '해제');
+});
+
 accountChangeIdBtn.addEventListener('click', () => {
   closeMyAccountModal();
   const member = members.find(m => m.id === currentMemberId);
@@ -8500,11 +8710,18 @@ async function loadAdminMemberList(){
     const id = docSnap.id;
     const info = docSnap.data();
     let recordCount = 0;
+    let isTrainer = false;
     try{
       const logsSnap = await logsCollection(info.uid).get();
       recordCount = new Set(logsSnap.docs.map(d => d.data().date)).size;
     }catch(err){
       console.error('회원 기록 조회 오류:', id, err);
+    }
+    try{
+      const userDoc = await db.collection('users').doc(info.uid).get();
+      isTrainer = !!(userDoc.exists && userDoc.data().isTrainer);
+    }catch(err){
+      console.error('트레이너 여부 조회 오류:', id, err);
     }
     const hasRealEmail = info.email && !info.email.endsWith(SYNTHETIC_EMAIL_DOMAIN);
     let joinedText = '가입일 기록 없음';
@@ -8516,7 +8733,7 @@ async function loadAdminMemberList(){
       const timeStr = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
       joinedText = `${dateStr} ${timeStr} 가입`;
     }
-    return { id, uid: info.uid, email: info.email, hasRealEmail, recordCount, joinedText, createdAtMs };
+    return { id, uid: info.uid, email: info.email, hasRealEmail, recordCount, joinedText, createdAtMs, isTrainer };
   }));
 
   // 최근 가입자가 위로 오도록 정렬 (가입일 기록이 없는 경우는 맨 아래로)
@@ -8546,9 +8763,28 @@ async function loadAdminMemberList(){
       </div>
       <div class="admin-member-actions">
         <button type="button" class="admin-action-btn" data-action="reset" ${row.hasRealEmail ? '' : 'disabled'}>비밀번호 재설정 메일</button>
+        <button type="button" class="admin-action-btn" data-action="toggle-trainer">${row.isTrainer ? '트레이너 해제' : '트레이너로 지정'}</button>
         <button type="button" class="admin-action-btn danger" data-action="delete">회원 데이터 삭제</button>
       </div>
     `;
+    div.querySelector('[data-action="toggle-trainer"]').addEventListener('click', () => {
+      const next = !row.isTrainer;
+      showConfirmModal(
+        next ? '트레이너로 지정' : '트레이너 해제',
+        next ? `"${row.id}" 님을 트레이너로 지정할까요? 로그인 시 회원 목록 화면으로 들어가게 돼요.` : `"${row.id}" 님의 트레이너 권한을 해제할까요?`,
+        async () => {
+          try{
+            await db.collection('users').doc(row.uid).set({ isTrainer: next }, { merge: true });
+            showCopyToast(next ? '트레이너로 지정했어요.' : '트레이너 권한을 해제했어요.');
+            loadAdminMemberList();
+          }catch(err){
+            console.error('트레이너 지정 오류:', err);
+            showCopyToast('처리 중 오류가 발생했어요.');
+          }
+        },
+        next ? '지정' : '해제'
+      );
+    });
     div.querySelector('[data-action="reset"]').addEventListener('click', () => {
       showConfirmModal(
         '비밀번호 재설정 메일 발송',
@@ -8675,6 +8911,99 @@ bodyPartColorSaveBtn.addEventListener('click', async () => {
   showCopyToast('부위별 색상을 저장했어요.');
 });
 
+/* ---------- 트레이너용 회원 목록 ---------- */
+const viewTrainerMembers = document.getElementById('view-trainer-members');
+const trainerMemberListEl = document.getElementById('trainerMemberList');
+const trainerBackToListBtn = document.getElementById('trainerBackToListBtn');
+const trainerMembersLogoutBtn = document.getElementById('trainerMembersLogoutBtn');
+let isViewingAsTrainer = false;
+
+function showTrainerMemberListView(){
+  viewLanding.classList.remove('active');
+  viewLogin.classList.remove('active');
+  viewLog.classList.remove('active');
+  viewEntry.classList.remove('active');
+  viewAdmin.classList.remove('active');
+  viewTrainerMembers.classList.add('active');
+  isViewingAsTrainer = false;
+  loadTrainerMemberList();
+}
+
+async function loadTrainerMemberList(){
+  trainerMemberListEl.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
+  const myUid = auth.currentUser.uid;
+  let snap;
+  try{
+    snap = await db.collection('users').where('trainerId', '==', myUid).get();
+  }catch(err){
+    console.error('트레이너 회원 목록 조회 오류:', err);
+    trainerMemberListEl.innerHTML = '<div class="admin-empty">회원 목록을 불러오지 못했어요. Firestore 규칙에 트레이너 권한이 추가됐는지 확인해주세요.</div>';
+    return;
+  }
+  if(snap.empty){
+    trainerMemberListEl.innerHTML = '<div class="admin-empty">아직 연결된 회원이 없어요. 회원이 설정에서 트레이너 아이디를 입력하면 여기 나타나요.</div>';
+    return;
+  }
+
+  const rows = await Promise.all(snap.docs.map(async (docSnap) => {
+    const uid = docSnap.id;
+    const topData = docSnap.data();
+    let profile = { name: '회원', ptTotal: null };
+    try{
+      const raw = topData.data && topData.data['members-list'];
+      if(raw){
+        const list = JSON.parse(raw);
+        const mine = list.find(m => m.id === uid);
+        if(mine) profile = mine;
+      }
+    }catch(err){ /* 파싱 실패하면 기본값 사용 */ }
+    let recordCount = 0;
+    try{
+      const logsSnap = await logsCollection(uid).get();
+      recordCount = new Set(
+        logsSnap.docs.filter(d => d.data().ptRecognized).map(d => d.data().date)
+      ).size;
+    }catch(err){
+      console.error('회원 기록 조회 오류:', uid, err);
+    }
+    return { uid, name: profile.name || '회원', ptTotal: profile.ptTotal || null, recordCount };
+  }));
+
+  rows.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  const exhausted = rows.filter(r => r.ptTotal && r.recordCount >= r.ptTotal);
+  const active = rows.filter(r => !(r.ptTotal && r.recordCount >= r.ptTotal));
+
+  function rowHtml(r){
+    const ptText = r.ptTotal ? `${r.recordCount} / ${r.ptTotal}회` : `${r.recordCount}일 기록`;
+    return `<div class="admin-member-row trainer-member-row" data-uid="${r.uid}">
+      <div class="admin-member-id">${escapeHtml(r.name)}</div>
+      <div class="admin-member-meta">${ptText}</div>
+    </div>`;
+  }
+
+  trainerMemberListEl.innerHTML =
+    (active.length ? active.map(rowHtml).join('') : '<div class="admin-empty">진행 중인 회원이 없어요.</div>') +
+    (exhausted.length ? `<div class="trainer-section-label">PT 횟수 소진</div>${exhausted.map(rowHtml).join('')}` : '');
+
+  trainerMemberListEl.querySelectorAll('.trainer-member-row').forEach(row => {
+    row.addEventListener('click', () => {
+      isViewingAsTrainer = true;
+      viewTrainerMembers.classList.remove('active');
+      trainerBackToListBtn.style.display = 'inline-flex';
+      openMember(row.getAttribute('data-uid'));
+    });
+  });
+}
+
+trainerBackToListBtn.addEventListener('click', () => {
+  viewLog.classList.remove('active');
+  trainerBackToListBtn.style.display = 'none';
+  showTrainerMemberListView();
+});
+trainerMembersLogoutBtn.addEventListener('click', () => {
+  showConfirmModal('로그아웃', '로그아웃할까요?', () => auth.signOut(), '로그아웃');
+});
+
 auth.onAuthStateChanged(async (user) => {
   if(user){
     await loadMembers();
@@ -8683,6 +9012,8 @@ auth.onAuthStateChanged(async (user) => {
   } else {
     members = [];
     currentMemberId = null;
+    isViewingAsTrainer = false;
+    trainerBackToListBtn.style.display = 'none';
     showLandingView();
   }
 });
