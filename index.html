@@ -2335,6 +2335,28 @@
     font-size: 15px;
     text-align: justify;
   }
+  .email-reminder-row{
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .email-reminder-row .modal-input{
+    flex: 1;
+    margin-bottom: 0;
+  }
+  .email-reminder-register-btn{
+    flex-shrink: 0;
+    background: var(--brass);
+    color: var(--bg);
+    border: none;
+    border-radius: 999px;
+    padding: 0 18px;
+    height: 44px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .email-reminder-register-btn:disabled{ opacity: 0.6; cursor: default; }
   .modal-actions{
     display:flex;
     flex-direction:column;
@@ -3402,18 +3424,18 @@
             <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
           </button>
         </div>
+        <input id="loginCenterNameInput" type="text" placeholder="소속 센터명" autocomplete="off" style="display:none;">
         <div class="login-error" id="loginError" style="display:none;"></div>
         <button class="login-btn" id="loginSubmitBtn">로그인</button>
         <input id="loginRecoveryEmailInput" type="email" placeholder="복구 이메일" autocomplete="email" style="display:none;">
         <div class="login-recovery-hint" id="loginRecoveryHint" style="display:none;">선택사항이에요. 입력하시면 아이디, 비밀번호를 잊더라도 찾을 수 있어요.</div>
-        <input id="loginCenterNameInput" type="text" placeholder="소속 센터명" autocomplete="off" style="display:none;">
         <div class="login-find-row" id="loginFindRow">
           <button class="login-forgot-btn login-find-link" id="loginFindIdBtn" type="button">아이디를 잊으셨나요?</button>
           <span class="login-find-sep">·</span>
           <button class="login-forgot-btn login-find-link" id="loginForgotBtn" type="button">비밀번호를 잊으셨나요?</button>
         </div>
         <button class="login-toggle-btn" id="loginToggleModeBtn" type="button">처음이신가요? 회원가입</button>
-        <button class="login-toggle-btn" id="loginBackBtn" type="button">뒤로</button>
+        <button class="login-toggle-btn" id="loginBackBtn" type="button" style="display:none;">뒤로</button>
         <button class="login-toggle-btn" id="trainerLoginBtn" type="button">트레이너이신가요?</button>
       </div>
       <button type="button" class="landing-tutorial-tab" id="loginTutorialBtn">
@@ -3650,7 +3672,7 @@
   <div class="view" id="view-trainer-members">
     <div class="log-header">
       <h1 class="admin-title">회원 목록</h1>
-      <button class="logout-btn" id="trainerMembersLogoutBtn" title="로그아웃">⎋</button>
+      <button class="logout-btn" id="trainerMembersRefreshBtn" title="새로고침">⟳</button>
     </div>
     <div class="admin-member-list" id="trainerMemberList">
       <div class="admin-loading">불러오는 중...</div>
@@ -3931,12 +3953,13 @@
 <div class="modal-overlay" id="emailReminderModal">
   <div class="modal-box">
     <div class="modal-title">이메일 등록을 해주세요</div>
-    <div class="modal-sub">아이디·비밀번호를 잊어버렸을 때 찾을 수 있어요.<br>이메일을 입력하고 닫기를 누르면 등록돼요.</div>
-    <input id="emailReminderInput" type="email" class="modal-input" placeholder="복구로 쓸 이메일" autocomplete="email">
-    <div class="login-error" id="emailReminderError" style="display:none;"></div>
-    <div class="modal-actions">
-      <button class="modal-btn modal-btn-primary" id="emailReminderCloseBtn">닫기</button>
+    <div class="modal-sub">아이디·비밀번호를 잊어버렸을 때 찾을 수 있어요.</div>
+    <div class="email-reminder-row">
+      <input id="emailReminderInput" type="email" class="modal-input" placeholder="예) abcdef@naver.com" autocomplete="email">
+      <button class="email-reminder-register-btn" id="emailReminderRegisterBtn">등록</button>
     </div>
+    <div class="login-error" id="emailReminderError" style="display:none;"></div>
+    <button class="modal-cancel" id="emailReminderCloseBtn">닫기</button>
   </div>
 </div>
 
@@ -4120,7 +4143,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.15.5';
+const APP_VERSION = '2.16.0';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6521,9 +6544,10 @@ featureAnnounceCloseBtn.addEventListener('click', async () => {
   }
 });
 
-/* ---------- 복구 이메일 등록 안내 팝업 (등록 전까지 매번 노출; 이메일을 입력하고 닫으면 그대로 등록된다) ---------- */
+/* ---------- 복구 이메일 등록 안내 팝업 (등록 전까지 매번 노출) ---------- */
 const emailReminderModal = document.getElementById('emailReminderModal');
 const emailReminderCloseBtn = document.getElementById('emailReminderCloseBtn');
+const emailReminderRegisterBtn = document.getElementById('emailReminderRegisterBtn');
 const emailReminderInput = document.getElementById('emailReminderInput');
 const emailReminderError = document.getElementById('emailReminderError');
 
@@ -6536,10 +6560,14 @@ function checkEmailReminder(){
   emailReminderError.style.display = 'none';
   emailReminderModal.classList.add('open');
 }
-emailReminderCloseBtn.addEventListener('click', async () => {
+emailReminderCloseBtn.addEventListener('click', () => {
+  emailReminderModal.classList.remove('open');
+});
+emailReminderRegisterBtn.addEventListener('click', async () => {
   const newEmail = emailReminderInput.value.trim();
   if(!newEmail){
-    emailReminderModal.classList.remove('open');
+    emailReminderError.textContent = '이메일을 입력해주세요.';
+    emailReminderError.style.display = 'block';
     return;
   }
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)){
@@ -6547,7 +6575,7 @@ emailReminderCloseBtn.addEventListener('click', async () => {
     emailReminderError.style.display = 'block';
     return;
   }
-  emailReminderCloseBtn.disabled = true;
+  emailReminderRegisterBtn.disabled = true;
   try{
     await auth.currentUser.verifyBeforeUpdateEmail(newEmail);
     const member = members.find(m => m.id === currentMemberId);
@@ -6566,7 +6594,7 @@ emailReminderCloseBtn.addEventListener('click', async () => {
     }
     emailReminderError.style.display = 'block';
   }finally{
-    emailReminderCloseBtn.disabled = false;
+    emailReminderRegisterBtn.disabled = false;
   }
 });
 
@@ -8082,6 +8110,9 @@ function updateLoginModeUI(){
     loginCenterNameInput.style.display = 'none';
     loginFindRow.style.display = 'flex';
   }
+  // 트레이너 가입 화면일 땐 '뒤로'만, 평소엔 '트레이너이신가요?'만 보이게 (서로 안 겹치게)
+  loginBackBtn.style.display = isTrainerSignup ? 'block' : 'none';
+  trainerLoginBtn.style.display = isTrainerSignup ? 'none' : 'block';
 }
 
 function showLoginView(){
@@ -8958,7 +8989,6 @@ bodyPartColorSaveBtn.addEventListener('click', async () => {
 const viewTrainerMembers = document.getElementById('view-trainer-members');
 const trainerMemberListEl = document.getElementById('trainerMemberList');
 const trainerBackToListBtn = document.getElementById('trainerBackToListBtn');
-const trainerMembersLogoutBtn = document.getElementById('trainerMembersLogoutBtn');
 let isViewingAsTrainer = false;
 
 function showTrainerMemberListView(){
@@ -8980,7 +9010,7 @@ async function loadTrainerMemberList(){
     snap = await db.collection('users').where('trainerId', '==', myUid).get();
   }catch(err){
     console.error('트레이너 회원 목록 조회 오류:', err);
-    trainerMemberListEl.innerHTML = '<div class="admin-empty">회원 목록을 불러오지 못했어요. Firestore 규칙에 트레이너 권한이 추가됐는지 확인해주세요.</div>';
+    trainerMemberListEl.innerHTML = `<div class="admin-empty">회원 목록을 불러오지 못했어요.<br>오류 내용: ${escapeHtml(err.code || '')} ${escapeHtml(err.message || '')}</div>`;
     return;
   }
   if(snap.empty){
@@ -9043,8 +9073,9 @@ trainerBackToListBtn.addEventListener('click', () => {
   trainerBackToListBtn.style.display = 'none';
   showTrainerMemberListView();
 });
-trainerMembersLogoutBtn.addEventListener('click', () => {
-  showConfirmModal('로그아웃', '로그아웃할까요?', () => auth.signOut(), '로그아웃');
+const trainerMembersRefreshBtn = document.getElementById('trainerMembersRefreshBtn');
+trainerMembersRefreshBtn.addEventListener('click', () => {
+  loadTrainerMemberList();
 });
 
 auth.onAuthStateChanged(async (user) => {
