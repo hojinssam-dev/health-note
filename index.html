@@ -3406,13 +3406,15 @@
         <button class="login-btn" id="loginSubmitBtn">로그인</button>
         <input id="loginRecoveryEmailInput" type="email" placeholder="복구 이메일" autocomplete="email" style="display:none;">
         <div class="login-recovery-hint" id="loginRecoveryHint" style="display:none;">선택사항이에요. 입력하시면 아이디, 비밀번호를 잊더라도 찾을 수 있어요.</div>
+        <input id="loginCenterNameInput" type="text" placeholder="소속 센터명" autocomplete="off" style="display:none;">
         <div class="login-find-row" id="loginFindRow">
           <button class="login-forgot-btn login-find-link" id="loginFindIdBtn" type="button">아이디를 잊으셨나요?</button>
           <span class="login-find-sep">·</span>
           <button class="login-forgot-btn login-find-link" id="loginForgotBtn" type="button">비밀번호를 잊으셨나요?</button>
         </div>
         <button class="login-toggle-btn" id="loginToggleModeBtn" type="button">처음이신가요? 회원가입</button>
-        <button class="login-toggle-btn" id="trainerLoginBtn" type="button">트레이너 로그인</button>
+        <button class="login-toggle-btn" id="loginBackBtn" type="button">뒤로</button>
+        <button class="login-toggle-btn" id="trainerLoginBtn" type="button">트레이너이신가요?</button>
       </div>
       <button type="button" class="landing-tutorial-tab" id="loginTutorialBtn">
         <span>📖 사용 방법 보기</span>
@@ -3806,7 +3808,7 @@
   <div class="modal-box">
     <div class="modal-title">트레이너와 연결</div>
     <div class="modal-sub" id="trainerConnectStatus">아직 연결된 트레이너가 없어요.</div>
-    <input id="trainerConnectIdInput" type="text" placeholder="트레이너 아이디" autocomplete="off">
+    <input id="trainerConnectIdInput" type="text" class="modal-input" placeholder="트레이너 아이디" autocomplete="off">
     <div class="login-error" id="trainerConnectError" style="display:none;"></div>
     <div class="modal-actions">
       <button class="modal-btn modal-btn-primary" id="trainerConnectSaveBtn">연결하기</button>
@@ -3929,10 +3931,11 @@
 <div class="modal-overlay" id="emailReminderModal">
   <div class="modal-box">
     <div class="modal-title">이메일 등록을 해주세요</div>
-    <div class="modal-sub">아이디·비밀번호를 잊어버렸을 때 찾을 수 있어요.<br>화면 좌측 상단 설정 아이콘(⚙)을 누르고, "내 계정"에서 복구 이메일을 등록할 수 있어요.</div>
+    <div class="modal-sub">아이디·비밀번호를 잊어버렸을 때 찾을 수 있어요.<br>이메일을 입력하고 닫기를 누르면 등록돼요.</div>
+    <input id="emailReminderInput" type="email" class="modal-input" placeholder="복구로 쓸 이메일" autocomplete="email">
+    <div class="login-error" id="emailReminderError" style="display:none;"></div>
     <div class="modal-actions">
       <button class="modal-btn modal-btn-primary" id="emailReminderCloseBtn">닫기</button>
-      <button class="modal-btn" id="emailReminderDismissTodayBtn">오늘은 그만 보기</button>
     </div>
   </div>
 </div>
@@ -4117,7 +4120,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.15.1';
+const APP_VERSION = '2.15.5';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4967,9 +4970,10 @@ const infoModal = document.getElementById('infoModal');
 const infoModalTitle = document.getElementById('infoModalTitle');
 const infoModalSub = document.getElementById('infoModalSub');
 const infoModalOkBtn = document.getElementById('infoModalOkBtn');
-function showInfoModal(title, sub){
+function showInfoModal(title, sub, okLabel){
   infoModalTitle.textContent = title;
   infoModalSub.textContent = sub;
+  infoModalOkBtn.textContent = okLabel || '확인';
   infoModal.classList.add('open');
 }
 infoModalOkBtn.addEventListener('click', () => {
@@ -6517,29 +6521,53 @@ featureAnnounceCloseBtn.addEventListener('click', async () => {
   }
 });
 
-/* ---------- 복구 이메일 등록 안내 팝업 (등록 전까지 매번 노출, '오늘은 그만 보기' 선택 시 당일만 숨김) ---------- */
+/* ---------- 복구 이메일 등록 안내 팝업 (등록 전까지 매번 노출; 이메일을 입력하고 닫으면 그대로 등록된다) ---------- */
 const emailReminderModal = document.getElementById('emailReminderModal');
 const emailReminderCloseBtn = document.getElementById('emailReminderCloseBtn');
-const emailReminderDismissTodayBtn = document.getElementById('emailReminderDismissTodayBtn');
-const EMAIL_REMINDER_DISMISS_KEY = 'email-reminder-dismissed-date';
+const emailReminderInput = document.getElementById('emailReminderInput');
+const emailReminderError = document.getElementById('emailReminderError');
 
 function checkEmailReminder(){
   const currentEmail = auth.currentUser ? auth.currentUser.email : '';
   const hasRealEmail = currentEmail && !currentEmail.endsWith('@ptdiary.app');
   if(hasRealEmail) return;
 
-  let dismissedDate = null;
-  try{ dismissedDate = localStorage.getItem(EMAIL_REMINDER_DISMISS_KEY); }catch(err){}
-  if(dismissedDate === todayStr()) return;
-
+  emailReminderInput.value = '';
+  emailReminderError.style.display = 'none';
   emailReminderModal.classList.add('open');
 }
-emailReminderCloseBtn.addEventListener('click', () => {
-  emailReminderModal.classList.remove('open');
-});
-emailReminderDismissTodayBtn.addEventListener('click', () => {
-  emailReminderModal.classList.remove('open');
-  try{ localStorage.setItem(EMAIL_REMINDER_DISMISS_KEY, todayStr()); }catch(err){}
+emailReminderCloseBtn.addEventListener('click', async () => {
+  const newEmail = emailReminderInput.value.trim();
+  if(!newEmail){
+    emailReminderModal.classList.remove('open');
+    return;
+  }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)){
+    emailReminderError.textContent = '이메일 형식을 확인해주세요.';
+    emailReminderError.style.display = 'block';
+    return;
+  }
+  emailReminderCloseBtn.disabled = true;
+  try{
+    await auth.currentUser.verifyBeforeUpdateEmail(newEmail);
+    const member = members.find(m => m.id === currentMemberId);
+    const myId = member ? member.name : '';
+    if(myId){
+      await db.collection('usernames').doc(usernameDocId(myId)).set({ email: newEmail, uid: auth.currentUser.uid }, { merge: true });
+    }
+    emailReminderModal.classList.remove('open');
+    showInfoModal('복구 이메일 등록', '이메일이 발송되었어요. 이메일을 확인하셔서 등록을 마쳐주세요.', '닫기');
+  }catch(err){
+    console.error('복구 이메일 등록 오류:', err);
+    if(err.code === 'auth/requires-recent-login'){
+      emailReminderError.textContent = '보안을 위해 다시 로그인한 뒤, 설정 > 내 계정에서 등록해주세요.';
+    } else {
+      emailReminderError.textContent = '등록에 실패했어요. 설정 > 내 계정에서 다시 시도해주세요.';
+    }
+    emailReminderError.style.display = 'block';
+  }finally{
+    emailReminderCloseBtn.disabled = false;
+  }
 });
 
 /* ---------- 튜토리얼 ---------- */
@@ -7988,13 +8016,14 @@ function showLandingView(){
   viewTrainerMembers.classList.remove('active');
 }
 landingStartBtn.addEventListener('click', () => {
-  pendingTrainerLogin = false;
+  isTrainerSignup = false;
   showLoginView();
 });
-let pendingTrainerLogin = false;
+let isTrainerSignup = false;
 const trainerLoginBtn = document.getElementById('trainerLoginBtn');
 trainerLoginBtn.addEventListener('click', () => {
-  pendingTrainerLogin = true;
+  isTrainerSignup = true;
+  loginMode = 'signup';
   showLoginView();
 });
 landingPrivacyBtn.addEventListener('click', () => {
@@ -8019,6 +8048,7 @@ termsBackBtn.addEventListener('click', () => {
 const viewLogin = document.getElementById('view-login');
 const loginEmailInput = document.getElementById('loginEmailInput');
 const loginRecoveryEmailInput = document.getElementById('loginRecoveryEmailInput');
+const loginCenterNameInput = document.getElementById('loginCenterNameInput');
 const loginRecoveryHint = document.getElementById('loginRecoveryHint');
 const loginPasswordInput = document.getElementById('loginPasswordInput');
 const loginError = document.getElementById('loginError');
@@ -8034,11 +8064,14 @@ let loginMode = 'signin'; // 'signin' | 'signup'
 
 function updateLoginModeUI(){
   if(loginMode === 'signup'){
-    loginSub.textContent = '아이디와 비밀번호(6자리 이상)로 계정을 만들어주세요.';
+    loginSub.textContent = isTrainerSignup
+      ? '트레이너 계정을 만들어주세요. 아이디와 비밀번호(6자리 이상)를 입력해주세요.'
+      : '아이디와 비밀번호(6자리 이상)로 계정을 만들어주세요.';
     loginSubmitBtn.textContent = '회원가입';
     loginToggleModeBtn.textContent = '이미 계정이 있으신가요? 로그인';
     loginRecoveryEmailInput.style.display = 'block';
     loginRecoveryHint.style.display = 'block';
+    loginCenterNameInput.style.display = isTrainerSignup ? 'block' : 'none';
     loginFindRow.style.display = 'none';
   } else {
     loginSub.textContent = '아이디와 비밀번호로 로그인해주세요.';
@@ -8046,6 +8079,7 @@ function updateLoginModeUI(){
     loginToggleModeBtn.textContent = '처음이신가요? 회원가입';
     loginRecoveryEmailInput.style.display = 'none';
     loginRecoveryHint.style.display = 'none';
+    loginCenterNameInput.style.display = 'none';
     loginFindRow.style.display = 'flex';
   }
 }
@@ -8059,13 +8093,20 @@ function showLoginView(){
   viewLogin.classList.add('active');
   loginPasswordInput.value = '';
   loginRecoveryEmailInput.value = '';
+  loginCenterNameInput.value = '';
   loginError.style.display = 'none';
   updateLoginModeUI();
 }
 loginToggleModeBtn.addEventListener('click', () => {
   loginMode = loginMode === 'signin' ? 'signup' : 'signin';
+  isTrainerSignup = false;
   loginError.style.display = 'none';
   updateLoginModeUI();
+});
+const loginBackBtn = document.getElementById('loginBackBtn');
+loginBackBtn.addEventListener('click', () => {
+  isTrainerSignup = false;
+  showLandingView();
 });
 
 let pendingSignupUsername = null; // 방금 가입할 때 입력한 아이디 (신규 회원 프로필 이름에 쓰기 위함)
@@ -8087,25 +8128,17 @@ async function enterMemberHome(){
     await saveMembers();
   }
   pendingSignupUsername = null;
+  isTrainerSignup = false;
 
-  if(pendingTrainerLogin){
-    pendingTrainerLogin = false;
-    let userDoc;
-    try{
-      userDoc = await db.collection('users').doc(uid).get();
-    }catch(err){
-      console.error('트레이너 확인 오류:', err);
-    }
-    if(userDoc && userDoc.exists && userDoc.data().isTrainer){
-      showTrainerMemberListView();
-      return;
-    } else {
-      showLoginView();
-      loginError.textContent = '트레이너로 지정된 계정이 아니에요.';
-      loginError.style.display = 'block';
-      await auth.signOut();
-      return;
-    }
+  let userDoc;
+  try{
+    userDoc = await db.collection('users').doc(uid).get();
+  }catch(err){
+    console.error('트레이너 확인 오류:', err);
+  }
+  if(userDoc && userDoc.exists && userDoc.data().isTrainer){
+    showTrainerMemberListView();
+    return;
   }
 
   await openMember(member.id, isNewMember);
@@ -8201,6 +8234,13 @@ async function submitLogin(){
         loginSubmitBtn.disabled = false;
         return;
       }
+      const centerName = loginCenterNameInput.value.trim();
+      if(isTrainerSignup && !centerName){
+        loginError.textContent = '소속 센터명을 입력해주세요.';
+        loginError.style.display = 'block';
+        loginSubmitBtn.disabled = false;
+        return;
+      }
       const existing = await lookupEmailByUsername(rawId);
       if(existing){
         loginError.textContent = '이미 사용 중인 아이디예요. 로그인해주세요.';
@@ -8211,6 +8251,9 @@ async function submitLogin(){
       const accountEmail = recoveryEmail || idToSyntheticEmail(rawId);
       const cred = await auth.createUserWithEmailAndPassword(accountEmail, password);
       await registerUsername(rawId, accountEmail, cred.user.uid);
+      if(isTrainerSignup){
+        await db.collection('users').doc(cred.user.uid).set({ isTrainer: true, centerName }, { merge: true });
+      }
       pendingSignupUsername = rawId.trim();
     } else {
       const email = await lookupEmailByUsername(rawId);
