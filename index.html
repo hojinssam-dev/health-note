@@ -229,6 +229,12 @@
     transition: all .15s var(--ease);
   }
   .logout-btn:hover{ border-color: var(--danger); color: var(--danger); }
+  #trainerMembersRefreshBtn{
+    width: 42px;
+    height: 42px;
+    font-size: 24px;
+    color: var(--chalk);
+  }
 
   /* 공개 소개(랜딩) 화면 */
   .landing-wrap{
@@ -1121,6 +1127,11 @@
     font-size: 18px;
     cursor: pointer;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
     transition: border-color .15s var(--ease), transform .15s var(--ease);
   }
   .back-btn:hover{ border-color: var(--brass); transform: translateX(-2px); }
@@ -1181,12 +1192,22 @@
     to{ transform: rotate(360deg); }
   }
   .member-info-memo{
+    width: 100%;
+    box-sizing: border-box;
+    font-family: 'Noto Sans KR', sans-serif;
     font-size: 13px;
-    color: var(--muted);
+    color: var(--chalk);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
+    padding: 10px 12px;
     margin-bottom: 24px;
     margin-top: 8px;
+    min-height: 60px;
+    resize: vertical;
   }
-  .member-info-memo:empty{ display:none; margin-bottom: 0; margin-top: 0; }
+  .member-info-memo::placeholder{ color: var(--muted); }
+  .member-info-memo:focus{ outline:none; border-color: var(--brass); box-shadow: 0 0 0 3px rgba(201,162,39,0.15); }
 
   .log-header h1{
     font-family: 'Bebas Neue', sans-serif;
@@ -1502,13 +1523,27 @@
   }
   .prev-note-icon{ flex-shrink:0; }
   .exercise-memo-row{
-    display: block;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
   }
   .exercise-memo-row .exercise-memo-text{
+    flex: 1;
     color: var(--brass-bright);
     white-space: pre-wrap;
     word-break: break-word;
   }
+  .exercise-memo-dismiss-btn{
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1;
+    padding: 2px 4px;
+    cursor: pointer;
+  }
+  .exercise-memo-dismiss-btn:hover{ color: var(--chalk); }
   .prev-note-actions{
     display:flex;
     justify-content:flex-end;
@@ -1884,8 +1919,45 @@
     background: var(--brass);
     color: var(--bg);
   }
+  .row-session-no{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
+  }
+  .session-no-label{
+    font-size: 13px;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .session-no-input{
+    width: 56px;
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    color: var(--chalk);
+    border-radius: var(--radius-s);
+    padding: 6px 8px;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+  }
+  .session-no-input:focus{ outline:none; border-color: var(--brass); }
+  .session-no-total{
+    font-size: 13px;
+    color: var(--muted);
+  }
   .log-entry-locked{
     opacity: 0.9;
+  }
+  .trainer-initial-label{
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--brass);
+    padding: 0 4px;
   }
   .trainer-section-label{
     font-size: 12px;
@@ -2366,8 +2438,9 @@
   .email-reminder-register-btn-inline{
     position: absolute;
     right: 6px;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 0;
+    bottom: 0;
+    margin: auto 0;
     background: var(--brass);
     color: var(--bg);
     border: none;
@@ -2825,14 +2898,25 @@
   }
   .trainer-list-row{
     display: flex;
-    align-items: stretch;
-    gap: 8px;
+    align-items: center;
+    gap: 12px;
+  }
+  .trainer-member-row{
+    flex: 1;
+    min-width: 0;
   }
   .trainer-member-settings-btn{
     flex-shrink: 0;
-    width: 44px;
-    font-size: 16px;
+    width: 40px;
+    height: 40px;
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
+    color: var(--chalk);
+    font-size: 17px;
+    cursor: pointer;
   }
+  .trainer-member-settings-btn:hover{ border-color: var(--brass); }
   .trainer-pt-badge{
     font-size: 12px;
     font-weight: 600;
@@ -3301,6 +3385,11 @@
     background: var(--line);
     color: var(--chalk);
   }
+  .cal-tag-session{
+    background: var(--brass);
+    color: var(--bg);
+    font-weight: 700;
+  }
   .log-entry-name-plain{
     color: var(--chalk);
   }
@@ -3524,7 +3613,7 @@
       <button class="header-new-entry-btn" id="openEntryTab">+새일지</button>
     </div>
 
-    <div class="member-info-memo" id="memberInfoMemo"></div>
+    <textarea class="member-info-memo" id="memberInfoMemo" placeholder="회원 특이사항을 적어두세요. 회원에게는 안 보이고, 나(트레이너/관리자)한테만 보여요." style="display:none;"></textarea>
 
     <button class="body-photos-tab" id="bodyPhotosTab">
       <span>📷 사진 등록</span>
@@ -3760,6 +3849,7 @@
       <div class="login-error" id="trainerMemberEditError" style="display:none;"></div>
       <div class="modal-actions">
         <button class="modal-btn modal-btn-primary" id="trainerMemberEditSaveBtn">저장</button>
+        <button class="modal-btn modal-btn-danger" id="trainerMemberEditDeleteBtn">회원 삭제</button>
       </div>
       <button class="modal-cancel" id="trainerMemberEditCancelBtn">취소</button>
     </div>
@@ -4229,7 +4319,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.18.1';
+const APP_VERSION = '2.21.2';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4387,6 +4477,29 @@ const logWeekCountBadge = document.getElementById('logWeekCountBadge');
 const headerInfoLine = document.getElementById('headerInfoLine');
 const calLoadingOverlay = document.getElementById('calLoadingOverlay');
 const memberInfoMemo = document.getElementById('memberInfoMemo');
+memberInfoMemo.addEventListener('blur', async () => {
+  const member = members.find(m => m.id === currentMemberId);
+  if(!member) return;
+  const newMemo = memberInfoMemo.value;
+  if(newMemo === (member.memo || '')) return; // 안 바뀌었으면 저장 안 함
+  member.memo = newMemo;
+  try{
+    const result = await storageGetWithRetry(STORAGE_KEY, false, currentMemberId);
+    const list = result ? JSON.parse(result.value) : [];
+    let entry = list.find(m => m.id === currentMemberId);
+    if(!entry){
+      entry = { id: currentMemberId, name: member.name || '회원', phone: member.phone || '', ptTotal: member.ptTotal || null, memo: '' };
+      list.push(entry);
+    }
+    entry.memo = newMemo;
+    const ok = await storageSetWithRetry(STORAGE_KEY, JSON.stringify(list), false, undefined, currentMemberId);
+    if(ok) showCopyToast('메모를 저장했어요.');
+    else showCopyToast('메모 저장에 실패했어요.');
+  }catch(err){
+    console.error('회원 메모 저장 오류:', err);
+    showCopyToast('메모 저장 중 오류가 발생했어요.');
+  }
+});
 
 function buildHeaderInfoText(){
   const member = members.find(m => m.id === currentMemberId);
@@ -4398,8 +4511,11 @@ function updateMemberInfoBar(member){
   if(!member) return;
   headerInfoLine.textContent = buildHeaderInfoText();
   const canSeeNote = isAdmin() || isViewingAsTrainer;
-  memberInfoMemo.textContent = canSeeNote ? (member.memo || '') : '';
-  memberInfoMemo.style.display = canSeeNote ? '' : 'none';
+  memberInfoMemo.style.display = canSeeNote ? 'block' : 'none';
+  if(canSeeNote && memberInfoMemo.getAttribute('data-loaded-for') !== member.id){
+    memberInfoMemo.value = member.memo || '';
+    memberInfoMemo.setAttribute('data-loaded-for', member.id);
+  }
 }
 
 /* 달력 화면 최상단의 "총 N일 기록" / "이번 주 N번째 운동"을 항상 같은 순서로,
@@ -6028,6 +6144,11 @@ function makeBlock(){
       <button type="button" class="trainer-toggle-btn" data-toggle="locked">🔒 잠금</button>
       <button type="button" class="trainer-toggle-btn" data-toggle="ptRecognized">✅ PT 인정</button>
     </div>
+    <div class="block-row row-session-no" style="display:none;">
+      <span class="session-no-label">회차</span>
+      <input type="number" inputmode="numeric" class="session-no-input" min="1">
+      <span class="session-no-total"></span>
+    </div>
     <div class="block-row row-exercise">
       <button type="button" class="block-drag-handle" title="드래그해서 순서 변경">⇅</button>
       <input type="text" class="exercise-name-input" placeholder="운동 종목, 예: 스쿼트" maxlength="40">
@@ -6063,6 +6184,7 @@ function makeBlock(){
     <div class="prev-note-banner exercise-memo-banner" style="display:none;">
       <div class="prev-note-main exercise-memo-row">
         <span class="exercise-memo-text"></span>
+        <button type="button" class="exercise-memo-dismiss-btn" title="이번 일지에서만 숨기기">×</button>
       </div>
     </div>
     <div class="record-mode-toggle">
@@ -6084,8 +6206,28 @@ function makeBlock(){
   const nameInputEl = block.querySelector('.exercise-name-input');
   const lockedToggleBtn = block.querySelector('[data-toggle="locked"]');
   const ptRecognizedToggleBtn = block.querySelector('[data-toggle="ptRecognized"]');
+  const sessionNoRow = block.querySelector('.row-session-no');
+  const sessionNoInput = block.querySelector('.session-no-input');
+  const sessionNoTotal = block.querySelector('.session-no-total');
   lockedToggleBtn.addEventListener('click', () => lockedToggleBtn.classList.toggle('active'));
-  ptRecognizedToggleBtn.addEventListener('click', () => ptRecognizedToggleBtn.classList.toggle('active'));
+  ptRecognizedToggleBtn.addEventListener('click', async () => {
+    const nowActive = !ptRecognizedToggleBtn.classList.contains('active');
+    ptRecognizedToggleBtn.classList.toggle('active');
+    if(nowActive){
+      sessionNoRow.style.display = 'flex';
+      const member = members.find(m => m.id === currentMemberId);
+      sessionNoTotal.textContent = member && member.ptTotal ? `/ ${member.ptTotal}회차` : '';
+      sessionNoInput.value = '…';
+      const dateVal = (entryDateInput && entryDateInput.value) || todayStr();
+      const computed = await computeSessionNoForDate(currentMemberId, dateVal);
+      // 그 사이에 토글을 다시 꺼버렸으면 계산 결과를 무시한다
+      if(ptRecognizedToggleBtn.classList.contains('active')){
+        sessionNoInput.value = computed || '';
+      }
+    } else {
+      sessionNoRow.style.display = 'none';
+    }
+  });
   const colorValueEl = block.querySelector('.color-value');
   const colorSwatches = [...block.querySelectorAll('.swatch')];
   const prevHintEl = block.querySelector('.prev-record-hint');
@@ -6177,18 +6319,24 @@ function makeBlock(){
 
   const exMemoBanner = block.querySelector('.exercise-memo-banner');
   const exMemoText = exMemoBanner.querySelector('.exercise-memo-text');
+  const exMemoDismissBtn = exMemoBanner.querySelector('.exercise-memo-dismiss-btn');
+  let memoHintDismissedByUser = false;
+  exMemoDismissBtn.addEventListener('click', () => {
+    memoHintDismissedByUser = true;
+    exMemoBanner.style.display = 'none';
+  });
 
   async function updateExerciseMemoHint(){
     const myGen = nameInputGen;
     const name = nameInputEl.value.trim();
-    if(!name || block.getAttribute('data-edit-id')){
+    if(!name){
       exMemoBanner.style.display = 'none';
       return;
     }
     const dateVal = (entryDateInput && entryDateInput.value) || todayStr();
     const memoEntry = await findPreviousExerciseMemo(name, dateVal);
     if(myGen !== nameInputGen) return; // 그 사이에 또 입력이 있었으면 낡은 응답이니 버림
-    if(memoEntry){
+    if(memoEntry && !memoHintDismissedByUser){
       exMemoText.textContent = memoEntry.memo;
       exMemoBanner.style.display = 'flex';
     } else {
@@ -6929,12 +7077,14 @@ function renderCalendar(){
     const isToday = dateStr === todayD;
     const hasEntries = entries.length > 0;
     const hasTrainerEntry = entries.some(e => e.locked);
+    const sessionEntry = entries.find(e => e.sessionNo);
     const weekday = (firstWeekday + day - 1) % 7;
     const weekendClass = weekday === 0 ? 'cal-date-sun' : (weekday === 6 ? 'cal-date-sat' : '');
 
     cellsHtml += `
       <div class="cal-cell ${hasEntries ? 'has-entries' : ''} ${isToday ? 'is-today' : ''} ${hasTrainerEntry ? 'has-trainer-entry' : ''}" data-date="${dateStr}">
         <div class="cal-date-num ${weekendClass}">${day}</div>
+        ${sessionEntry ? `<div class="cal-tag cal-tag-session"><span class="cal-tag-text">${sessionEntry.sessionNo}${sessionEntry.ptTotal ? '/' + sessionEntry.ptTotal : ''}회차 수업</span></div>` : ''}
         ${entries.map(e => {
           const c = colorForEntry(e);
           const plain = isPlainColor(c);
@@ -7113,6 +7263,12 @@ function pasteDayClipboard(targetDate){
       const existingMaxOrder = currentLogs
         .filter(e => e.date === targetDate)
         .reduce((max, e) => Math.max(max, typeof e.order === 'number' ? e.order : 0), -1);
+
+      const member = members.find(m => m.id === currentMemberId);
+      const currentPtTotal = member && member.ptTotal ? member.ptTotal : null;
+      const hasPtRecognized = dayClipboard.entries.some(e => e.ptRecognized);
+      const newSessionNo = hasPtRecognized ? await computeSessionNoForDate(currentMemberId, targetDate) : null;
+
       const newEntries = dayClipboard.entries.map((entryTemplate, i) => {
         const newId = Date.now().toString(36) + Math.random().toString(36).slice(2,6) + Math.random().toString(36).slice(2,4);
         const cloned = JSON.parse(JSON.stringify(entryTemplate));
@@ -7121,7 +7277,8 @@ function pasteDayClipboard(targetDate){
           id: newId,
           date: targetDate,
           exerciseKey: computeExerciseKey(cloned.exercise),
-          sessionNo: null,
+          ptTotal: currentPtTotal,
+          sessionNo: newSessionNo,
           order: existingMaxOrder + 1 + i,
         };
       });
@@ -7633,7 +7790,13 @@ function editEntry(entryId){
     block._setColor(colorForEntry(dayEntry));
     block.querySelector('.stat-memo').value = dayEntry.memo || '';
     if(dayEntry.locked) block.querySelector('[data-toggle="locked"]').classList.add('active');
-    if(dayEntry.ptRecognized) block.querySelector('[data-toggle="ptRecognized"]').classList.add('active');
+    if(dayEntry.ptRecognized){
+      block.querySelector('[data-toggle="ptRecognized"]').classList.add('active');
+      const sessionNoRow = block.querySelector('.row-session-no');
+      sessionNoRow.style.display = 'flex';
+      block.querySelector('.session-no-input').value = dayEntry.sessionNo || '';
+      block.querySelector('.session-no-total').textContent = dayEntry.ptTotal ? `/ ${dayEntry.ptTotal}회차` : '';
+    }
     block._updatePrevHint();
     block._updateExerciseMemoHint();
 
@@ -7966,13 +8129,28 @@ async function closeEntryForm(){
   refreshCalendarHeaderStats();
 }
 
+/* 이 회원의 'PT 인정'된 날짜들을 전부(현재 불러온 달과 상관없이) 조회해서,
+   주어진 날짜가 몇 번째 PT 수업인지 계산한다. dateVal 자체가 아직 PT 인정 기록이
+   없어도(막 저장하려는 참이라면) 있는 것처럼 쳐서 계산에 포함시킨다. */
+async function computeSessionNoForDate(memberId, dateVal){
+  try{
+    const snap = await logsCollection(memberId).where('ptRecognized', '==', true).get();
+    const dates = new Set(snap.docs.map(d => d.data().date));
+    dates.add(dateVal);
+    const sorted = [...dates].sort();
+    return sorted.indexOf(dateVal) + 1;
+  }catch(err){
+    console.error('PT 회차 계산 오류:', err);
+    return null;
+  }
+}
+
 async function addLogEntry(opts){
   opts = opts || {};
   const blocks = [...exerciseBlocks.querySelectorAll('.exercise-block')];
   const dateVal = entryDateInput.value || todayStr();
   const member = members.find(m => m.id === currentMemberId);
   const sessionPtTotal = member && member.ptTotal ? member.ptTotal : null;
-  const sessionNo = null; // '오늘 회차' 입력란 제거됨
   const nextNote = nextNoteInput.value.trim();
   const dateHadEntriesBefore = dateHasEntries(dateVal);
 
@@ -8027,7 +8205,15 @@ async function addLogEntry(opts){
       setRows,
       memo: block.querySelector('.stat-memo').value.trim(),
       ptTotal: sessionPtTotal,
-      sessionNo: sessionNo,
+      sessionNo: (() => {
+        const isPtRecognized = isViewingAsTrainer
+          ? block.querySelector('[data-toggle="ptRecognized"]').classList.contains('active')
+          : (existingTarget ? !!existingTarget.ptRecognized : false);
+        if(!isPtRecognized) return null;
+        const inputVal = block.querySelector('.session-no-input').value.trim();
+        if(inputVal) return parseInt(inputVal, 10);
+        return existingTarget ? existingTarget.sessionNo : null;
+      })(),
       nextNote: nextNote,
       startTime: entryStartTimeInput.value,
       endTime: entryEndTimeInput.value,
@@ -9177,29 +9363,52 @@ async function loadTrainerMemberList(){
 
   trainerListSummary.textContent = `연결된 회원 ${rows.length}명 · 대기 중 ${pendingRows.length}명`;
 
+  const CHOSEONG = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+  function initialGroupOf(name){
+    const ch = (name || '').trim().charAt(0);
+    const code = ch.charCodeAt(0);
+    if(code >= 0xAC00 && code <= 0xD7A3){
+      return CHOSEONG[Math.floor((code - 0xAC00) / 588)];
+    }
+    if(/[a-zA-Z]/.test(ch)) return ch.toUpperCase();
+    return '#';
+  }
+  // 정렬된 목록을 초성 그룹으로 묶어서, 그룹이 바뀔 때마다 'ㄱ' 'ㄴ' 같은 소제목을 끼워 넣는다
+  function renderGroupedRows(list, htmlFn){
+    let html = '';
+    let lastGroup = null;
+    list.forEach(r => {
+      const group = initialGroupOf(r.name);
+      if(group !== lastGroup){
+        html += `<div class="trainer-initial-label">${group}</div>`;
+        lastGroup = group;
+      }
+      html += htmlFn(r);
+    });
+    return html;
+  }
+
   function rowHtml(r){
     const ptText = r.ptTotal ? `${r.recordCount}/${r.ptTotal}회차` : `${r.recordCount}회 진행`;
     const lastPtText = r.lastPtDate ? `마지막 PT: ${r.lastPtDate.slice(5).replace('-', '월 ')}일` : '마지막 PT: 기록 없음';
-    return `<div class="trainer-list-row">
-      <div class="admin-member-row trainer-member-row" data-uid="${r.uid}" style="flex:1;">
+    return `<div class="admin-member-row trainer-list-row">
+      <div class="trainer-member-row" data-uid="${r.uid}">
         <div class="admin-member-id">${escapeHtml(r.name)} <span class="trainer-pt-badge">${ptText}</span></div>
         <div class="admin-member-meta">${lastPtText}</div>
       </div>
-      <button type="button" class="admin-action-btn trainer-member-settings-btn" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}" data-pttotal="${r.ptTotal || ''}" data-phone="${escapeHtml(r.phone)}" title="회원 정보 수정">⚙</button>
+      <button type="button" class="trainer-member-settings-btn" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}" data-pttotal="${r.ptTotal || ''}" data-phone="${escapeHtml(r.phone)}" title="회원 정보 수정">⚙</button>
     </div>`;
   }
   function pendingRowHtml(r){
-    return `<div class="trainer-list-row">
-      <div class="admin-member-row trainer-pending-row" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}" style="flex:1;">
-        <div class="admin-member-id">${escapeHtml(r.name)} <span class="trainer-pending-badge">연결 대기</span></div>
-      </div>
+    return `<div class="admin-member-row trainer-pending-row" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}">
+      <div class="admin-member-id">${escapeHtml(r.name)} <span class="trainer-pending-badge">연결 대기</span></div>
     </div>`;
   }
 
   trainerMemberListEl.innerHTML =
     (pendingRows.length ? `<div class="trainer-section-label">연결 대기 중</div>${pendingRows.map(pendingRowHtml).join('')}` : '') +
-    (active.length ? active.map(rowHtml).join('') : '<div class="admin-empty">진행 중인 회원이 없어요.</div>') +
-    (exhausted.length ? `<div class="trainer-section-label">PT 완료 회원</div>${exhausted.map(rowHtml).join('')}` : '');
+    (active.length ? renderGroupedRows(active, rowHtml) : '<div class="admin-empty">진행 중인 회원이 없어요.</div>') +
+    (exhausted.length ? `<div class="trainer-section-label">PT 완료 회원</div>${renderGroupedRows(exhausted, rowHtml)}` : '');
 
   trainerMemberListEl.querySelectorAll('.trainer-member-row').forEach(row => {
     row.addEventListener('click', () => {
@@ -9306,6 +9515,31 @@ trainerMemberEditModal.addEventListener('click', (ev) => {
   if(ev.target === trainerMemberEditModal) closeTrainerMemberEditModal();
 });
 
+const trainerMemberEditDeleteBtn = document.getElementById('trainerMemberEditDeleteBtn');
+trainerMemberEditDeleteBtn.addEventListener('click', () => {
+  if(!trainerEditingUid) return;
+  const uid = trainerEditingUid;
+  const name = trainerEditNameInput.value.trim() || '이 회원';
+  closeTrainerMemberEditModal();
+  showConfirmModal(
+    '회원 삭제',
+    `${name}님을 회원 목록에서 삭제할까요? (그동안의 운동 기록은 그대로 남고, 트레이너와의 연결만 해제돼요.)`,
+    async () => {
+      try{
+        await db.collection('users').doc(uid).set({
+          trainerId: firebase.firestore.FieldValue.delete(),
+          trainerIdPending: firebase.firestore.FieldValue.delete(),
+        }, { merge: true });
+        showCopyToast('회원을 목록에서 삭제했어요.');
+        loadTrainerMemberList();
+      }catch(err){
+        console.error('회원 삭제(연결 해제) 오류:', err);
+        showCopyToast('삭제 중 오류가 발생했어요.');
+      }
+    },
+    '삭제'
+  );
+});
 trainerMemberEditSaveBtn.addEventListener('click', async () => {
   if(!trainerEditingUid) return;
   const newName = trainerEditNameInput.value.trim();
