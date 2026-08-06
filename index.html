@@ -230,9 +230,9 @@
   }
   .logout-btn:hover{ border-color: var(--danger); color: var(--danger); }
   #trainerMembersRefreshBtn{
-    width: 42px;
-    height: 42px;
-    font-size: 24px;
+    width: 48px;
+    height: 48px;
+    font-size: 32px;
     color: var(--chalk);
   }
 
@@ -1136,6 +1136,12 @@
   }
   .back-btn:hover{ border-color: var(--brass); transform: translateX(-2px); }
   .log-header-info{ flex: 1; min-width: 0; }
+  .trainer-viewing-badge{
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--brass);
+    margin-bottom: 2px;
+  }
   .header-new-entry-btn{
     flex-shrink: 0;
     background: linear-gradient(160deg, var(--brass-bright), var(--brass));
@@ -1898,6 +1904,14 @@
     box-shadow: inset 0 0 0 2px var(--brass);
     border-radius: 6px;
   }
+  .cal-cell.is-selected{
+    background: rgba(74,144,208,0.16);
+    box-shadow: inset 0 0 0 2px #4A90D0;
+    border-radius: 6px;
+  }
+  .cal-cell.is-selected.has-trainer-entry{
+    box-shadow: inset 0 0 0 2px #4A90D0, inset 0 0 0 4px var(--brass);
+  }
   .row-trainer-toggles{
     display: flex;
     gap: 8px;
@@ -1958,6 +1972,15 @@
     font-weight: 700;
     color: var(--brass);
     padding: 0 4px;
+  }
+  .locked-entries-notice{
+    font-size: 13px;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
+    padding: 10px 12px;
+    margin-bottom: 12px;
   }
   .trainer-section-label{
     font-size: 12px;
@@ -3385,10 +3408,21 @@
     background: var(--line);
     color: var(--chalk);
   }
-  .cal-tag-session{
-    background: var(--brass);
-    color: var(--bg);
-    font-weight: 700;
+  .cal-date-row{
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .cal-session-inline{
+    font-size: clamp(9px, 1.2vw, 13px);
+    font-weight: 800;
+    color: var(--brass);
+  }
+  .cal-personal-label{
+    width: 100%;
+    font-size: clamp(8px, 1vw, 10px);
+    color: var(--muted);
+    margin-top: 1px;
   }
   .log-entry-name-plain{
     color: var(--chalk);
@@ -3604,6 +3638,7 @@
       <button class="back-btn" id="trainerBackToListBtn" style="display:none;">←</button>
       <button class="logout-btn" id="settingsBtn" title="설정">⚙</button>
       <div class="log-header-info">
+        <div class="trainer-viewing-badge" id="logTrainerBadge" style="display:none;"></div>
         <div class="log-header-name-row">
           <h1 id="logMemberName"></h1>
           <span class="week-count-badge" id="logWeekCountBadge"></span>
@@ -3654,6 +3689,7 @@
     <div class="log-header">
       <button class="back-btn" id="entryBackBtn">←</button>
       <div class="log-header-info">
+        <div class="trainer-viewing-badge" id="entryTrainerBadge" style="display:none;"></div>
         <div class="log-header-name-row">
           <h1 id="entryMemberName"></h1>
           <span class="week-count-badge" id="entryWeekCountBadge"></span>
@@ -3694,6 +3730,15 @@
         </div>
       </div>
       <div class="entry-time-hint" id="entryEndTimeHint" style="display:none;">종료 시간은 '운동 종료'를 누르면 자동으로 입력돼요.</div>
+      <div class="block-row row-trainer-toggles" id="entryTrainerToggles" style="display:none;">
+        <button type="button" class="trainer-toggle-btn" id="entryLockedToggleBtn">🔒 잠금</button>
+        <button type="button" class="trainer-toggle-btn" id="entryPtRecognizedToggleBtn">✅ PT 인정</button>
+      </div>
+      <div class="block-row row-session-no" id="entrySessionNoRow" style="display:none;">
+        <span class="session-no-label">회차</span>
+        <input type="number" inputmode="numeric" class="session-no-input" id="entrySessionNoInput" min="1">
+        <span class="session-no-total" id="entrySessionNoTotal"></span>
+      </div>
       <div class="entry-form-divider"></div>
       <div id="exerciseBlocks"></div>
       <button class="add-exercise-tab" id="addExerciseTab">+ 운동 종목 추가</button>
@@ -3825,6 +3870,7 @@
     <div class="log-header">
       <h1 class="admin-title">회원 목록</h1>
       <button class="logout-btn" id="trainerMembersRefreshBtn" title="새로고침">⟳</button>
+      <button class="logout-btn" id="trainerMembersSettingsBtn" title="설정">⚙</button>
     </div>
     <div class="trainer-list-summary" id="trainerListSummary"></div>
     <div class="email-reminder-row" style="margin-bottom:14px;">
@@ -3834,6 +3880,24 @@
     <div class="login-error" id="trainerDirectConnectError" style="display:none;"></div>
     <div class="admin-member-list" id="trainerMemberList">
       <div class="admin-loading">불러오는 중...</div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="trainerSettingsModal">
+    <div class="modal-box">
+      <div class="modal-title">설정</div>
+      <div class="theme-option-label">화면 테마</div>
+      <div class="theme-option-row">
+        <button type="button" class="theme-option-btn" data-theme="dark">블랙 · 골드</button>
+        <button type="button" class="theme-option-btn" data-theme="light">화이트 · 그린</button>
+        <button type="button" class="theme-option-btn" data-theme="purple">화이트 · 퍼플</button>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn" id="trainerSettingsCheckUpdateBtn">새 버전 받기</button>
+        <button class="modal-btn" id="trainerSettingsTutorialBtn">사용법 튜토리얼 보기</button>
+        <button class="modal-btn" id="trainerSettingsLogoutBtn">로그아웃</button>
+      </div>
+      <button class="modal-cancel" id="trainerSettingsCancelBtn">취소</button>
     </div>
   </div>
 
@@ -4319,7 +4383,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.21.2';
+const APP_VERSION = '2.23.1';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4473,6 +4537,7 @@ const viewLog = document.getElementById('view-log');
 const viewEntry = document.getElementById('view-entry');
 const entryBackBtn = document.getElementById('entryBackBtn');
 const logMemberName = document.getElementById('logMemberName');
+const logTrainerBadge = document.getElementById('logTrainerBadge');
 const logWeekCountBadge = document.getElementById('logWeekCountBadge');
 const headerInfoLine = document.getElementById('headerInfoLine');
 const calLoadingOverlay = document.getElementById('calLoadingOverlay');
@@ -4526,6 +4591,7 @@ function refreshCalendarHeaderStats(){
   renderWeekCountBadge(logWeekCountBadge);
 }
 const entryMemberName = document.getElementById('entryMemberName');
+const entryTrainerBadge = document.getElementById('entryTrainerBadge');
 const entryWeekCountBadge = document.getElementById('entryWeekCountBadge');
 const entryDateInput = document.getElementById('entryDateInput');
 const entryDateDisplay = document.getElementById('entryDateDisplay');
@@ -4636,6 +4702,31 @@ const addExerciseTab = document.getElementById('addExerciseTab');
 const logAddBtn = document.getElementById('logAddBtn');
 const logAddCopyBtn = document.getElementById('logAddCopyBtn');
 const entryLogForm = document.getElementById('entryLogForm');
+const entryTrainerToggles = document.getElementById('entryTrainerToggles');
+const entryLockedToggleBtn = document.getElementById('entryLockedToggleBtn');
+const entryPtRecognizedToggleBtn = document.getElementById('entryPtRecognizedToggleBtn');
+const entrySessionNoRow = document.getElementById('entrySessionNoRow');
+const entrySessionNoInput = document.getElementById('entrySessionNoInput');
+const entrySessionNoTotal = document.getElementById('entrySessionNoTotal');
+entryLockedToggleBtn.addEventListener('click', () => entryLockedToggleBtn.classList.toggle('active'));
+entryPtRecognizedToggleBtn.addEventListener('click', async () => {
+  const nowActive = !entryPtRecognizedToggleBtn.classList.contains('active');
+  entryPtRecognizedToggleBtn.classList.toggle('active');
+  if(nowActive){
+    entrySessionNoRow.style.display = 'flex';
+    const member = members.find(m => m.id === currentMemberId);
+    entrySessionNoTotal.textContent = member && member.ptTotal ? `/ ${member.ptTotal}회차` : '';
+    entrySessionNoInput.value = '…';
+    const dateVal = (entryDateInput && entryDateInput.value) || todayStr();
+    const computed = await computeSessionNoForDate(currentMemberId, dateVal);
+    // 그 사이에 토글을 다시 꺼버렸으면 계산 결과를 무시한다
+    if(entryPtRecognizedToggleBtn.classList.contains('active')){
+      entrySessionNoInput.value = computed || '';
+    }
+  } else {
+    entrySessionNoRow.style.display = 'none';
+  }
+});
 
 /* '저장' 버튼 상태: 저장 직후 '저장 완료'로 바뀌고,
    이후 화면에 어떤 변경이라도 생기면 다시 '저장'으로 되돌아감 */
@@ -5050,6 +5141,7 @@ let selectedDetailDate = null;
 let dayClipboard = null; // { sourceDate, entries } for '이 날짜 일지 복사' → 다른 날짜에 붙여넣기
 let entryMode = 'add'; // 'add' | 'edit'
 let entryEditDate = null; // date of the day being edited, for delete-sync on save
+let editHiddenLockedIds = []; // 회원 화면에서 잠긴 기록이라 안 보여준(수정 불가) 종목 id들 — 저장할 때 삭제로 오해하면 안 됨
 
 /* ---------- 부위별 색상 설정 ---------- */
 const BODY_PARTS = ['가슴', '등', '어깨', '팔', '복근', '하체', '유산소'];
@@ -6140,15 +6232,6 @@ function makeBlock(){
   block.className = 'exercise-block';
   block.setAttribute('data-block-id', id);
   block.innerHTML = `
-    <div class="block-row row-trainer-toggles" style="display:${isViewingAsTrainer ? 'flex' : 'none'};">
-      <button type="button" class="trainer-toggle-btn" data-toggle="locked">🔒 잠금</button>
-      <button type="button" class="trainer-toggle-btn" data-toggle="ptRecognized">✅ PT 인정</button>
-    </div>
-    <div class="block-row row-session-no" style="display:none;">
-      <span class="session-no-label">회차</span>
-      <input type="number" inputmode="numeric" class="session-no-input" min="1">
-      <span class="session-no-total"></span>
-    </div>
     <div class="block-row row-exercise">
       <button type="button" class="block-drag-handle" title="드래그해서 순서 변경">⇅</button>
       <input type="text" class="exercise-name-input" placeholder="운동 종목, 예: 스쿼트" maxlength="40">
@@ -6204,30 +6287,6 @@ function makeBlock(){
   `;
 
   const nameInputEl = block.querySelector('.exercise-name-input');
-  const lockedToggleBtn = block.querySelector('[data-toggle="locked"]');
-  const ptRecognizedToggleBtn = block.querySelector('[data-toggle="ptRecognized"]');
-  const sessionNoRow = block.querySelector('.row-session-no');
-  const sessionNoInput = block.querySelector('.session-no-input');
-  const sessionNoTotal = block.querySelector('.session-no-total');
-  lockedToggleBtn.addEventListener('click', () => lockedToggleBtn.classList.toggle('active'));
-  ptRecognizedToggleBtn.addEventListener('click', async () => {
-    const nowActive = !ptRecognizedToggleBtn.classList.contains('active');
-    ptRecognizedToggleBtn.classList.toggle('active');
-    if(nowActive){
-      sessionNoRow.style.display = 'flex';
-      const member = members.find(m => m.id === currentMemberId);
-      sessionNoTotal.textContent = member && member.ptTotal ? `/ ${member.ptTotal}회차` : '';
-      sessionNoInput.value = '…';
-      const dateVal = (entryDateInput && entryDateInput.value) || todayStr();
-      const computed = await computeSessionNoForDate(currentMemberId, dateVal);
-      // 그 사이에 토글을 다시 꺼버렸으면 계산 결과를 무시한다
-      if(ptRecognizedToggleBtn.classList.contains('active')){
-        sessionNoInput.value = computed || '';
-      }
-    } else {
-      sessionNoRow.style.display = 'none';
-    }
-  });
   const colorValueEl = block.querySelector('.color-value');
   const colorSwatches = [...block.querySelectorAll('.swatch')];
   const prevHintEl = block.querySelector('.prev-record-hint');
@@ -6681,6 +6740,9 @@ async function openMember(memberId, isNewMember){
   undoSnapshot = null;
   updateUndoFab();
   logMemberName.textContent = formatDateHintStyle(todayStr());
+  settingsBtn.style.display = isViewingAsTrainer ? 'none' : '';
+  logTrainerBadge.style.display = isViewingAsTrainer ? 'block' : 'none';
+  logTrainerBadge.textContent = isViewingAsTrainer ? `${member.name || '회원'}님의 일지` : '';
   calViewDate = new Date();
   selectedDetailDate = null;
   loadedMonthsCache = {};
@@ -7022,6 +7084,8 @@ function closeTutorial(){
   viewTutorial.classList.remove('active');
   if(tutReturnTo === 'landing'){
     showLoginView();
+  } else if(tutReturnTo === 'trainer-list'){
+    viewTrainerMembers.classList.add('active');
   } else {
     viewLog.classList.add('active');
     storageSetWithRetry(TUTORIAL_SEEN_KEY, 'true', false);
@@ -7034,6 +7098,7 @@ function showTutorialView(returnTo){
   viewLogin.classList.remove('active');
   viewLog.classList.remove('active');
   viewEntry.classList.remove('active');
+  viewTrainerMembers.classList.remove('active');
   viewTutorial.classList.add('active');
   tutSlides.scrollTo({ left: 0, behavior: 'auto' });
   updateTutDots(0);
@@ -7081,15 +7146,26 @@ function renderCalendar(){
     const weekday = (firstWeekday + day - 1) % 7;
     const weekendClass = weekday === 0 ? 'cal-date-sun' : (weekday === 6 ? 'cal-date-sat' : '');
 
+    // PT(잠긴) 기록과 회원 개인 운동이 같은 날 섞여 있을 때만, 개인 운동 쪽에 작은 라벨을 붙여 구분한다
+    const ptEntries = entries.filter(e => e.locked);
+    const personalEntries = entries.filter(e => !e.locked);
+    const isMixedDay = ptEntries.length > 0 && personalEntries.length > 0;
+
+    function tagHtml(e){
+      const c = colorForEntry(e);
+      const plain = isPlainColor(c);
+      return `<div class="cal-tag ${plain ? 'cal-tag-plain' : ''}" data-entry-id="${e.id}" ${plain ? '' : `style="background:${c}"`}><span class="cal-tag-text">${escapeHtml(e.exercise)}</span></div>`;
+    }
+
     cellsHtml += `
-      <div class="cal-cell ${hasEntries ? 'has-entries' : ''} ${isToday ? 'is-today' : ''} ${hasTrainerEntry ? 'has-trainer-entry' : ''}" data-date="${dateStr}">
-        <div class="cal-date-num ${weekendClass}">${day}</div>
-        ${sessionEntry ? `<div class="cal-tag cal-tag-session"><span class="cal-tag-text">${sessionEntry.sessionNo}${sessionEntry.ptTotal ? '/' + sessionEntry.ptTotal : ''}회차 수업</span></div>` : ''}
-        ${entries.map(e => {
-          const c = colorForEntry(e);
-          const plain = isPlainColor(c);
-          return `<div class="cal-tag ${plain ? 'cal-tag-plain' : ''}" data-entry-id="${e.id}" ${plain ? '' : `style="background:${c}"`}><span class="cal-tag-text">${escapeHtml(e.exercise)}</span></div>`;
-        }).join('')}
+      <div class="cal-cell ${hasEntries ? 'has-entries' : ''} ${isToday ? 'is-today' : ''} ${hasTrainerEntry ? 'has-trainer-entry' : ''} ${dateStr === selectedDetailDate ? 'is-selected' : ''}" data-date="${dateStr}">
+        <div class="cal-date-row">
+          <span class="cal-date-num ${weekendClass}">${day}</span>
+          ${sessionEntry ? `<span class="cal-session-inline">${sessionEntry.sessionNo}${sessionEntry.ptTotal ? '/' + sessionEntry.ptTotal : ''}</span>` : ''}
+        </div>
+        ${isMixedDay
+          ? ptEntries.map(tagHtml).join('') + `<div class="cal-personal-label">개인 운동</div>` + personalEntries.map(tagHtml).join('')
+          : entries.map(tagHtml).join('')}
       </div>`;
   }
 
@@ -7102,6 +7178,8 @@ function renderCalendar(){
       cell.addEventListener('click', () => pasteDayClipboard(dateStr));
     } else if(cell.classList.contains('has-entries')){
       cell.addEventListener('click', () => {
+        calGrid.querySelectorAll('.cal-cell.is-selected').forEach(c => c.classList.remove('is-selected'));
+        cell.classList.add('is-selected');
         selectedDetailDate = dateStr;
         renderDayDetail();
       });
@@ -7739,7 +7817,10 @@ function openEntryForm(){
   const member = members.find(m => m.id === currentMemberId);
   entryMode = 'add';
   entryEditDate = null;
+  editHiddenLockedIds = [];
   entryMemberName.textContent = formatDateHintStyle(todayStr());
+  entryTrainerBadge.style.display = isViewingAsTrainer ? 'block' : 'none';
+  entryTrainerBadge.textContent = isViewingAsTrainer ? (() => { const m = members.find(x => x.id === currentMemberId); return `${m ? m.name : '회원'}님의 일지`; })() : '';
   renderWeekCountBadge(entryWeekCountBadge);
   entryDateInput.value = todayStr();
   renderEntryDateDisplay();
@@ -7749,6 +7830,12 @@ function openEntryForm(){
   resetSaveButtonState();
   formTouchedSinceOpen = false;
   clearAutoSaveTimer();
+
+  entryTrainerToggles.style.display = isViewingAsTrainer ? 'flex' : 'none';
+  entryLockedToggleBtn.classList.remove('active');
+  entryPtRecognizedToggleBtn.classList.remove('active');
+  entrySessionNoRow.style.display = 'none';
+  entrySessionNoInput.value = '';
 
   entryStartTimeInput.value = formatTimeHHMM(new Date());
   entryEndTimeInput.value = '';
@@ -7770,6 +7857,8 @@ function editEntry(entryId){
   entryMode = 'edit';
   entryEditDate = entry.date;
   entryMemberName.textContent = formatDateHintStyle(todayStr());
+  entryTrainerBadge.style.display = isViewingAsTrainer ? 'block' : 'none';
+  entryTrainerBadge.textContent = isViewingAsTrainer ? (() => { const m = members.find(x => x.id === currentMemberId); return `${m ? m.name : '회원'}님의 일지`; })() : '';
   renderWeekCountBadge(entryWeekCountBadge);
   entryDateInput.value = entry.date;
   renderEntryDateDisplay();
@@ -7781,22 +7870,38 @@ function editEntry(entryId){
   nextNoteInput.value = (dayEntries[0] && dayEntries[0].nextNote) || '';
   prevNoteBanner.style.display = 'none';
 
+  entryTrainerToggles.style.display = isViewingAsTrainer ? 'flex' : 'none';
+  const firstEntry = dayEntries[0];
+  entryLockedToggleBtn.classList.toggle('active', !!(firstEntry && firstEntry.locked));
+  if(firstEntry && firstEntry.ptRecognized){
+    entryPtRecognizedToggleBtn.classList.add('active');
+    entrySessionNoRow.style.display = 'flex';
+    entrySessionNoInput.value = firstEntry.sessionNo || '';
+    entrySessionNoTotal.textContent = firstEntry.ptTotal ? `/ ${firstEntry.ptTotal}회차` : '';
+  } else {
+    entryPtRecognizedToggleBtn.classList.remove('active');
+    entrySessionNoRow.style.display = 'none';
+    entrySessionNoInput.value = '';
+  }
+
   exerciseBlocks.innerHTML = '';
+  editHiddenLockedIds = [];
+  const canEditLocked = isViewingAsTrainer || isAdmin();
+  const hiddenLockedEntries = [];
   dayEntries.forEach(dayEntry => {
+    if(dayEntry.locked && !canEditLocked){
+      // 트레이너가 잠가둔 기록은 회원 화면에서는 아예 손댈 수 없게, 입력칸으로 안 만들고
+      // id만 따로 기억해둔다 — 저장할 때 "화면에 없으니 삭제됐다"고 오해하면 안 되기 때문
+      editHiddenLockedIds.push(dayEntry.id);
+      hiddenLockedEntries.push(dayEntry);
+      return;
+    }
     const block = makeBlock();
     block.setAttribute('data-edit-id', dayEntry.id);
 
     block.querySelector('.exercise-name-input').value = dayEntry.exercise;
     block._setColor(colorForEntry(dayEntry));
     block.querySelector('.stat-memo').value = dayEntry.memo || '';
-    if(dayEntry.locked) block.querySelector('[data-toggle="locked"]').classList.add('active');
-    if(dayEntry.ptRecognized){
-      block.querySelector('[data-toggle="ptRecognized"]').classList.add('active');
-      const sessionNoRow = block.querySelector('.row-session-no');
-      sessionNoRow.style.display = 'flex';
-      block.querySelector('.session-no-input').value = dayEntry.sessionNo || '';
-      block.querySelector('.session-no-total').textContent = dayEntry.ptTotal ? `/ ${dayEntry.ptTotal}회차` : '';
-    }
     block._updatePrevHint();
     block._updateExerciseMemoHint();
 
@@ -7808,6 +7913,12 @@ function editEntry(entryId){
 
     exerciseBlocks.appendChild(block);
   });
+  if(hiddenLockedEntries.length){
+    const notice = document.createElement('div');
+    notice.className = 'locked-entries-notice';
+    notice.textContent = `🔒 트레이너가 잠근 종목 ${hiddenLockedEntries.length}개(${hiddenLockedEntries.map(e => e.exercise).join(', ')})는 여기서 수정할 수 없어요.`;
+    exerciseBlocks.prepend(notice);
+  }
   resetSaveButtonState();
   formTouchedSinceOpen = false;
 
@@ -8160,11 +8271,13 @@ async function addLogEntry(opts){
   }
 
   // 수정 모드: 이 날짜에 있던 기록 중, 화면에 더 이상 없는(사용자가 삭제한) 항목은 실제로 삭제
+  // 단, 회원 화면에서 애초에 입력칸으로 안 보여준(잠긴) 종목은 "화면에 없다"고 삭제하면 안 된다
   let deletedIds = [];
   if(entryMode === 'edit' && entryEditDate){
     const presentEditIds = new Set(
       blocks.map(b => b.getAttribute('data-edit-id')).filter(Boolean)
     );
+    editHiddenLockedIds.forEach(id => presentEditIds.add(id));
     deletedIds = currentLogs
       .filter(e => e.date === entryEditDate && !presentEditIds.has(e.id))
       .map(e => e.id);
@@ -8207,10 +8320,10 @@ async function addLogEntry(opts){
       ptTotal: sessionPtTotal,
       sessionNo: (() => {
         const isPtRecognized = isViewingAsTrainer
-          ? block.querySelector('[data-toggle="ptRecognized"]').classList.contains('active')
+          ? entryPtRecognizedToggleBtn.classList.contains('active')
           : (existingTarget ? !!existingTarget.ptRecognized : false);
         if(!isPtRecognized) return null;
-        const inputVal = block.querySelector('.session-no-input').value.trim();
+        const inputVal = entrySessionNoInput.value.trim();
         if(inputVal) return parseInt(inputVal, 10);
         return existingTarget ? existingTarget.sessionNo : null;
       })(),
@@ -8220,13 +8333,14 @@ async function addLogEntry(opts){
       order: blockIndex,
       // 새로 만드는 기록만 작성자를 지금 로그인한 사람으로 남기고, 수정할 땐 원래 작성자를 그대로 유지한다
       authorId: existingTarget ? existingTarget.authorId : auth.currentUser.uid,
+      // 잠금·PT인정은 이제 일지 전체(하루치)에 한 번만 있는 토글이라, 그 값을 그날의 모든 종목에 똑같이 적용한다.
       // 트레이너 화면에서만 토글이 보이니, 트레이너가 저장할 때만 이 값들을 반영하고
       // 회원이 저장할 땐(토글 자체가 안 보이니) 원래 값을 그대로 유지한다
       locked: isViewingAsTrainer
-        ? block.querySelector('[data-toggle="locked"]').classList.contains('active')
+        ? entryLockedToggleBtn.classList.contains('active')
         : (existingTarget ? !!existingTarget.locked : false),
       ptRecognized: isViewingAsTrainer
-        ? block.querySelector('[data-toggle="ptRecognized"]').classList.contains('active')
+        ? entryPtRecognizedToggleBtn.classList.contains('active')
         : (existingTarget ? !!existingTarget.ptRecognized : false),
     };
 
@@ -9591,6 +9705,38 @@ trainerBackToListBtn.addEventListener('click', () => {
 const trainerMembersRefreshBtn = document.getElementById('trainerMembersRefreshBtn');
 trainerMembersRefreshBtn.addEventListener('click', () => {
   loadTrainerMemberList();
+});
+
+const trainerSettingsModal = document.getElementById('trainerSettingsModal');
+const trainerMembersSettingsBtn = document.getElementById('trainerMembersSettingsBtn');
+const trainerSettingsCancelBtn = document.getElementById('trainerSettingsCancelBtn');
+const trainerSettingsCheckUpdateBtn = document.getElementById('trainerSettingsCheckUpdateBtn');
+const trainerSettingsTutorialBtn = document.getElementById('trainerSettingsTutorialBtn');
+const trainerSettingsLogoutBtn = document.getElementById('trainerSettingsLogoutBtn');
+
+function closeTrainerSettingsModal(){
+  trainerSettingsModal.classList.remove('open');
+}
+trainerMembersSettingsBtn.addEventListener('click', () => {
+  trainerSettingsModal.classList.add('open');
+});
+trainerSettingsCancelBtn.addEventListener('click', closeTrainerSettingsModal);
+trainerSettingsModal.addEventListener('click', (ev) => {
+  if(ev.target === trainerSettingsModal) closeTrainerSettingsModal();
+});
+trainerSettingsCheckUpdateBtn.addEventListener('click', () => {
+  closeTrainerSettingsModal();
+  checkForNewVersionManually();
+});
+trainerSettingsTutorialBtn.addEventListener('click', () => {
+  closeTrainerSettingsModal();
+  showTutorialView('trainer-list');
+});
+trainerSettingsLogoutBtn.addEventListener('click', () => {
+  closeTrainerSettingsModal();
+  showConfirmModal('로그아웃', '로그아웃 하시겠어요?', async () => {
+    await auth.signOut();
+  }, '로그아웃');
 });
 
 auth.onAuthStateChanged(async (user) => {
