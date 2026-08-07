@@ -4440,7 +4440,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.26.0';
+const APP_VERSION = '2.27.0';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -7310,6 +7310,10 @@ async function renderDayDetail(){
     `;
   }
 
+  // 이 날에 트레이너가 잠근 기록이 있어도, 회원 본인이 쓴(안 잠긴) 종목이 있으면
+  // 그 부분만 복사·삭제할 수 있어야 한다 — 트레이너 기록만 손 못 대게 막으면 된다
+  const canManageWholeDay = personalEntries.length > 0 || isViewingAsTrainer || isAdmin();
+
   dayDetail.innerHTML = `
     <div class="day-detail">
       <div class="day-detail-label">
@@ -7318,27 +7322,31 @@ async function renderDayDetail(){
         ${dayTimeText ? `<span class="day-detail-time">${dayTimeText}</span>` : ''}
       </div>
       ${orderedEntries.map((e, i) => entryHtml(e, isMixedDay && e === personalEntries[0])).join('')}
+      ${canManageWholeDay ? `
       <div class="day-detail-actions">
-        <button class="day-copy-btn" id="dayCopyBtn">다른 날짜로 일지 복사</button>
-        <button class="day-delete-all-btn" id="dayDeleteAllBtn">이 날짜 일지 전체 삭제</button>
-      </div>
+        <button class="day-copy-btn" id="dayCopyBtn">${isMixedDay && !(isViewingAsTrainer || isAdmin()) ? '개인 운동만 다른 날짜로 복사' : '다른 날짜로 일지 복사'}</button>
+        <button class="day-delete-all-btn" id="dayDeleteAllBtn">${isMixedDay && !(isViewingAsTrainer || isAdmin()) ? '개인 운동만 삭제' : '이 날짜 일지 전체 삭제'}</button>
+      </div>` : ''}
     </div>`;
 
-  const dayCopyBtn = document.getElementById('dayCopyBtn');
-  dayCopyBtn.addEventListener('click', () => {
-    copyDayToClipboard(selectedDetailDate);
-  });
+  if(canManageWholeDay){
+    const canEditLocked = isViewingAsTrainer || isAdmin();
+    const dayCopyBtn = document.getElementById('dayCopyBtn');
+    dayCopyBtn.addEventListener('click', () => {
+      copyDayToClipboard(selectedDetailDate);
+    });
 
-  const dayDeleteAllBtn = document.getElementById('dayDeleteAllBtn');
-  dayDeleteAllBtn.addEventListener('click', () => {
-    const dateStr = selectedDetailDate;
-    const count = entries.length;
-    showConfirmModal(
-      '일지 전체 삭제',
-      `${formatDate(dateStr)}에 기록된 운동 ${count}개를 모두 삭제할까요?`,
-      () => { deleteDayEntries(dateStr); }
-    );
-  });
+    const dayDeleteAllBtn = document.getElementById('dayDeleteAllBtn');
+    dayDeleteAllBtn.addEventListener('click', () => {
+      const dateStr = selectedDetailDate;
+      const count = canEditLocked ? entries.length : personalEntries.length;
+      showConfirmModal(
+        '일지 삭제',
+        `${formatDate(dateStr)}에 기록된 운동 ${count}개를 삭제할까요?${(!canEditLocked && ptEntries.length) ? ' (트레이너가 잠근 기록은 그대로 남아요)' : ''}`,
+        () => { deleteDayEntries(dateStr); }
+      );
+    });
+  }
 
   dayDetail.querySelectorAll('[data-entry-click]').forEach(el => {
     el.style.cursor = 'pointer';
@@ -7363,18 +7371,23 @@ async function renderDayDetail(){
 }
 
 async function deleteDayEntries(dateStr){
-  const idsToDelete = currentLogs.filter(e => e.date === dateStr).map(e => e.id);
+  const canEditLocked = isViewingAsTrainer || isAdmin();
+  const idsToDelete = currentLogs
+    .filter(e => e.date === dateStr && (canEditLocked || !e.locked))
+    .map(e => e.id);
   const beforeSnapshot = captureEntrySnapshot(idsToDelete);
-  currentLogs = currentLogs.filter(e => e.date !== dateStr);
-  if(selectedDetailDate === dateStr) selectedDetailDate = null;
+  const idSet = new Set(idsToDelete);
+  currentLogs = currentLogs.filter(e => !(e.date === dateStr && idSet.has(e.id)));
+  const dayStillHasEntries = currentLogs.some(e => e.date === dateStr);
+  if(selectedDetailDate === dateStr && !dayStillHasEntries) selectedDetailDate = null;
   renderCalendar();
   renderDayDetail();
   const ok = await syncLogChanges([], idsToDelete);
   if(!ok) showCopyToast('삭제에 실패했어요. 잠시 후 다시 시도해주세요.');
-  if(idsToDelete.length > 0) await adjustTotalWorkoutDays(-1);
+  if(idsToDelete.length > 0 && !dayStillHasEntries) await adjustTotalWorkoutDays(-1);
   refreshCalendarHeaderStats();
   if(ok && idsToDelete.length > 0){
-    recordUndoSnapshot(beforeSnapshot, '일지 전체 삭제 되돌리기');
+    recordUndoSnapshot(beforeSnapshot, '일지 삭제 되돌리기');
   }
 }
 
@@ -7391,7 +7404,8 @@ function updateClipboardBanner(){
 }
 
 function copyDayToClipboard(dateStr){
-  const entries = sortEntriesByOrder(currentLogs.filter(e => e.date === dateStr));
+  const canEditLocked = isViewingAsTrainer || isAdmin();
+  const entries = sortEntriesByOrder(currentLogs.filter(e => e.date === dateStr && (canEditLocked || !e.locked)));
   if(entries.length === 0) return;
   dayClipboard = {
     sourceDate: dateStr,
@@ -7914,6 +7928,15 @@ function openEntryForm(){
   nextNoteInput.value = '';
   refreshPrevNoteBanner();
   resetBlocks();
+  if(!isViewingAsTrainer && !isAdmin()){
+    const lockedToday = currentLogs.filter(e => e.date === todayStr() && e.locked);
+    if(lockedToday.length){
+      const notice = document.createElement('div');
+      notice.className = 'locked-entries-notice';
+      notice.textContent = `🔒 오늘 트레이너가 작성한 기록이 이미 ${lockedToday.length}개 있어요. 여기서는 내가 새로 쓰는 종목만 추가돼요.`;
+      exerciseBlocks.prepend(notice);
+    }
+  }
   resetSaveButtonState();
   formTouchedSinceOpen = false;
   clearAutoSaveTimer();
@@ -8470,6 +8493,15 @@ async function addLogEntry(opts){
   // 중복 생성되지 않고 같은 기록이 갱신되도록 함
   entryMode = 'edit';
   entryEditDate = dateVal;
+  // '+새일지'로 시작했을 때는 그 날짜에 이미 있던(트레이너가 잠근) 기록을 화면에 아예 안 띄웠었다.
+  // 그 상태로 이 시점부터 'edit' 모드로 바뀌면, 다음 저장(자동저장 포함)에서 "화면에 없으니 삭제된 거다"라고
+  // 착각해서 트레이너 기록을 지워버리는 버그가 있었다. 그래서 여기서도 잠긴 기록 id를 챙겨둔다.
+  if(!isViewingAsTrainer && !isAdmin()){
+    const presentIds = new Set(savedEntries.map(e => e.id));
+    editHiddenLockedIds = currentLogs
+      .filter(e => e.date === dateVal && e.locked && !presentIds.has(e.id))
+      .map(e => e.id);
+  }
 
   if(opts.stay){
     markSavedState();
