@@ -1939,8 +1939,7 @@
   }
   .trainer-toggle-btn{
     flex: 1;
-    min-width: 0;
-    padding: 8px 12px;
+    padding: 9px 12px;
     border-radius: var(--radius-s);
     border: 1px solid var(--line);
     background: var(--surface);
@@ -1950,60 +1949,44 @@
     white-space: nowrap;
     cursor: pointer;
   }
+  .row-trainer-toggles.has-session .trainer-toggle-btn{
+    flex: 0 0 auto;
+  }
   .trainer-toggle-btn.active{
     border-color: var(--brass);
     background: var(--brass);
     color: var(--bg);
   }
-  .pt-toggle-box{
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 0 4px;
-    overflow: hidden;
-  }
-  .pt-toggle-label{
-    flex-shrink: 0;
-    cursor: pointer;
-    padding: 8px 8px;
-  }
   .session-no-inline{
     flex: 1;
-    min-width: 0;
+    min-width: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 4px 6px;
-    background: rgba(0,0,0,0.15);
+    padding: 5px 8px;
+    background: var(--surface);
+    border: 1px solid var(--line);
     border-radius: var(--radius-s);
   }
   .session-no-input{
-    width: 30px;
+    width: 34px;
     flex-shrink: 0;
     background: var(--surface-raised);
     border: 1px solid var(--line);
     color: var(--chalk);
     border-radius: var(--radius-s);
-    padding: 4px 2px;
-    font-size: 12px;
+    padding: 5px 2px;
+    font-size: 13px;
+    line-height: 1.3;
     font-weight: 700;
     text-align: center;
-  }
-  .pt-toggle-box.active .session-no-input{
-    background: var(--surface);
-    border-color: rgba(0,0,0,0.3);
-    color: var(--chalk);
   }
   .session-no-input:focus{ outline:none; border-color: var(--brass); }
   .session-no-total{
     font-size: 12px;
     color: var(--muted);
     white-space: nowrap;
-  }
-  .pt-toggle-box.active .session-no-total{
-    color: var(--bg);
   }
   .log-entry-locked{
     opacity: 0.9;
@@ -2363,6 +2346,12 @@
   .set-row-prev-hint{
     font-size: 10px;
     color: var(--brass-bright);
+    padding-left: 66px;
+  }
+  .set-row-newrecord-hint{
+    font-size: 10px;
+    font-weight: 700;
+    color: #4CAF6E;
     padding-left: 66px;
   }
   .set-label{
@@ -3788,12 +3777,10 @@
       <div class="entry-time-hint" id="entryEndTimeHint" style="display:none;">종료 시간은 '운동 종료'를 누르면 자동으로 입력돼요.</div>
       <div class="block-row row-trainer-toggles" id="entryTrainerToggles" style="display:none;">
         <button type="button" class="trainer-toggle-btn" id="entryLockedToggleBtn">🔒 잠금</button>
-        <div class="trainer-toggle-btn pt-toggle-box" id="entryPtRecognizedToggleBtn">
-          <span class="pt-toggle-label" id="entryPtRecognizedLabel">✅ PT 인정</span>
-          <div class="session-no-inline" id="entrySessionNoRow" style="display:none;">
-            <input autocapitalize="off" type="number" inputmode="numeric" class="session-no-input" id="entrySessionNoInput" min="1">
-            <span class="session-no-total" id="entrySessionNoTotal"></span>
-          </div>
+        <button type="button" class="trainer-toggle-btn" id="entryPtRecognizedToggleBtn">✅ PT 인정</button>
+        <div class="session-no-inline" id="entrySessionNoRow" style="display:none;">
+          <input autocapitalize="off" type="number" inputmode="numeric" class="session-no-input" id="entrySessionNoInput" min="1">
+          <span class="session-no-total" id="entrySessionNoTotal"></span>
         </div>
       </div>
       <div class="entry-form-divider"></div>
@@ -4441,7 +4428,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.29.0';
+const APP_VERSION = '2.31.1';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4811,14 +4798,14 @@ const entryLogForm = document.getElementById('entryLogForm');
 const entryTrainerToggles = document.getElementById('entryTrainerToggles');
 const entryLockedToggleBtn = document.getElementById('entryLockedToggleBtn');
 const entryPtRecognizedToggleBtn = document.getElementById('entryPtRecognizedToggleBtn');
-const entryPtRecognizedLabel = document.getElementById('entryPtRecognizedLabel');
 const entrySessionNoRow = document.getElementById('entrySessionNoRow');
 const entrySessionNoInput = document.getElementById('entrySessionNoInput');
 const entrySessionNoTotal = document.getElementById('entrySessionNoTotal');
 entryLockedToggleBtn.addEventListener('click', () => entryLockedToggleBtn.classList.toggle('active'));
-entryPtRecognizedLabel.addEventListener('click', async () => {
+entryPtRecognizedToggleBtn.addEventListener('click', async () => {
   const nowActive = !entryPtRecognizedToggleBtn.classList.contains('active');
   entryPtRecognizedToggleBtn.classList.toggle('active');
+  entryTrainerToggles.classList.toggle('has-session', nowActive);
   if(nowActive){
     entrySessionNoRow.style.display = 'flex';
     const member = members.find(m => m.id === currentMemberId);
@@ -5399,6 +5386,7 @@ const infoModalSub = document.getElementById('infoModalSub');
 const infoModalOkBtn = document.getElementById('infoModalOkBtn');
 function showInfoModal(title, sub, okLabel){
   infoModalTitle.textContent = title;
+  infoModalTitle.style.display = title ? 'block' : 'none';
   infoModalSub.textContent = sub;
   infoModalOkBtn.textContent = okLabel || '확인';
   infoModal.classList.add('open');
@@ -5416,10 +5404,12 @@ const confirmModalNo = document.getElementById('confirmModalNo');
 let confirmCallback = null;
 let confirmCancelCallback = null;
 
-function showConfirmModal(title, sub, onConfirm, confirmLabel, onCancel){
+function showConfirmModal(title, sub, onConfirm, confirmLabel, onCancel, cancelLabel){
   confirmModalTitle.textContent = title;
+  confirmModalTitle.style.display = title ? 'block' : 'none';
   confirmModalSub.textContent = sub;
   confirmModalYes.textContent = confirmLabel || '삭제';
+  confirmModalNo.textContent = cancelLabel || '취소';
   confirmCallback = onConfirm;
   confirmCancelCallback = onCancel || null;
   confirmModal.classList.add('open');
@@ -6423,6 +6413,7 @@ function makeBlock(){
      그래서 입력할 때마다 번호표를 하나씩 올려두고, 조회가 끝났을 때 그 사이에 번호표가
      더 올라갔으면(= 그 뒤에 또 입력이 있었으면) 낡은 응답이니 화면에 반영하지 않고 버린다. */
   let nameInputGen = 0;
+  let prevBestWeight = null; // 이 종목의 이전 세션 최고 무게 (세트 순번과 무관하게 신기록 판단용)
   nameInputEl.addEventListener('input', () => { nameInputGen++; });
   findExerciseLink.addEventListener('click', () => {
     openExercisePicker((chosenName) => {
@@ -6437,6 +6428,7 @@ function makeBlock(){
     if(!name){
       prevHintEl.style.display = 'none';
       prevHintEl.textContent = '';
+      prevBestWeight = null;
       return;
     }
     const dateVal = (entryDateInput && entryDateInput.value) || todayStr();
@@ -6445,11 +6437,13 @@ function makeBlock(){
     if(!prev || !prev.setRows || !prev.setRows.length){
       prevHintEl.style.display = 'none';
       prevHintEl.textContent = '';
+      prevBestWeight = null;
       return;
     }
 
     let text = '';
     if(prev.recordMode === 'time'){
+      prevBestWeight = null;
       let maxSec = -1;
       prev.setRows.forEach(s => {
         const sec = (parseFloat(s.minutes) || 0) * 60 + (parseFloat(s.seconds) || 0);
@@ -6473,13 +6467,17 @@ function makeBlock(){
         }
       });
       if(hasWeight && topSet){
+        prevBestWeight = topSet.weight;
         const metric = exerciseMetric(prev);
         const volumeText = metric && metric.type === 'volume' ? ` · 이전 총 볼륨 ${formatNum(metric.value)}kg` : '';
         text = `⏱ 이전 최고 기록: ${formatNum(topSet.weight)}kg × ${topSet.reps}회${volumeText} (${formatDateHintStyle(prev.date)})`;
       } else if(maxReps > 0){
+        prevBestWeight = null;
         const metric = exerciseMetric(prev);
         const totalRepsText = metric && metric.type === 'reps' ? ` · 이전 총 갯수 ${metric.value}회` : '';
         text = `⏱ 이전 맨몸 운동 기록: 한 세트 최대 ${maxReps}회${totalRepsText} (${formatDateHintStyle(prev.date)})`;
+      } else {
+        prevBestWeight = null;
       }
     }
 
@@ -6639,6 +6637,7 @@ function makeBlock(){
           <button type="button" class="remove-set-btn" title="이 세트 삭제">×</button>
         </div>
         <div class="set-row-prev-hint" style="display:none;">이전 기록이에요</div>
+        <div class="set-row-newrecord-hint" style="display:none;">🔥 신기록이에요</div>
       `;
       if(insertAfterRow) setRowsEl.insertBefore(row, insertAfterRow.nextSibling); else setRowsEl.appendChild(row);
       makeSwipeAdjustable(row.querySelector('.set-weight'));
@@ -6669,20 +6668,30 @@ function makeBlock(){
     const rows = [...setRowsEl.querySelectorAll('.set-row')];
     rows.forEach((row, i) => {
       const hintEl = row.querySelector('.set-row-prev-hint');
+      const newRecordEl = row.querySelector('.set-row-newrecord-hint');
       const prevRow = prevCompareRows && prevCompareRows[i];
       let match = false;
-      if(prevRow){
-        if(recordMode === 'time'){
+      let isNewRecord = false;
+      if(recordMode === 'time'){
+        if(prevRow){
           const curMin = (row.querySelector('.set-minutes').value || '').trim();
           const curSec = (row.querySelector('.set-seconds').value || '').trim();
           match = curMin === (prevRow.minutes || '').toString().trim() && curSec === (prevRow.seconds || '').toString().trim();
-        } else {
-          const curWeight = (row.querySelector('.set-weight').value || '').trim();
-          const curReps = (row.querySelector('.set-reps').value || '').trim();
+        }
+      } else {
+        const curWeight = (row.querySelector('.set-weight').value || '').trim();
+        const curReps = (row.querySelector('.set-reps').value || '').trim();
+        if(prevRow){
           match = curWeight === (prevRow.weight || '').toString().trim() && curReps === (prevRow.reps || '').toString().trim();
+        }
+        // 세트 순번과 상관없이, 이 종목의 이전 최고 무게보다 더 무겁게(+횟수도 입력) 쓰면 신기록으로 표시한다
+        const curWeightNum = parseFloat(curWeight);
+        if(!match && curWeight !== '' && curReps !== '' && !isNaN(curWeightNum) && prevBestWeight !== null && curWeightNum > prevBestWeight){
+          isNewRecord = true;
         }
       }
       hintEl.style.display = match ? 'block' : 'none';
+      if(newRecordEl) newRecordEl.style.display = isNewRecord ? 'block' : 'none';
     });
   }
   setRowsEl.addEventListener('input', updatePrevRowHints);
@@ -7976,7 +7985,7 @@ function openEntryForm(){
     if(lockedToday.length){
       const notice = document.createElement('div');
       notice.className = 'locked-entries-notice';
-      notice.textContent = `🔒 오늘 트레이너가 작성한 기록이 이미 ${lockedToday.length}개 있어요. 여기서는 내가 새로 쓰는 종목만 추가돼요.`;
+      notice.textContent = `🔒 오늘 트레이너가 작성한 기록이 있어요. 여기서는 개인 운동 일지로 기록돼요.`;
       exerciseBlocks.prepend(notice);
     }
   }
@@ -7985,6 +7994,7 @@ function openEntryForm(){
   clearAutoSaveTimer();
 
   entryTrainerToggles.style.display = isViewingAsTrainer ? 'flex' : 'none';
+  entryTrainerToggles.classList.remove('has-session');
   entryLockedToggleBtn.classList.remove('active');
   entryPtRecognizedToggleBtn.classList.remove('active');
   entrySessionNoRow.style.display = 'none';
@@ -8028,11 +8038,13 @@ function editEntry(entryId){
   entryLockedToggleBtn.classList.toggle('active', !!(firstEntry && firstEntry.locked));
   if(firstEntry && firstEntry.ptRecognized){
     entryPtRecognizedToggleBtn.classList.add('active');
+    entryTrainerToggles.classList.add('has-session');
     entrySessionNoRow.style.display = 'flex';
     entrySessionNoInput.value = firstEntry.sessionNo || '';
     entrySessionNoTotal.textContent = firstEntry.ptTotal ? `/ ${firstEntry.ptTotal}회차` : '';
   } else {
     entryPtRecognizedToggleBtn.classList.remove('active');
+    entryTrainerToggles.classList.remove('has-session');
     entrySessionNoRow.style.display = 'none';
     entrySessionNoInput.value = '';
   }
@@ -9603,11 +9615,12 @@ bodyPartColorSaveBtn.addEventListener('click', async () => {
   showCopyToast('부위별 색상을 저장했어요.');
   if(currentMemberId){
     showConfirmModal(
-      '이전 일지 색상',
-      '이전 일지의 운동 부위별 색상도 지금의 설정으로 모두 바꿔드릴까요?',
+      '',
+      '예전 기록도 새 색상으로 바꿀까요?',
       async () => { await repaintOwnEntriesWithCurrentColors(); },
       '예',
-      () => { showCopyToast('앞으로 작성하는 일지에만 적용돼요.'); }
+      () => { showInfoModal('', '새 기록에만 적용돼요.', '확인'); },
+      '아니요'
     );
   }
 });
