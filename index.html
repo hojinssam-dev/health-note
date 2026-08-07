@@ -1200,6 +1200,11 @@
   @keyframes calSpin{
     to{ transform: rotate(360deg); }
   }
+  .member-info-memo-wrap{
+    position: relative;
+    margin-bottom: 24px;
+    margin-top: 8px;
+  }
   .member-info-memo{
     width: 100%;
     box-sizing: border-box;
@@ -1210,13 +1215,25 @@
     border: 1px solid var(--line);
     border-radius: var(--radius-s);
     padding: 10px 12px;
-    margin-bottom: 24px;
-    margin-top: 8px;
+    margin-bottom: 0;
     min-height: 60px;
-    resize: vertical;
+    resize: none;
+    overflow: hidden;
   }
   .member-info-memo::placeholder{ color: var(--muted); }
   .member-info-memo:focus{ outline:none; border-color: var(--brass); box-shadow: 0 0 0 3px rgba(201,162,39,0.15); }
+  .member-info-memo-saved{
+    position: absolute;
+    right: 10px;
+    bottom: -18px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #4CAF6E;
+    opacity: 0;
+    transition: opacity .25s ease;
+    pointer-events: none;
+  }
+  .member-info-memo-saved.show{ opacity: 1; }
 
   .log-header h1{
     font-family: 'Bebas Neue', sans-serif;
@@ -1903,10 +1920,6 @@
   }
   .cal-date-num.cal-date-sun{ color: #E0574A; }
   .cal-date-num.cal-date-sat{ color: #4A90D0; }
-  .cal-cell.has-trainer-entry{
-    box-shadow: inset 0 0 0 2px var(--brass);
-    border-radius: 6px;
-  }
   .cal-cell.is-selected .cal-date-num{
     color: #fff;
     font-weight: 700;
@@ -1925,7 +1938,8 @@
     margin-bottom: 8px;
   }
   .trainer-toggle-btn{
-    flex: 0 0 auto;
+    flex: 1;
+    min-width: 0;
     padding: 8px 12px;
     border-radius: var(--radius-s);
     border: 1px solid var(--line);
@@ -1941,33 +1955,55 @@
     background: var(--brass);
     color: var(--bg);
   }
+  .pt-toggle-box{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 4px;
+    overflow: hidden;
+  }
+  .pt-toggle-label{
+    flex-shrink: 0;
+    cursor: pointer;
+    padding: 8px 8px;
+  }
   .session-no-inline{
     flex: 1;
     min-width: 0;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    padding: 0 10px;
-    background: var(--surface);
-    border: 1px solid var(--line);
+    padding: 4px 6px;
+    background: rgba(0,0,0,0.15);
     border-radius: var(--radius-s);
   }
   .session-no-input{
-    width: 34px;
+    width: 30px;
     flex-shrink: 0;
     background: var(--surface-raised);
     border: 1px solid var(--line);
     color: var(--chalk);
     border-radius: var(--radius-s);
-    padding: 6px 4px;
-    font-size: 13px;
+    padding: 4px 2px;
+    font-size: 12px;
     font-weight: 700;
     text-align: center;
   }
+  .pt-toggle-box.active .session-no-input{
+    background: var(--surface);
+    border-color: rgba(0,0,0,0.3);
+    color: var(--bg);
+  }
   .session-no-input:focus{ outline:none; border-color: var(--brass); }
   .session-no-total{
-    font-size: 13px;
+    font-size: 12px;
     color: var(--muted);
+    white-space: nowrap;
+  }
+  .pt-toggle-box.active .session-no-total{
+    color: var(--bg);
   }
   .log-entry-locked{
     opacity: 0.9;
@@ -3665,7 +3701,10 @@
       <button class="header-new-entry-btn" id="openEntryTab">+새일지</button>
     </div>
 
-    <textarea class="member-info-memo" id="memberInfoMemo" placeholder="회원 특이사항을 적어두세요. 회원에게는 안 보이고, 나(트레이너/관리자)한테만 보여요." style="display:none;"></textarea>
+    <div class="member-info-memo-wrap">
+      <textarea class="member-info-memo" id="memberInfoMemo" placeholder="회원 특이사항을 적어두세요. 회원에게는 안 보이고, 나(트레이너/관리자)한테만 보여요." style="display:none;"></textarea>
+      <span class="member-info-memo-saved" id="memberInfoMemoSaved"></span>
+    </div>
 
     <button class="body-photos-tab" id="bodyPhotosTab">
       <span>📷 사진 등록</span>
@@ -3749,10 +3788,12 @@
       <div class="entry-time-hint" id="entryEndTimeHint" style="display:none;">종료 시간은 '운동 종료'를 누르면 자동으로 입력돼요.</div>
       <div class="block-row row-trainer-toggles" id="entryTrainerToggles" style="display:none;">
         <button type="button" class="trainer-toggle-btn" id="entryLockedToggleBtn">🔒 잠금</button>
-        <button type="button" class="trainer-toggle-btn" id="entryPtRecognizedToggleBtn">✅ PT 인정</button>
-        <div class="session-no-inline" id="entrySessionNoRow" style="display:none;">
-          <input type="number" inputmode="numeric" class="session-no-input" id="entrySessionNoInput" min="1">
-          <span class="session-no-total" id="entrySessionNoTotal"></span>
+        <div class="trainer-toggle-btn pt-toggle-box" id="entryPtRecognizedToggleBtn">
+          <span class="pt-toggle-label" id="entryPtRecognizedLabel">✅ PT 인정</span>
+          <div class="session-no-inline" id="entrySessionNoRow" style="display:none;">
+            <input type="number" inputmode="numeric" class="session-no-input" id="entrySessionNoInput" min="1">
+            <span class="session-no-total" id="entrySessionNoTotal"></span>
+          </div>
         </div>
       </div>
       <div class="entry-form-divider"></div>
@@ -4399,7 +4440,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.24.4';
+const APP_VERSION = '2.26.0';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4558,6 +4599,15 @@ const logWeekCountBadge = document.getElementById('logWeekCountBadge');
 const headerInfoLine = document.getElementById('headerInfoLine');
 const calLoadingOverlay = document.getElementById('calLoadingOverlay');
 const memberInfoMemo = document.getElementById('memberInfoMemo');
+const memberInfoMemoSaved = document.getElementById('memberInfoMemoSaved');
+let memberInfoMemoSavedTimer = null;
+
+function autoGrowMemberMemo(){
+  memberInfoMemo.style.height = 'auto';
+  memberInfoMemo.style.height = memberInfoMemo.scrollHeight + 'px';
+}
+memberInfoMemo.addEventListener('input', autoGrowMemberMemo);
+
 memberInfoMemo.addEventListener('blur', async () => {
   const member = members.find(m => m.id === currentMemberId);
   if(!member) return;
@@ -4574,8 +4624,17 @@ memberInfoMemo.addEventListener('blur', async () => {
     }
     entry.memo = newMemo;
     const ok = await storageSetWithRetry(STORAGE_KEY, JSON.stringify(list), false, undefined, currentMemberId);
-    if(ok) showCopyToast('메모를 저장했어요.');
-    else showCopyToast('메모 저장에 실패했어요.');
+    if(ok){
+      showCopyToast('메모를 저장했어요.');
+      memberInfoMemoSaved.textContent = '✓ 저장됨';
+      memberInfoMemoSaved.classList.add('show');
+      clearTimeout(memberInfoMemoSavedTimer);
+      memberInfoMemoSavedTimer = setTimeout(() => {
+        memberInfoMemoSaved.classList.remove('show');
+      }, 2000);
+    } else {
+      showCopyToast('메모 저장에 실패했어요.');
+    }
   }catch(err){
     console.error('회원 메모 저장 오류:', err);
     showCopyToast('메모 저장 중 오류가 발생했어요.');
@@ -4596,6 +4655,7 @@ function updateMemberInfoBar(member){
   if(canSeeNote && memberInfoMemo.getAttribute('data-loaded-for') !== member.id){
     memberInfoMemo.value = member.memo || '';
     memberInfoMemo.setAttribute('data-loaded-for', member.id);
+    autoGrowMemberMemo();
   }
 }
 
@@ -4721,11 +4781,12 @@ const entryLogForm = document.getElementById('entryLogForm');
 const entryTrainerToggles = document.getElementById('entryTrainerToggles');
 const entryLockedToggleBtn = document.getElementById('entryLockedToggleBtn');
 const entryPtRecognizedToggleBtn = document.getElementById('entryPtRecognizedToggleBtn');
+const entryPtRecognizedLabel = document.getElementById('entryPtRecognizedLabel');
 const entrySessionNoRow = document.getElementById('entrySessionNoRow');
 const entrySessionNoInput = document.getElementById('entrySessionNoInput');
 const entrySessionNoTotal = document.getElementById('entrySessionNoTotal');
 entryLockedToggleBtn.addEventListener('click', () => entryLockedToggleBtn.classList.toggle('active'));
-entryPtRecognizedToggleBtn.addEventListener('click', async () => {
+entryPtRecognizedLabel.addEventListener('click', async () => {
   const nowActive = !entryPtRecognizedToggleBtn.classList.contains('active');
   entryPtRecognizedToggleBtn.classList.toggle('active');
   if(nowActive){
@@ -7157,7 +7218,6 @@ function renderCalendar(){
     const entries = sortEntriesByOrder(currentLogs.filter(e => e.date === dateStr));
     const isToday = dateStr === todayD;
     const hasEntries = entries.length > 0;
-    const hasTrainerEntry = entries.some(e => e.locked);
     const sessionEntry = entries.find(e => e.sessionNo);
     const weekday = (firstWeekday + day - 1) % 7;
     const weekendClass = weekday === 0 ? 'cal-date-sun' : (weekday === 6 ? 'cal-date-sat' : '');
@@ -7174,7 +7234,7 @@ function renderCalendar(){
     }
 
     cellsHtml += `
-      <div class="cal-cell ${hasEntries ? 'has-entries' : ''} ${isToday ? 'is-today' : ''} ${hasTrainerEntry ? 'has-trainer-entry' : ''} ${dateStr === selectedDetailDate ? 'is-selected' : ''}" data-date="${dateStr}">
+      <div class="cal-cell ${hasEntries ? 'has-entries' : ''} ${isToday ? 'is-today' : ''} ${dateStr === selectedDetailDate ? 'is-selected' : ''}" data-date="${dateStr}">
         <div class="cal-date-row">
           <span class="cal-date-num ${weekendClass}">${day}</span>
           ${sessionEntry ? `<span class="cal-session-inline">${sessionEntry.sessionNo}${sessionEntry.ptTotal ? '/' + sessionEntry.ptTotal : ''}</span>` : ''}
@@ -9489,8 +9549,11 @@ async function loadTrainerMemberList(){
     let lastPtDate = null;
     try{
       const logsSnap = await logsCollection(uid).get();
-      const ptDates = logsSnap.docs.filter(d => d.data().ptRecognized).map(d => d.data().date);
-      recordCount = new Set(ptDates).size;
+      const ptEntries = logsSnap.docs.map(d => d.data()).filter(e => e.ptRecognized);
+      // 진행 회차는 "PT 인정된 날짜 수"가 아니라, 트레이너가 실제로 입력해둔 회차 중 가장 큰 값을 쓴다.
+      // 그래야 이미 몇 회차 진행되던 회원을 중간(예: 3회차)부터 앱으로 기록하기 시작해도 정확히 반영된다.
+      recordCount = ptEntries.reduce((max, e) => Math.max(max, e.sessionNo || 0), 0);
+      const ptDates = ptEntries.map(e => e.date);
       if(ptDates.length) lastPtDate = ptDates.sort().slice(-1)[0];
     }catch(err){
       console.error('회원 기록 조회 오류:', uid, err);
