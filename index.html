@@ -4433,7 +4433,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.32.1';
+const APP_VERSION = '2.32.2';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -7028,7 +7028,7 @@ emailReminderRegisterBtn.addEventListener('click', async () => {
     showInfoModal('인증 메일 발송', `${newEmail}(으)로 인증 메일을 보냈어요. 메일함에서 링크를 눌러 인증을 완료해주세요.`, '확인');
   }catch(err){
     console.error('복구 이메일 등록 오류:', err);
-    emailReminderError.textContent = '등록에 실패했어요. 설정 > 내 계정에서 다시 시도해주세요.';
+    emailReminderError.textContent = err.message || '등록에 실패했어요. 설정 > 내 계정에서 다시 시도해주세요.';
     emailReminderError.style.display = 'block';
   }finally{
     emailReminderRegisterBtn.disabled = false;
