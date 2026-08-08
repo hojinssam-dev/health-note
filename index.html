@@ -1219,12 +1219,17 @@
     min-height: 60px;
     resize: none;
     overflow: hidden;
+    transition: border-color 1.2s ease, box-shadow 1.2s ease;
   }
   .member-info-memo::placeholder{ color: var(--muted); }
   .member-info-memo:focus{ outline:none; border-color: var(--brass); box-shadow: 0 0 0 3px rgba(201,162,39,0.15); }
+  .member-info-memo.just-saved{
+    border-color: #4CAF6E;
+    box-shadow: 0 0 0 3px rgba(76,175,110,0.18);
+  }
   .member-info-memo-saved{
     position: absolute;
-    right: 10px;
+    left: 10px;
     bottom: -18px;
     font-size: 11px;
     font-weight: 700;
@@ -1951,38 +1956,36 @@
     white-space: nowrap;
     cursor: pointer;
   }
-  .row-trainer-toggles.has-session .trainer-toggle-btn{
-    flex: 0 0 auto;
-  }
   .trainer-toggle-btn.active{
     border-color: var(--brass);
     background: var(--brass);
     color: var(--bg);
   }
-  .session-no-inline{
+  .row-session-no{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
     flex: 0 0 auto;
     height: 38px;
     box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 0 8px;
+    width: fit-content;
+    padding: 0 10px;
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius-s);
   }
   .session-no-input{
-    width: 30px;
+    width: 42px;
     flex-shrink: 0;
-    height: 26px;
+    height: 28px;
     box-sizing: border-box;
     background: var(--surface-raised);
     border: 1px solid var(--line);
     color: var(--chalk);
     border-radius: var(--radius-s);
-    padding: 0 2px;
-    font-size: 13px;
+    padding: 0 4px;
+    font-size: 14px;
     line-height: 1.3;
     font-weight: 700;
     text-align: center;
@@ -3783,7 +3786,7 @@
       <div class="block-row row-trainer-toggles" id="entryTrainerToggles" style="display:none;">
         <button type="button" class="trainer-toggle-btn" id="entryLockedToggleBtn">🔒 잠금</button>
         <button type="button" class="trainer-toggle-btn" id="entryPtRecognizedToggleBtn">✅ PT 인정</button>
-        <div class="session-no-inline" id="entrySessionNoRow" style="display:none;">
+        <div class="row-session-no" id="entrySessionNoRow" style="display:none;">
           <input autocapitalize="off" type="number" inputmode="numeric" class="session-no-input" id="entrySessionNoInput" min="1">
           <span class="session-no-total" id="entrySessionNoTotal"></span>
         </div>
@@ -4433,7 +4436,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.32.2';
+const APP_VERSION = '2.34.0';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4604,13 +4607,17 @@ const headerInfoLine = document.getElementById('headerInfoLine');
 const calLoadingOverlay = document.getElementById('calLoadingOverlay');
 const memberInfoMemo = document.getElementById('memberInfoMemo');
 const memberInfoMemoSaved = document.getElementById('memberInfoMemoSaved');
-let memberInfoMemoSavedTimer = null;
+let memberInfoMemoBorderTimer = null;
 
 function autoGrowMemberMemo(){
   memberInfoMemo.style.height = 'auto';
   memberInfoMemo.style.height = memberInfoMemo.scrollHeight + 'px';
 }
-memberInfoMemo.addEventListener('input', autoGrowMemberMemo);
+memberInfoMemo.addEventListener('input', () => {
+  autoGrowMemberMemo();
+  // 다시 입력을 시작하면, 예전 "저장됨" 표시는 지금 상태랑 안 맞으니 지워둔다
+  memberInfoMemoSaved.classList.remove('show');
+});
 
 memberInfoMemo.addEventListener('blur', async () => {
   const member = members.find(m => m.id === currentMemberId);
@@ -4629,13 +4636,15 @@ memberInfoMemo.addEventListener('blur', async () => {
     entry.memo = newMemo;
     const ok = await storageSetWithRetry(STORAGE_KEY, JSON.stringify(list), false, undefined, currentMemberId);
     if(ok){
-      showCopyToast('메모를 저장했어요.');
+      // 1) 메모칸 아래 왼쪽에 계속 남는 상태 표시 (사라지지 않음, 다시 입력을 시작할 때만 지워짐)
       memberInfoMemoSaved.textContent = '✓ 저장됨';
       memberInfoMemoSaved.classList.add('show');
-      clearTimeout(memberInfoMemoSavedTimer);
-      memberInfoMemoSavedTimer = setTimeout(() => {
-        memberInfoMemoSaved.classList.remove('show');
-      }, 2000);
+      // 2) 입력칸 테두리가 잠깐 초록색으로 반짝였다가 서서히 원래 색으로 돌아옴
+      memberInfoMemo.classList.add('just-saved');
+      clearTimeout(memberInfoMemoBorderTimer);
+      memberInfoMemoBorderTimer = setTimeout(() => {
+        memberInfoMemo.classList.remove('just-saved');
+      }, 300);
     } else {
       showCopyToast('메모 저장에 실패했어요.');
     }
@@ -4659,6 +4668,7 @@ function updateMemberInfoBar(member){
   if(canSeeNote && memberInfoMemo.getAttribute('data-loaded-for') !== member.id){
     memberInfoMemo.value = member.memo || '';
     memberInfoMemo.setAttribute('data-loaded-for', member.id);
+    memberInfoMemoSaved.classList.remove('show');
     autoGrowMemberMemo();
   }
 }
@@ -4792,7 +4802,6 @@ entryLockedToggleBtn.addEventListener('click', () => entryLockedToggleBtn.classL
 entryPtRecognizedToggleBtn.addEventListener('click', async () => {
   const nowActive = !entryPtRecognizedToggleBtn.classList.contains('active');
   entryPtRecognizedToggleBtn.classList.toggle('active');
-  entryTrainerToggles.classList.toggle('has-session', nowActive);
   if(nowActive){
     entrySessionNoRow.style.display = 'flex';
     const member = members.find(m => m.id === currentMemberId);
@@ -7992,7 +8001,6 @@ function openEntryForm(){
   clearAutoSaveTimer();
 
   entryTrainerToggles.style.display = isViewingAsTrainer ? 'flex' : 'none';
-  entryTrainerToggles.classList.remove('has-session');
   entryLockedToggleBtn.classList.remove('active');
   entryPtRecognizedToggleBtn.classList.remove('active');
   entrySessionNoRow.style.display = 'none';
@@ -8012,7 +8020,13 @@ function editEntry(entryId){
   const entry = currentLogs.find(e => e.id === entryId);
   if(!entry) return;
   const member = members.find(m => m.id === currentMemberId);
-  const dayEntries = sortEntriesByOrder(currentLogs.filter(e => e.date === entry.date));
+  // 그 날짜 전체가 아니라, 지금 누른 종목과 같은 그룹(트레이너가 잠근 PT 기록 / 회원이 쓴 개인 운동)
+  // 것들만 불러온다 — 두 그룹이 섞여서 한 화면에서 같이 수정되면 저장할 때 잠금·PT인정 상태가
+  // 서로 덮어써지는 문제가 있었기 때문
+  const tappedGroupIsLocked = !!entry.locked;
+  const dayEntriesAll = sortEntriesByOrder(currentLogs.filter(e => e.date === entry.date));
+  const dayEntries = dayEntriesAll.filter(e => !!e.locked === tappedGroupIsLocked);
+  const otherGroupEntries = dayEntriesAll.filter(e => !!e.locked !== tappedGroupIsLocked);
   clearAutoSaveTimer();
 
   entryMode = 'edit';
@@ -8036,19 +8050,20 @@ function editEntry(entryId){
   entryLockedToggleBtn.classList.toggle('active', !!(firstEntry && firstEntry.locked));
   if(firstEntry && firstEntry.ptRecognized){
     entryPtRecognizedToggleBtn.classList.add('active');
-    entryTrainerToggles.classList.add('has-session');
     entrySessionNoRow.style.display = 'flex';
     entrySessionNoInput.value = firstEntry.sessionNo || '';
     entrySessionNoTotal.textContent = firstEntry.ptTotal ? `/ ${firstEntry.ptTotal}회차` : '';
   } else {
     entryPtRecognizedToggleBtn.classList.remove('active');
-    entryTrainerToggles.classList.remove('has-session');
-    entrySessionNoRow.style.display = 'none';
+      entrySessionNoRow.style.display = 'none';
     entrySessionNoInput.value = '';
   }
 
   exerciseBlocks.innerHTML = '';
-  editHiddenLockedIds = [];
+  // 다른 그룹(위에서 걸러낸 반대쪽) 전체를, 잠긴 기록 보호와 똑같은 방식으로 "화면엔 안 보이지만
+  // 삭제된 건 아님" 처리한다. 트레이너가 개인 운동 종목을 열었을 때도 PT 기록은 안 보여야 하고,
+  // 반대로 회원이 자기 종목을 열었을 때도 PT 기록은 (원래도 안 보였지만) 마찬가지로 보호한다.
+  editHiddenLockedIds = otherGroupEntries.map(e => e.id);
   const canEditLocked = isViewingAsTrainer || isAdmin();
   const hiddenLockedEntries = [];
   dayEntries.forEach(dayEntry => {
@@ -8080,6 +8095,15 @@ function editEntry(entryId){
     const notice = document.createElement('div');
     notice.className = 'locked-entries-notice';
     notice.textContent = `🔒 트레이너가 잠근 종목 ${hiddenLockedEntries.length}개(${hiddenLockedEntries.map(e => e.exercise).join(', ')})는 여기서 수정할 수 없어요.`;
+    exerciseBlocks.prepend(notice);
+  }
+  if(otherGroupEntries.length && !hiddenLockedEntries.length){
+    // 반대 그룹 전체가 이미 위에서(잠금 사유로) 안내됐으면 중복 안내하지 않는다
+    const notice = document.createElement('div');
+    notice.className = 'locked-entries-notice';
+    notice.textContent = tappedGroupIsLocked
+      ? `이 화면은 PT 기록만 수정해요. 개인 운동 종목 ${otherGroupEntries.length}개는 그 종목을 눌러서 따로 수정해주세요.`
+      : `이 화면은 개인 운동만 수정해요. PT 기록 ${otherGroupEntries.length}개는 그 종목을 눌러서 따로 수정해주세요.`;
     exerciseBlocks.prepend(notice);
   }
   resetSaveButtonState();
@@ -8226,8 +8250,8 @@ function comparisonTextLocal(entry, dateStr){
   return `지난 기록 대비 ${metricLabel(comp.type)} ${comp.arrow} ${formatMetricDiff(comp.type, comp.diff)}`;
 }
 
-function buildDayText(dateStr){
-  const dayEntries = sortEntriesByOrder(currentLogs.filter(e => e.date === dateStr));
+function buildDayText(dateStr, groupEntries){
+  const dayEntries = groupEntries || sortEntriesByOrder(currentLogs.filter(e => e.date === dateStr));
   const lines = [];
   const DIVIDER = '─'.repeat(20);
 
@@ -8306,7 +8330,7 @@ function buildDayText(dateStr){
           return;
         }
         const alreadyHasEmoji = /^\p{Extended_Pictographic}\uFE0F?/u.test(line.trim());
-        lines.push(`  ${alreadyHasEmoji ? '' : '📝 '}${line}`);
+        lines.push(`  ${alreadyHasEmoji ? '' : '💬 '}${line}`);
       });
     }
 
@@ -8373,8 +8397,8 @@ function showCopyToast(message){
   copyToastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
 }
 
-async function copyDateToClipboard(dateStr){
-  const text = buildDayText(dateStr);
+async function copyDateToClipboard(dateStr, groupEntries){
+  const text = buildDayText(dateStr, groupEntries);
 
   try{
     await navigator.clipboard.writeText(text);
@@ -8388,7 +8412,12 @@ async function copyDateToClipboard(dateStr){
 async function copyEntry(entryId){
   const entry = currentLogs.find(e => e.id === entryId);
   if(!entry) return;
-  await copyDateToClipboard(entry.date);
+  // 그 날짜 전체가 아니라, 지금 누른 종목과 같은 그룹(PT 기록 / 개인 운동)만 보낸다
+  const tappedGroupIsLocked = !!entry.locked;
+  const groupEntries = sortEntriesByOrder(
+    currentLogs.filter(e => e.date === entry.date && !!e.locked === tappedGroupIsLocked)
+  );
+  await copyDateToClipboard(entry.date, groupEntries);
 }
 
 async function closeEntryForm(){
