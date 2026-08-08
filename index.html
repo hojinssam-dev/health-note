@@ -1939,7 +1939,9 @@
   }
   .trainer-toggle-btn{
     flex: 1;
-    padding: 9px 12px;
+    height: 38px;
+    padding: 0 12px;
+    box-sizing: border-box;
     border-radius: var(--radius-s);
     border: 1px solid var(--line);
     background: var(--surface);
@@ -1958,25 +1960,28 @@
     color: var(--bg);
   }
   .session-no-inline{
-    flex: 1;
-    min-width: 44px;
+    flex: 0 0 auto;
+    height: 38px;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 5px 8px;
+    gap: 4px;
+    padding: 0 8px;
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius-s);
   }
   .session-no-input{
-    width: 34px;
+    width: 30px;
     flex-shrink: 0;
+    height: 26px;
+    box-sizing: border-box;
     background: var(--surface-raised);
     border: 1px solid var(--line);
     color: var(--chalk);
     border-radius: var(--radius-s);
-    padding: 5px 2px;
+    padding: 0 2px;
     font-size: 13px;
     line-height: 1.3;
     font-weight: 700;
@@ -4428,7 +4433,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.31.1';
+const APP_VERSION = '2.31.5';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4486,28 +4491,10 @@ function escapeHtml(str){
 /* 메모 맨 앞에 이모티콘을 붙여서 썼다면(예: "💪 오늘 컨디션 좋음"), 줄바꿈된 다른 줄들 앞에도
    똑같은 이모티콘을 붙여서 보여준다. 저장된 원본 텍스트는 안 건드리고 화면에 보여줄 때만 이렇게 한다. */
 function formatMemoForDisplay(memo){
-  if(!memo) return '';
-  const lines = memo.split('\n');
-  const firstLineMatch = lines[0].match(/^(\p{Extended_Pictographic}\uFE0F?)\s*/u);
-  if(!firstLineMatch) return escapeHtml(memo);
-  const emoji = firstLineMatch[1];
-  return lines.map(line => {
-    if(!line.trim()) return escapeHtml(line);
-    if(line.trimStart().startsWith(emoji)) return escapeHtml(line);
-    return escapeHtml(`${emoji} ${line}`);
-  }).join('\n');
+  return escapeHtml(memo || '');
 }
 function repeatLeadingEmojiPerLine(memo){
-  if(!memo) return '';
-  const lines = memo.split('\n');
-  const firstLineMatch = lines[0].match(/^(\p{Extended_Pictographic}\uFE0F?)\s*/u);
-  if(!firstLineMatch) return memo;
-  const emoji = firstLineMatch[1];
-  return lines.map(line => {
-    if(!line.trim()) return line;
-    if(line.trimStart().startsWith(emoji)) return line;
-    return `${emoji} ${line}`;
-  }).join('\n');
+  return memo || '';
 }
 
 const firebaseConfig = {
@@ -6666,6 +6653,7 @@ function makeBlock(){
 
   function updatePrevRowHints(){
     const rows = [...setRowsEl.querySelectorAll('.set-row')];
+    let runningBest = recordMode === 'time' ? null : prevBestWeight; // 오늘 세트를 순서대로 훑으면서, 신기록이 나올 때마다 기준을 갱신한다
     rows.forEach((row, i) => {
       const hintEl = row.querySelector('.set-row-prev-hint');
       const newRecordEl = row.querySelector('.set-row-newrecord-hint');
@@ -6684,10 +6672,14 @@ function makeBlock(){
         if(prevRow){
           match = curWeight === (prevRow.weight || '').toString().trim() && curReps === (prevRow.reps || '').toString().trim();
         }
-        // 세트 순번과 상관없이, 이 종목의 이전 최고 무게보다 더 무겁게(+횟수도 입력) 쓰면 신기록으로 표시한다
+        // 오늘 이 세트 앞에서 이미 신기록이 나왔다면, 그 다음 세트부터는 그 기록을 새 기준으로 삼는다
+        // (예: 1세트 20kg으로 신기록 → 2세트는 17kg이면 20kg보다 낮으니 신기록 아님)
         const curWeightNum = parseFloat(curWeight);
-        if(!match && curWeight !== '' && curReps !== '' && !isNaN(curWeightNum) && prevBestWeight !== null && curWeightNum > prevBestWeight){
-          isNewRecord = true;
+        if(!match && curWeight !== '' && curReps !== '' && !isNaN(curWeightNum)){
+          if(runningBest === null || curWeightNum > runningBest){
+            isNewRecord = true;
+            runningBest = curWeightNum;
+          }
         }
       }
       hintEl.style.display = match ? 'block' : 'none';
@@ -8301,7 +8293,12 @@ function buildDayText(dateStr){
 
     if(e.memo){
       lines.push('');
-      lines.push(`  📝 ${e.memo}`);
+      const hasOwnEmoji = /^\p{Extended_Pictographic}\uFE0F?/u.test(e.memo.trim());
+      const memoLines = repeatLeadingEmojiPerLine(e.memo).split('\n');
+      lines.push(`  ${hasOwnEmoji ? '' : '📝 '}${memoLines[0]}`);
+      for(let i = 1; i < memoLines.length; i++){
+        lines.push(`  ${memoLines[i]}`);
+      }
     }
 
     lines.push('');
