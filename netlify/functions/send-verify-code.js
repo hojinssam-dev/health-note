@@ -110,9 +110,9 @@ exports.handler = async (event) => {
     });
 
     await transporter.sendMail({
-      from: `"영양제알림" <${naverUser}@naver.com>`,
+      from: `"운동 일지" <${naverUser}@naver.com>`,
       to: email,
-      subject: '[영양제알림] 이메일 인증을 완료해주세요',
+      subject: '[운동 일지] 이메일 인증을 완료해주세요',
       text: `아래 링크를 눌러 이메일 인증을 완료해주세요 (30분 이내 유효):\n${verifyUrl}`,
       html: `
         <div style="font-family: sans-serif; padding: 20px;">
