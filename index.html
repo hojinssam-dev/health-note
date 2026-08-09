@@ -1310,8 +1310,8 @@
   .log-submit:hover{ filter: brightness(1.08); box-shadow: var(--shadow-md); transform: translateY(-1px); }
   .log-submit.not-saved{
     background: var(--surface-raised);
-    color: var(--muted);
-    border: 1px solid var(--line);
+    color: var(--brass-bright);
+    border: 1px solid var(--brass);
     box-shadow: none;
   }
   .log-submit.not-saved:hover{ filter: none; box-shadow: none; transform: none; }
@@ -4491,7 +4491,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.37.1';
+const APP_VERSION = '2.37.3';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8189,7 +8189,6 @@ function editEntry(entryId){
     block.querySelector('.exercise-name-input').value = dayEntry.exercise;
     block._setColor(colorForEntry(dayEntry));
     block.querySelector('.stat-memo').value = dayEntry.memo || '';
-    block._autoGrowStatMemo();
     block._updatePrevHint();
     block._updateExerciseMemoHint();
 
@@ -8200,6 +8199,8 @@ function editEntry(entryId){
     block._setMode(mode, rows);
 
     exerciseBlocks.appendChild(block);
+    // 실제 화면에 붙은 뒤에 높이를 재야 정확하게 계산된다 (붙이기 전엔 스크롤 높이가 제대로 안 잡힘)
+    block._autoGrowStatMemo();
   });
   if(hiddenLockedEntries.length){
     const notice = document.createElement('div');
