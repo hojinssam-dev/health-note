@@ -4352,7 +4352,12 @@ async function checkForNewVersionManually(){
   }
 }
 
-updateReloadBtn.addEventListener('click', checkForNewVersionManually);
+/* 이미 새 버전이 설치돼서 뜨는 배너("새 버전이 나왔어요")는 다시 확인할 필요 없이
+   그냥 바로 새로고침하면 된다 — 여기서 또 '이미 최신 버전이에요'라고 나오면 사용자가
+   화면에서 빠져나갈 방법이 없어지기 때문에, 확인 로직을 아예 안 거치게 한다 */
+updateReloadBtn.addEventListener('click', () => {
+  window.location.reload();
+});
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
@@ -4491,7 +4496,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.37.3';
+const APP_VERSION = '2.37.5';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8222,6 +8227,11 @@ function editEntry(entryId){
 
   viewLog.classList.remove('active');
   viewEntry.classList.add('active');
+  // 위에서 각 블록의 메모칸 높이를 미리 재긴 했지만, 그때는 화면(view-entry)이 아직 안 보이는
+  // 상태(display:none)라 스크롤 높이가 제대로 안 잡힌다. 화면이 실제로 보이게 된 지금 다시 재준다.
+  exerciseBlocks.querySelectorAll('.exercise-block').forEach(block => {
+    if(block._autoGrowStatMemo) block._autoGrowStatMemo();
+  });
   undoSnapshot = null;
   updateUndoFab();
 }
