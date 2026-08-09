@@ -4436,7 +4436,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.34.0';
+const APP_VERSION = '2.34.3';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5049,7 +5049,7 @@ async function handlePhotoUpload(file){
 
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 
-  showCopyToast('사진을 업로드하는 중이에요...');
+  showCopyToast('사진을 등록중입니다...', true);
   try{
     const url = await uploadToCloudinary(blob);
     const photo = { id, date: todayStr(), url };
@@ -5241,10 +5241,10 @@ const BODY_PARTS = ['가슴', '등', '어깨', '팔', '복근', '하체', '유�
 const BODY_PART_KEYWORDS = {
   '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈'],
   '어깨': ['숄더', '밀리터리', '사레레', '슈러그', '레터럴레이즈', '프론트레이즈', '업라이트로우'],
-  '가슴': ['벤치', '딥스', '푸시업', '팔굽혀펴기'],
+  '가슴': ['벤치', '딥스', '푸시업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이'],
   '복근': ['레그레이즈', '크런치', '리버스', '플랭크', '데드버그', '싯업', '윗몸일으키기', '트위스트', '롤아웃'],
   '팔': ['바이셉스', '트라이셉스', '케이블푸시다운', '덤벨컬', '바벨컬'],
-  '등': ['랫풀다운', '풀다운', '풀업', '로우풀리', '롱풀', '데드리프트', '레터럴로우', '로우로우', '어시스트풀업', '친업'],
+  '등': ['랫풀다운', '풀다운', '풀업', '롱풀', '데드리프트', '레터럴로우', '로우로우', '어시스트풀업', '친업'],
   '유산소': ['유산소', '러닝', '자전거', '워킹', '천국', '계단', '트레드밀', '트래드밀'],
 };
 
@@ -6662,35 +6662,44 @@ function makeBlock(){
 
   function updatePrevRowHints(){
     const rows = [...setRowsEl.querySelectorAll('.set-row')];
-    let runningBest = recordMode === 'time' ? null : prevBestWeight; // 오늘 세트를 순서대로 훑으면서, 신기록이 나올 때마다 기준을 갱신한다
+
+    // 1단계: 시간 모드가 아니면, 오늘 입력된 세트 중 무게가 가장 높은 세트가 어디인지 먼저 찾는다.
+    // (신기록 표시는 "이전 최고 기록보다 높아지는 세트마다"가 아니라, "오늘 중 가장 무거운 세트" 딱 하나에만 붙어야 한다)
+    let todayMaxWeight = null;
+    let todayMaxWeightRowIndex = -1;
+    if(recordMode !== 'time'){
+      rows.forEach((row, i) => {
+        const curWeight = (row.querySelector('.set-weight').value || '').trim();
+        const curReps = (row.querySelector('.set-reps').value || '').trim();
+        const curWeightNum = parseFloat(curWeight);
+        if(curWeight !== '' && curReps !== '' && !isNaN(curWeightNum)){
+          if(todayMaxWeight === null || curWeightNum > todayMaxWeight){
+            todayMaxWeight = curWeightNum;
+            todayMaxWeightRowIndex = i;
+          }
+        }
+      });
+    }
+    const isTodayRecord = todayMaxWeight !== null && (prevBestWeight === null || todayMaxWeight > prevBestWeight);
+
+    // 2단계: '이전 기록이에요' 일치 여부는 세트별로 그대로 확인하고, 신기록 표시는 위에서 찾은 그 세트에만 붙인다
     rows.forEach((row, i) => {
       const hintEl = row.querySelector('.set-row-prev-hint');
       const newRecordEl = row.querySelector('.set-row-newrecord-hint');
       const prevRow = prevCompareRows && prevCompareRows[i];
       let match = false;
-      let isNewRecord = false;
       if(recordMode === 'time'){
         if(prevRow){
           const curMin = (row.querySelector('.set-minutes').value || '').trim();
           const curSec = (row.querySelector('.set-seconds').value || '').trim();
           match = curMin === (prevRow.minutes || '').toString().trim() && curSec === (prevRow.seconds || '').toString().trim();
         }
-      } else {
+      } else if(prevRow){
         const curWeight = (row.querySelector('.set-weight').value || '').trim();
         const curReps = (row.querySelector('.set-reps').value || '').trim();
-        if(prevRow){
-          match = curWeight === (prevRow.weight || '').toString().trim() && curReps === (prevRow.reps || '').toString().trim();
-        }
-        // 오늘 이 세트 앞에서 이미 신기록이 나왔다면, 그 다음 세트부터는 그 기록을 새 기준으로 삼는다
-        // (예: 1세트 20kg으로 신기록 → 2세트는 17kg이면 20kg보다 낮으니 신기록 아님)
-        const curWeightNum = parseFloat(curWeight);
-        if(!match && curWeight !== '' && curReps !== '' && !isNaN(curWeightNum)){
-          if(runningBest === null || curWeightNum > runningBest){
-            isNewRecord = true;
-            runningBest = curWeightNum;
-          }
-        }
+        match = curWeight === (prevRow.weight || '').toString().trim() && curReps === (prevRow.reps || '').toString().trim();
       }
+      const isNewRecord = !match && isTodayRecord && i === todayMaxWeightRowIndex;
       hintEl.style.display = match ? 'block' : 'none';
       if(newRecordEl) newRecordEl.style.display = isNewRecord ? 'block' : 'none';
     });
@@ -8255,7 +8264,9 @@ function buildDayText(dateStr, groupEntries){
   const lines = [];
   const DIVIDER = '─'.repeat(20);
 
-  lines.push(`🏋️ ${formatDate(dateStr)}`);
+  const sessionEntry = dayEntries.find(e => e.sessionNo);
+  const sessionText = sessionEntry ? ` · ${sessionEntry.sessionNo}${sessionEntry.ptTotal ? '/' + sessionEntry.ptTotal : ''}회차 수업` : '';
+  lines.push(`🏋️ ${formatDate(dateStr)}${sessionText}`);
   const startTimeVal = dayEntries[0] && dayEntries[0].startTime;
   const endTimeVal = dayEntries[0] && dayEntries[0].endTime;
   if(startTimeVal || endTimeVal){
@@ -8389,12 +8400,14 @@ function fallbackCopyText(text){
 }
 
 let copyToastTimer = null;
-function showCopyToast(message){
+function showCopyToast(message, persistent){
   const toast = document.getElementById('copyToast');
   toast.textContent = message;
   toast.classList.add('show');
   clearTimeout(copyToastTimer);
-  copyToastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
+  if(!persistent){
+    copyToastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
+  }
 }
 
 async function copyDateToClipboard(dateStr, groupEntries){
