@@ -4496,7 +4496,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.39.1';
+const APP_VERSION = '2.39.2';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8522,12 +8522,25 @@ function showCopyToast(message, persistent){
   }
 }
 
+/* 클립보드에만 복사한다 (공유 창은 안 띄움) — '운동 종료' 때처럼 화면 흐름이 안 끊기고
+   바로 달력으로 돌아가야 하는 경우에 쓴다 */
+async function copyDateToClipboardOnly(dateStr, groupEntries){
+  const text = buildDayText(dateStr, groupEntries);
+  try{
+    await navigator.clipboard.writeText(text);
+    showCopyToast('일지 내용이 복사됐어요. 메시지에 붙여넣기 해보세요.');
+  }catch(err){
+    const ok = fallbackCopyText(text);
+    showCopyToast(ok ? '일지 내용이 복사됐어요. 메시지에 붙여넣기 해보세요.' : '복사에 실패했어요. 다시 시도해주세요.');
+  }
+}
+
+/* '일지 보내기'처럼, 사용자가 명시적으로 눌러서 바로 어딘가로 보내고 싶을 때만 쓴다.
+   기기가 지원하면(iOS/안드로이드 모두 대부분 지원) 운영체제의 공유 창을 바로 띄운다 —
+   카카오톡, 메시지, 메일 등으로 바로 보낼 수 있게. 지원 안 하거나 실패하면 클립보드 복사로 대체한다. */
 async function copyDateToClipboard(dateStr, groupEntries){
   const text = buildDayText(dateStr, groupEntries);
 
-  // 기기가 지원하면(iOS/안드로이드 모두 대부분 지원) 운영체제의 공유 창을 바로 띄운다 —
-  // 카카오톡, 메시지, 메일 등으로 바로 보낼 수 있게. 지원 안 하거나 사용자가 취소하면
-  // 예전처럼 클립보드에 복사만 해둔다.
   if(navigator.share){
     try{
       await navigator.share({ text });
@@ -8539,13 +8552,7 @@ async function copyDateToClipboard(dateStr, groupEntries){
     }
   }
 
-  try{
-    await navigator.clipboard.writeText(text);
-    showCopyToast('일지 내용이 복사됐어요. 메시지에 붙여넣기 해보세요.');
-  }catch(err){
-    const ok = fallbackCopyText(text);
-    showCopyToast(ok ? '일지 내용이 복사됐어요. 메시지에 붙여넣기 해보세요.' : '복사에 실패했어요. 다시 시도해주세요.');
-  }
+  await copyDateToClipboardOnly(dateStr, groupEntries);
 }
 
 async function copyEntry(entryId){
@@ -8762,7 +8769,7 @@ async function addLogEntry(opts){
 
   if(opts.copy){
     // 운동 종료 시 바로 보내는 것도, 지금 수정 중인 그룹(PT / 개인 운동)에 속한 종목만 담는다
-    await copyDateToClipboard(dateVal, savedEntries);
+    await copyDateToClipboardOnly(dateVal, savedEntries);
   }
 
   const ok = await syncLogChanges(savedEntries, deletedIds);
