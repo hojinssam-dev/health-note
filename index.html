@@ -3695,10 +3695,10 @@
         <div class="login-sub" id="loginSub">아이디와 비밀번호로 로그인해주세요.</div>
         <input autocapitalize="off" id="loginEmailInput" type="text" placeholder="아이디 (영문, 숫자만 가능)" autocomplete="username">
         <div class="password-field-wrap">
-          <input autocapitalize="off" id="loginPasswordInput" type="password" placeholder="비밀번호 (6자리 이상)" autocomplete="current-password">
-          <button type="button" class="password-toggle-btn" data-target="loginPasswordInput" title="비밀번호 보기">
-            <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-            <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+          <input autocapitalize="off" id="loginPasswordInput" type="text" placeholder="비밀번호 (6자리 이상)" autocomplete="current-password">
+          <button type="button" class="password-toggle-btn" data-target="loginPasswordInput" title="비밀번호 숨기기">
+            <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
           </button>
         </div>
         <input autocapitalize="off" id="loginCenterNameInput" type="text" placeholder="소속 센터명" autocomplete="off" style="display:none;">
@@ -3745,7 +3745,7 @@
     </div>
 
     <button class="body-photos-tab" id="bodyPhotosTab">
-      <span>📷 사진 등록</span>
+      <span>📷 사진 앨범</span>
       <span class="body-photos-tab-arrow" id="bodyPhotosTabArrow">▾</span>
     </button>
     <div class="body-photos-panel" id="bodyPhotosPanel" style="display:none;">
@@ -4496,7 +4496,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.37.5';
+const APP_VERSION = '2.39.1';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5312,13 +5312,13 @@ const BODY_PARTS = ['가슴', '등', '어깨', '팔', '복근', '하체', '유�
 /* 운동 종목 이름에 아래 글자가 포함되면 해당 부위로 자동 인식해서
    설정에서 지정한 부위 색을 이름 글자색에 자동 적용한다 */
 const BODY_PART_KEYWORDS = {
-  '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈'],
+  '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈', '핵프레스'],
   '어깨': ['숄더', '밀리터리', '사레레', '슈러그', '레터럴레이즈', '프론트레이즈', '업라이트로우'],
   '가슴': ['벤치', '딥스', '푸시업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이'],
   '복근': ['레그레이즈', '크런치', '리버스', '플랭크', '데드버그', '싯업', '윗몸일으키기', '트위스트', '롤아웃'],
   '팔': ['바이셉스', '트라이셉스', '케이블푸시다운', '덤벨컬', '바벨컬', '오버헤드익스텐션'],
   '등': ['랫풀다운', '풀다운', '풀업', '롱풀', '데드리프트', '레터럴로우', '로우로우', '어시스트풀업', '친업', '시티드로우'],
-  '유산소': ['유산소', '러닝', '자전거', '워킹', '천국', '계단', '트레드밀', '트래드밀'],
+  '유산소': ['유산소', '러닝', '자전거', '싸이클', '워킹', '천국', '계단', '트레드밀', '트래드밀', '로잉'],
 };
 
 /* '인클라인', '디클라인'은 다른 부위 운동에도 흔히 붙는 말이라 일반 키워드로 넣지 않고,
@@ -7854,10 +7854,10 @@ const EXERCISE_LIBRARY = {
     { name: '디클라인 싯업', photo: 'ex-photos/declinesitup.jpg' },
   ],
   유산소: [
-    { name: '러닝', photo: 'ex-photos/running.jpg' },
-    { name: '사이클', photo: 'ex-photos/cycling.jpg' },
-    { name: '로잉 머신', photo: 'ex-photos/rowingmachine.jpg' },
-    { name: '스텝퍼', photo: 'ex-photos/stepper.jpg' },
+    { name: '러닝머신', photo: 'ex-photos/treadmill.jpg' },
+    { name: '싸이클', photo: 'ex-photos/cycling.jpg' },
+    { name: '로잉머신', photo: 'ex-photos/rowingmachine.jpg' },
+    { name: '천국의계단', photo: 'ex-photos/heavenstairs.jpg' },
   ],
 };
 
@@ -8525,6 +8525,20 @@ function showCopyToast(message, persistent){
 async function copyDateToClipboard(dateStr, groupEntries){
   const text = buildDayText(dateStr, groupEntries);
 
+  // 기기가 지원하면(iOS/안드로이드 모두 대부분 지원) 운영체제의 공유 창을 바로 띄운다 —
+  // 카카오톡, 메시지, 메일 등으로 바로 보낼 수 있게. 지원 안 하거나 사용자가 취소하면
+  // 예전처럼 클립보드에 복사만 해둔다.
+  if(navigator.share){
+    try{
+      await navigator.share({ text });
+      return;
+    }catch(err){
+      if(err && err.name === 'AbortError') return; // 사용자가 공유 창에서 취소한 경우, 복사로 대체하지 않는다
+      console.error('공유하기 오류:', err);
+      // 공유 자체가 실패한 기기라면 클립보드 복사로 대체한다
+    }
+  }
+
   try{
     await navigator.clipboard.writeText(text);
     showCopyToast('일지 내용이 복사됐어요. 메시지에 붙여넣기 해보세요.');
@@ -8747,7 +8761,8 @@ async function addLogEntry(opts){
   if(entryMode === 'add' && !addedAny) return;
 
   if(opts.copy){
-    await copyDateToClipboard(dateVal);
+    // 운동 종료 시 바로 보내는 것도, 지금 수정 중인 그룹(PT / 개인 운동)에 속한 종목만 담는다
+    await copyDateToClipboard(dateVal, savedEntries);
   }
 
   const ok = await syncLogChanges(savedEntries, deletedIds);
@@ -9136,13 +9151,13 @@ function openPromptModal({ title, sub, fields, submitLabel, onSubmit }){
     const toggleBtn = wrap.querySelector('.password-toggle-btn');
     if(f){
       wrap.style.display = 'block';
-      input.type = f.type || 'text';
+      input.type = f.type === 'password' ? 'text' : (f.type || 'text');
       input.placeholder = f.placeholder || '';
       input.value = '';
       input.autocomplete = f.autocomplete || 'off';
       toggleBtn.style.display = f.type === 'password' ? 'flex' : 'none';
-      toggleBtn.querySelector('.eye-open').style.display = 'block';
-      toggleBtn.querySelector('.eye-closed').style.display = 'none';
+      toggleBtn.querySelector('.eye-open').style.display = 'none';
+      toggleBtn.querySelector('.eye-closed').style.display = 'block';
     } else {
       wrap.style.display = 'none';
       input.value = '';
