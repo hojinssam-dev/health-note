@@ -2603,7 +2603,7 @@
     background: none;
     border: none;
     color: var(--brass-bright);
-    font-size: 11.5px;
+    font-size: 14px;
     font-family: 'Noto Sans KR', sans-serif;
     padding: 0;
     cursor: pointer;
@@ -4496,7 +4496,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.39.2';
+const APP_VERSION = '2.42.0';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5693,6 +5693,50 @@ function monthDateRange(year, month){
   return { start, end };
 }
 
+/* ---------- 달력 미리보기 캐시 (기기 안에 저장) ----------
+   회원 달력 화면을 열 때, 서버 응답을 기다리는 동안 빈 화면(로딩 원)을 보여주는 대신,
+   지난번에 이 기기에서 봤던 내용을 먼저 그대로 보여준다. 서버 응답이 도착하면 그 자리에서
+   조용히 최신 내용으로 바꿔치기한다. 회원마다, 이 기기 안에서만 따로 저장된다. */
+const CAL_CACHE_PREFIX = 'calCache:';
+function saveCalCache(memberId, entries){
+  try{
+    localStorage.setItem(CAL_CACHE_PREFIX + memberId, JSON.stringify({ entries, savedAt: Date.now() }));
+  }catch(err){ /* 저장 공간이 꽉 찼거나 지원 안 하면 조용히 건너뛴다 — 캐시는 있으면 좋고 없어도 그만이다 */ }
+}
+function loadCalCache(memberId){
+  try{
+    const raw = localStorage.getItem(CAL_CACHE_PREFIX + memberId);
+    if(!raw) return null;
+    const data = JSON.parse(raw);
+    return Array.isArray(data.entries) ? data.entries : null;
+  }catch(err){
+    return null;
+  }
+}
+function clearAllCalCache(){
+  try{
+    const keysToRemove = [];
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k && k.startsWith(CAL_CACHE_PREFIX)) keysToRemove.push(k);
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  }catch(err){ /* 조용히 건너뛴다 */ }
+}
+
+/* 서버에서 새로 받아온 한 구간(날짜 범위)의 기록으로, currentLogs 중 그 구간에 해당하는
+   부분을 통째로 맞춰 넣는다. 단순히 "없는 것만 추가"하는 게 아니라: 서버에서 이미 지워진
+   기록은 화면에서도 지우고, 내용이 바뀐 기록은 최신 내용으로 덮어쓴다. 캐시로 먼저 보여준
+   예전 데이터를 나중에 정확하게 바꿔치기하려면 이 방식이 꼭 필요하다. */
+function reconcileLogsInRange(freshEntries, start, end){
+  const freshIds = new Set(freshEntries.map(e => e.id));
+  currentLogs = currentLogs.filter(e => !(e.date >= start && e.date <= end) || freshIds.has(e.id));
+  freshEntries.forEach(entry => {
+    const idx = currentLogs.findIndex(e => e.id === entry.id);
+    if(idx >= 0) currentLogs[idx] = entry; else currentLogs.push(entry);
+  });
+}
+
 async function loadMonthLogs(memberId, year, month){
   const key = `${year}-${month}`;
   if(loadedMonthsCache[key]) return;
@@ -5702,11 +5746,7 @@ async function loadMonthLogs(memberId, year, month){
     .where('date', '<=', end)
     .get();
   loadedMonthsCache[key] = true;
-  const existingIds = new Set(currentLogs.map(e => e.id));
-  snap.docs.forEach(d => {
-    const entry = d.data();
-    if(!existingIds.has(entry.id)) currentLogs.push(entry);
-  });
+  reconcileLogsInRange(snap.docs.map(d => d.data()), start, end);
 }
 
 /* 화면을 최대한 빨리 띄우기 위해, 이번 주 분량만 먼저 빠르게 불러온다 (달 전체는 이 다음에 뒤에서 마저 불러옴) */
@@ -5726,11 +5766,7 @@ async function loadWeekLogs(memberId, date){
     .where('date', '>=', start)
     .where('date', '<=', end)
     .get();
-  const existingIds = new Set(currentLogs.map(e => e.id));
-  snap.docs.forEach(d => {
-    const entry = d.data();
-    if(!existingIds.has(entry.id)) currentLogs.push(entry);
-  });
+  reconcileLogsInRange(snap.docs.map(d => d.data()), start, end);
 }
 
 /* ---------- 총 기록일 수: 매번 전체를 다시 세지 않고, 값 하나만 유지·갱신 ----------
@@ -6228,6 +6264,16 @@ timePickerConfirmBtn.addEventListener('click', () => {
   let h24 = wheelState.hour % 12;
   if(wheelState.ampm === 'PM') h24 += 12;
   timePickerTargetInput.value = `${String(h24).padStart(2,'0')}:${String(wheelState.minute).padStart(2,'0')}`;
+  // 시작 시간을 고르면, 종료 시간을 시작 시간으로부터 50분 뒤로 자동으로 맞춰준다 (PT 수업 기본 길이)
+  // 단, 트레이너가 'PT 인정'을 켜둔 채로 작성 중인 일지에만 적용한다
+  const isPtEntry = isViewingAsTrainer && entryPtRecognizedToggleBtn.classList.contains('active');
+  if(timePickerTargetInput === entryStartTimeInput && isPtEntry){
+    const startMinutes = h24 * 60 + wheelState.minute;
+    const endMinutes = (startMinutes + 50) % 1440;
+    const endH24 = Math.floor(endMinutes / 60);
+    const endMin = endMinutes % 60;
+    entryEndTimeInput.value = `${String(endH24).padStart(2,'0')}:${String(endMin).padStart(2,'0')}`;
+  }
   refreshEntryTimeDisplays();
   closeTimePickerModal();
 });
@@ -6474,6 +6520,7 @@ function makeBlock(){
   }
   updateFindExerciseVisibility();
   nameInputEl.addEventListener('input', updateFindExerciseVisibility);
+  block._updateFindExerciseVisibility = updateFindExerciseVisibility;
 
   /* 이름을 빠르게 입력하면 글자마다 서버 조회가 하나씩 나가는데, 연결이 느리거나
      불안정한 기기에서는 그 응답들이 보낸 순서와 다르게 도착할 수 있다. 그러면 예전
@@ -6984,8 +7031,20 @@ async function openMember(memberId, isNewMember){
   renderWeekCountBadge(logWeekCountBadge);
   renderCalendar();
   renderDayDetail();
-  calGridWrap.classList.add('loading');
-  calLoadingOverlay.style.display = 'flex';
+
+  // 0.5단계: 이 기기에 지난번 봤던 내용이 저장돼 있으면, 서버 응답을 기다리지 않고 먼저 그걸로 채운다.
+  // 로딩 원(스피너)은 캐시가 아예 없을 때(이 기기에서 이 회원을 처음 보는 경우)만 보여준다.
+  const cachedEntries = isNewMember ? null : loadCalCache(memberId);
+  if(cachedEntries && cachedEntries.length){
+    currentLogs = cachedEntries;
+    updateMemberInfoBar(member);
+    renderWeekCountBadge(logWeekCountBadge);
+    renderCalendar();
+    renderDayDetail();
+  } else {
+    calGridWrap.classList.add('loading');
+    calLoadingOverlay.style.display = 'flex';
+  }
 
   try{
     // 신규 회원은 예전 방식 데이터 자체가 있을 수 없어서, 옮기고 정리하는 절차(서버 왕복 여러 번)를
@@ -6994,10 +7053,12 @@ async function openMember(memberId, isNewMember){
     ensureExerciseKeyBackfilled(memberId); // 달력 표시와 상관없어서 뒤에서 따로(기다리지 않고) 처리
     ensureExerciseKeyNormalized(memberId); // 띄어쓰기 차이로 어긋난 기존 키도 뒤에서 바로잡기
     reconcileTotalWorkoutDays(memberId); // "총 N일 기록" 숫자가 실제 일지 개수와 어긋나 있으면 뒤에서 바로잡기
-    // 1단계: 이번 주 분량만 먼저 빠르게 불러와서 실제 기록을 채운다
+    // 1단계: 이번 주 분량만 먼저 빠르게 불러와서 실제 기록을 채운다 (캐시로 미리 보여준 게 있었다면,
+    // 여기서 서버의 진짜 최신 내용으로 정확하게 바꿔치기된다 — reconcileLogsInRange가 처리)
     await loadWeekLogs(memberId, new Date());
   }catch(err){
-    currentLogs = [];
+    // 캐시로 이미 뭔가 보여주고 있었다면, 이번 불러오기가 실패했다고 그걸 지우지는 않는다
+    if(!cachedEntries) currentLogs = [];
   }
 
   updateMemberInfoBar(member);
@@ -7006,6 +7067,7 @@ async function openMember(memberId, isNewMember){
   renderDayDetail();
   calGridWrap.classList.remove('loading');
   calLoadingOverlay.style.display = 'none';
+  saveCalCache(memberId, currentLogs);
 
   // 2단계: 이번 달 · 지난달 나머지는 화면을 그린 뒤 뒤에서 마저 불러오고, 끝나면 달력을 한 번 더 갱신한다
   (async () => {
@@ -7023,6 +7085,7 @@ async function openMember(memberId, isNewMember){
       renderWeekCountBadge(logWeekCountBadge);
       renderCalendar();
       renderDayDetail();
+      saveCalCache(memberId, currentLogs);
     }catch(err){
       console.error('달 전체 데이터 불러오기 오류:', err);
     }
@@ -7549,7 +7612,9 @@ async function deleteDayEntries(dateStr){
   refreshCalendarHeaderStats();
   if(ok && idsToDelete.length > 0){
     recordUndoSnapshot(beforeSnapshot, '일지 삭제 되돌리기');
+    updateCachedPtProgress(currentMemberId);
   }
+  if(ok) saveCalCache(currentMemberId, currentLogs);
 }
 
 /* ---------- 날짜 단위 일지 복사 · 붙여넣기 ---------- */
@@ -7737,6 +7802,8 @@ async function deleteLogEntry(id){
   if(dateStr && !dateHasEntries(dateStr)) await adjustTotalWorkoutDays(-1);
   refreshCalendarHeaderStats();
   if(ok) recordUndoSnapshot(beforeSnapshot, `${exerciseName} 삭제 되돌리기`);
+  if(target && target.ptRecognized) updateCachedPtProgress(currentMemberId);
+  if(ok) saveCalCache(currentMemberId, currentLogs);
 }
 
 /* ---------- 새 일지 작성 화면 (View 3) ---------- */
@@ -8192,6 +8259,7 @@ function editEntry(entryId){
     block.setAttribute('data-edit-id', dayEntry.id);
 
     block.querySelector('.exercise-name-input').value = dayEntry.exercise;
+    block._updateFindExerciseVisibility();
     block._setColor(colorForEntry(dayEntry));
     block.querySelector('.stat-memo').value = dayEntry.memo || '';
     block._updatePrevHint();
@@ -8654,6 +8722,32 @@ async function computeSessionNoForDate(memberId, dateVal){
   }
 }
 
+/* 회원 목록 화면을 열 때마다 그 회원의 PT 기록을 다시 훑지 않아도 되도록, PT 인정 기록이
+   바뀔 때(저장할 때)만 "지금까지 진행 회차"랑 "마지막 PT 날짜"를 미리 계산해서 회원 프로필에
+   같이 저장해둔다. 회원이 몇 명이든, 기록이 얼마나 쌓였든 회원 목록 로딩 속도가 늘 일정하게 유지된다. */
+async function updateCachedPtProgress(memberId){
+  try{
+    const snap = await logsCollection(memberId).where('ptRecognized', '==', true).get();
+    const ptEntries = snap.docs.map(d => d.data());
+    const recordCount = ptEntries.reduce((max, e) => Math.max(max, e.sessionNo || 0), 0);
+    const dates = ptEntries.map(e => e.date).sort();
+    const lastPtDate = dates.length ? dates[dates.length - 1] : null;
+
+    const result = await storageGetWithRetry(STORAGE_KEY, false, memberId);
+    const list = result ? JSON.parse(result.value) : [];
+    let entry = list.find(m => m.id === memberId);
+    if(!entry){
+      entry = { id: memberId, name: '', phone: '', ptHistory: [], memo: '' };
+      list.push(entry);
+    }
+    entry.ptProgress = recordCount;
+    entry.lastPtDate = lastPtDate;
+    await storageSetWithRetry(STORAGE_KEY, JSON.stringify(list), false, undefined, memberId);
+  }catch(err){
+    console.error('PT 진행 캐시 갱신 오류:', err);
+  }
+}
+
 async function addLogEntry(opts){
   opts = opts || {};
   const blocks = [...exerciseBlocks.querySelectorAll('.exercise-block')];
@@ -8774,6 +8868,10 @@ async function addLogEntry(opts){
 
   const ok = await syncLogChanges(savedEntries, deletedIds);
   if(!ok) showCopyToast('일지 저장에 실패했어요. 잠시 후 다시 시도해주세요.');
+  if(ok) saveCalCache(currentMemberId, currentLogs);
+  if(savedEntries.some(e => e.ptRecognized) || deletedIds.length > 0){
+    updateCachedPtProgress(currentMemberId); // 목록 화면 성능을 위한 캐시 갱신 — 화면 흐름을 막지 않게 기다리지 않는다
+  }
   const dateHasEntriesAfter = dateHasEntries(dateVal);
   if(dateHasEntriesAfter && !dateHadEntriesBefore) await adjustTotalWorkoutDays(1);
   else if(!dateHasEntriesAfter && dateHadEntriesBefore) await adjustTotalWorkoutDays(-1);
@@ -9911,18 +10009,23 @@ async function loadTrainerMemberList(){
   const rows = await Promise.all(confirmedSnap.docs.map(async (docSnap) => {
     const uid = docSnap.id;
     const profile = readProfile(docSnap.data(), uid);
-    let recordCount = 0;
-    let lastPtDate = null;
-    try{
-      const logsSnap = await logsCollection(uid).get();
-      const ptEntries = logsSnap.docs.map(d => d.data()).filter(e => e.ptRecognized);
-      // 진행 회차는 "PT 인정된 날짜 수"가 아니라, 트레이너가 실제로 입력해둔 회차 중 가장 큰 값을 쓴다.
-      // 그래야 이미 몇 회차 진행되던 회원을 중간(예: 3회차)부터 앱으로 기록하기 시작해도 정확히 반영된다.
-      recordCount = ptEntries.reduce((max, e) => Math.max(max, e.sessionNo || 0), 0);
-      const ptDates = ptEntries.map(e => e.date);
-      if(ptDates.length) lastPtDate = ptDates.sort().slice(-1)[0];
-    }catch(err){
-      console.error('회원 기록 조회 오류:', uid, err);
+    let recordCount = profile.ptProgress || 0;
+    let lastPtDate = profile.lastPtDate || null;
+    if(profile.ptProgress === undefined){
+      // 이 회원은 아직 캐시가 한 번도 안 채워진 경우다(이 기능이 생기기 전부터 있던 회원 등).
+      // 이번 한 번만 예전 방식으로 계산해서 보여주고, 동시에 캐시도 채워서 다음부턴 빨라지게 한다.
+      try{
+        const logsSnap = await logsCollection(uid).where('ptRecognized', '==', true).get();
+        const ptEntries = logsSnap.docs.map(d => d.data());
+        // 진행 회차는 "PT 인정된 날짜 수"가 아니라, 트레이너가 실제로 입력해둔 회차 중 가장 큰 값을 쓴다.
+        // 그래야 이미 몇 회차 진행되던 회원을 중간(예: 3회차)부터 앱으로 기록하기 시작해도 정확히 반영된다.
+        recordCount = ptEntries.reduce((max, e) => Math.max(max, e.sessionNo || 0), 0);
+        const ptDates = ptEntries.map(e => e.date).sort();
+        lastPtDate = ptDates.length ? ptDates[ptDates.length - 1] : null;
+        updateCachedPtProgress(uid); // 다음부턴 빠르게 읽도록 캐시를 채워둔다 (화면 흐름을 막지 않게 기다리지 않음)
+      }catch(err){
+        console.error('회원 기록 조회 오류:', uid, err);
+      }
     }
     return { uid, name: profile.name || '회원', ptHistory: getPtHistory(profile), phone: profile.phone || '', recordCount, lastPtDate };
   }));
@@ -10261,6 +10364,7 @@ auth.onAuthStateChanged(async (user) => {
     currentMemberId = null;
     isViewingAsTrainer = false;
     trainerBackToListBtn.style.display = 'none';
+    clearAllCalCache(); // 로그아웃하면 이 기기에 저장해둔 달력 미리보기 캐시를 전부 지운다 (다음 사용자에게 안 보이도록)
     showLandingView();
   }
 });
