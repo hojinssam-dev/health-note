@@ -4577,7 +4577,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.52.1';
+const APP_VERSION = '2.53.0';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -10126,7 +10126,10 @@ async function loadEmployerDashboard(){
       const membersSnap = await db.collection('users').where('trainerId', '==', trainerUid).get();
       const memberIds = membersSnap.docs.map(d => d.id);
 
-      let todayCount = 0, weekCount = 0, monthCount = 0;
+      // '일지' 하나 = 어떤 회원의 그 날짜 PT 기록 묶음 하나. 종목(운동) 개수가 아니라 이 묶음 단위로 센다.
+      const todayKeys = new Set();
+      const weekKeys = new Set();
+      const monthKeys = new Set();
       await Promise.all(memberIds.map(async (memberId) => {
         try{
           const logsSnap = await logsCollection(memberId)
@@ -10135,12 +10138,18 @@ async function loadEmployerDashboard(){
             .get();
           logsSnap.docs.forEach(d => {
             const date = d.data().date;
-            if(date >= monthStart) monthCount++;
-            if(date >= weekStart) weekCount++;
-            if(date === today) todayCount++;
+            const key = `${memberId}:${date}`;
+            if(date >= monthStart) monthKeys.add(key);
+            if(date >= weekStart) weekKeys.add(key);
+            if(date === today) todayKeys.add(key);
           });
-        }catch(err){ /* 이 회원 기록만 실패해도 나머지는 계속 진행 */ }
+        }catch(err){
+          console.error(`고용주 대시보드 - 회원 기록 조회 오류 (${memberId}):`, err);
+        }
       }));
+      const todayCount = todayKeys.size;
+      const weekCount = weekKeys.size;
+      const monthCount = monthKeys.size;
 
       return {
         uid: trainerUid,
