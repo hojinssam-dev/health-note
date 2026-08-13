@@ -4010,6 +4010,7 @@
       <input autocapitalize="off" type="text" id="adminEmployerIdInput" class="modal-input" placeholder="고용주로 지정할 로그인 아이디">
       <button type="button" class="modal-btn modal-btn-primary" id="adminEmployerAssignBtn">고용주 지정</button>
     </div>
+    <input autocapitalize="off" type="text" id="adminMemberSearchInput" class="modal-input" placeholder="아이디 또는 이름으로 회원 찾기" style="margin-bottom:14px;">
     <div class="admin-member-list" id="adminMemberList">
       <div class="admin-loading" id="adminLoading">불러오는 중...</div>
     </div>
@@ -4576,7 +4577,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.51.0';
+const APP_VERSION = '2.52.0';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -9998,18 +9999,28 @@ async function loadAdminDashboard(){
 
     let trainerCount = 0;
     let memberCount = 0;
+    let employerCount = 0;
     usersSnap.forEach(doc => {
       if(doc.data().isTrainer) trainerCount++; else memberCount++;
+      if(doc.data().isEmployer) employerCount++;
     });
 
     const todayLogDates = new Set(todayLogsSnap.docs.map(d => d.ref.parent.parent.id));
     const weekActiveUsers = new Set(weekLogsSnap.docs.map(d => d.ref.parent.parent.id));
+    // '일지' 하나 = 어떤 회원의 그 날짜 안에서 PT 기록 묶음 하나, 또는 개인 운동 묶음 하나.
+    // 종목(운동 하나하나)이 아니라 이 묶음 단위로 세야 하므로, 회원+날짜+PT여부 조합이 같으면 하나로 친다.
+    const todayJournalKeys = new Set(todayLogsSnap.docs.map(d => {
+      const data = d.data();
+      const memberId = d.ref.parent.parent.id;
+      return `${memberId}:${data.date}:${!!data.locked}`;
+    }));
 
     const cards = [
       { label: '전체 회원', value: memberCount },
       { label: '전체 트레이너', value: trainerCount },
+      { label: '전체 고용주', value: employerCount },
       { label: '이번 주 활동 회원', value: weekActiveUsers.size },
-      { label: '오늘 작성된 일지', value: todayLogsSnap.size },
+      { label: '오늘 작성된 일지', value: todayJournalKeys.size },
       { label: '오늘 등록된 사진', value: todayPhotosSnap.size },
     ];
     adminDashGrid.innerHTML = cards.map(c => `
@@ -10175,7 +10186,22 @@ settingsAdminBtn.addEventListener('click', () => {
   showAdminView();
 });
 
+let adminAllRows = [];
+const adminMemberSearchInput = document.getElementById('adminMemberSearchInput');
+adminMemberSearchInput.addEventListener('input', () => {
+  const q = adminMemberSearchInput.value.trim().toLowerCase();
+  if(!q){
+    renderAdminMemberRows(adminAllRows);
+    return;
+  }
+  const filtered = adminAllRows.filter(row =>
+    row.id.toLowerCase().includes(q) || (row.name && row.name.toLowerCase().includes(q))
+  );
+  renderAdminMemberRows(filtered);
+});
+
 async function loadAdminMemberList(){
+  adminMemberSearchInput.value = '';
   adminMemberList.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
   let usernamesSnap;
   try{
@@ -10204,6 +10230,7 @@ async function loadAdminMemberList(){
     const info = docSnap.data();
     let recordCount = 0;
     let isTrainer = false;
+    let name = '';
     try{
       const logsSnap = await logsCollection(info.uid).get();
       recordCount = new Set(logsSnap.docs.map(d => d.data().date)).size;
@@ -10216,6 +10243,12 @@ async function loadAdminMemberList(){
     }catch(err){
       console.error('트레이너 여부 조회 오류:', id, err);
     }
+    try{
+      const result = await storageGetWithRetry(STORAGE_KEY, false, info.uid);
+      const list = result ? JSON.parse(result.value) : [];
+      const self = list.find(m => m.id === info.uid);
+      if(self && self.name) name = self.name;
+    }catch(err){ /* 이름을 못 가져와도 검색·표시 자체는 계속 진행 */ }
     const hasRealEmail = info.email && !info.email.endsWith(SYNTHETIC_EMAIL_DOMAIN);
     let joinedText = '가입일 기록 없음';
     let createdAtMs = null;
@@ -10226,11 +10259,12 @@ async function loadAdminMemberList(){
       const timeStr = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
       joinedText = `${dateStr} ${timeStr} 가입`;
     }
-    return { id, uid: info.uid, email: info.email, hasRealEmail, recordCount, joinedText, createdAtMs, isTrainer };
+    return { id, uid: info.uid, email: info.email, hasRealEmail, recordCount, joinedText, createdAtMs, isTrainer, name };
   }));
 
   // 최근 가입자가 위로 오도록 정렬 (가입일 기록이 없는 경우는 맨 아래로)
   rows.sort((a, b) => (b.createdAtMs ?? -Infinity) - (a.createdAtMs ?? -Infinity));
+  adminAllRows = rows;
 
   adminMemberList.innerHTML = `
     <div class="admin-summary">
@@ -10243,12 +10277,24 @@ async function loadAdminMemberList(){
         <div class="admin-summary-label">오늘 신규 가입</div>
       </div>
     </div>
+    <div id="adminMemberRowsContainer"></div>
   `;
+  renderAdminMemberRows(rows);
+}
+
+function renderAdminMemberRows(rows){
+  const container = document.getElementById('adminMemberRowsContainer');
+  if(!container) return;
+  container.innerHTML = '';
+  if(!rows.length){
+    container.innerHTML = '<div class="admin-empty">검색 결과가 없어요.</div>';
+    return;
+  }
   rows.forEach(row => {
     const div = document.createElement('div');
     div.className = 'admin-member-row';
     div.innerHTML = `
-      <div class="admin-member-id">${row.id}</div>
+      <div class="admin-member-id">${escapeHtml(row.id)}${row.name ? ` <span style="color:var(--muted); font-weight:400;">(${escapeHtml(row.name)})</span>` : ''}</div>
       <div class="admin-member-meta">
         ${row.joinedText}<br>
         복구 이메일: ${row.hasRealEmail ? row.email : '없음'}<br>
@@ -10351,7 +10397,7 @@ async function loadAdminMemberList(){
         '삭제'
       );
     });
-    adminMemberList.appendChild(div);
+    container.appendChild(div);
   });
 }
 
