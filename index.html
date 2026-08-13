@@ -4577,7 +4577,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.52.0';
+const APP_VERSION = '2.52.1';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -9918,12 +9918,12 @@ adminAddMemberBtn.addEventListener('click', () => {
     title: '새 회원 추가',
     sub: '이 계정으로 로그인할 수 있는 새 아이디를 만들어요.',
     fields: [
-      { placeholder: '새 아이디 (영문/숫자 3자 이상)' },
+      { placeholder: '새 아이디 (영문/숫자 3자 이상)', autocomplete: 'off' },
+      { placeholder: '회원 이름', autocomplete: 'off' },
       { type: 'password', placeholder: '비밀번호 (6자리 이상)', autocomplete: 'new-password' },
-      { placeholder: '회원 이름' },
     ],
     submitLabel: '추가하기',
-    onSubmit: async (rawId, password, name) => {
+    onSubmit: async (rawId, name, password) => {
       if(!/^[a-zA-Z0-9]{3,}$/.test(rawId)) throw new Error('아이디는 영문/숫자 3자 이상으로 입력해주세요.');
       if(!password || password.length < 6) throw new Error('비밀번호는 6자리 이상으로 입력해주세요.');
       await createMemberAccountFor({ rawId, password, name });
@@ -10734,12 +10734,12 @@ trainerAddMemberBtn.addEventListener('click', () => {
     title: '새 회원 추가',
     sub: '이 계정으로 로그인할 수 있는 새 아이디를 만들고, 나에게 바로 연결해요.',
     fields: [
-      { placeholder: '새 아이디 (영문/숫자 3자 이상)' },
+      { placeholder: '새 아이디 (영문/숫자 3자 이상)', autocomplete: 'off' },
+      { placeholder: '회원 이름', autocomplete: 'off' },
       { type: 'password', placeholder: '비밀번호 (6자리 이상)', autocomplete: 'new-password' },
-      { placeholder: '회원 이름' },
     ],
     submitLabel: '추가하기',
-    onSubmit: async (rawId, password, name) => {
+    onSubmit: async (rawId, name, password) => {
       if(!/^[a-zA-Z0-9]{3,}$/.test(rawId)) throw new Error('아이디는 영문/숫자 3자 이상으로 입력해주세요.');
       if(!password || password.length < 6) throw new Error('비밀번호는 6자리 이상으로 입력해주세요.');
       await createMemberAccountFor({ rawId, password, name, trainerId: auth.currentUser.uid });
