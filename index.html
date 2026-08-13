@@ -4574,7 +4574,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.49.0';
+const APP_VERSION = '2.49.1';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -9905,20 +9905,41 @@ adminEmployerAssignBtn.addEventListener('click', async () => {
 });
 async function loadAdminDashboard(){
   adminDashGrid.innerHTML = '<div class="admin-loading">현황 불러오는 중...</div>';
-  try{
-    const today = todayStr();
-    const weekAgo = (() => {
-      const d = new Date();
-      d.setDate(d.getDate() - 6);
-      return toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
-    })();
+  const today = todayStr();
+  const weekAgo = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    return toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+  })();
 
-    const [usersSnap, todayLogsSnap, weekLogsSnap, todayPhotosSnap] = await Promise.all([
-      db.collection('users').get(),
-      db.collectionGroup('logs').where('date', '==', today).get(),
-      db.collectionGroup('logs').where('date', '>=', weekAgo).get(),
-      db.collectionGroup('bodyPhotos').where('date', '==', today).get(),
-    ]);
+  // 4개를 한 번에 묶어서 실행하면 하나만 막혀도 어떤 게 문제인지 구분이 안 되니, 하나씩 따로 실행해서
+  // 실패한 조회의 이름과 실제 오류 메시지를 화면에 그대로 보여준다
+  const queries = [
+    { key: 'users', run: () => db.collection('users').get() },
+    { key: 'todayLogs', run: () => db.collectionGroup('logs').where('date', '==', today).get() },
+    { key: 'weekLogs', run: () => db.collectionGroup('logs').where('date', '>=', weekAgo).get() },
+    { key: 'todayPhotos', run: () => db.collectionGroup('bodyPhotos').where('date', '==', today).get() },
+  ];
+  const results = {};
+  const failures = [];
+  for(const q of queries){
+    try{
+      results[q.key] = await q.run();
+    }catch(err){
+      console.error(`관리자 대시보드 조회 오류 (${q.key}):`, err);
+      failures.push(`${q.key}: ${err.message || err}`);
+    }
+  }
+  if(failures.length){
+    adminDashGrid.innerHTML = `<div class="admin-empty">현황을 불러오지 못했어요.<br><span style="font-size:11px;">${failures.map(escapeHtml).join('<br>')}</span></div>`;
+    return;
+  }
+
+  try{
+    const usersSnap = results.users;
+    const todayLogsSnap = results.todayLogs;
+    const weekLogsSnap = results.weekLogs;
+    const todayPhotosSnap = results.todayPhotos;
 
     let trainerCount = 0;
     let memberCount = 0;
