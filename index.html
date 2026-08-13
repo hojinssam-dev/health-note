@@ -2062,6 +2062,12 @@
     text-align: left;
     line-height: 1.4;
   }
+  .cal-tag-private-icon{
+    flex-shrink: 0;
+    margin-right: 0;
+    font-size: 0.85em;
+    line-height: 1;
+  }
   /* 이 글자가 살짝 아래로 처져 보이는 건 iOS(아이폰·아이패드)의 폰트 렌더링 특성 때문이라,
      안드로이드는 원래 문제없었다. @supports로 iOS의 WebKit 엔진만 정확히 골라서
      이 미세 조정이 iOS에만 적용되고 안드로이드는 그대로 두게 한다. */
@@ -2953,6 +2959,46 @@
     color: var(--danger);
     margin-bottom: 20px;
   }
+  .admin-dashboard{
+    margin-bottom: 20px;
+  }
+  .admin-employer-assign-row{
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .admin-employer-assign-row .modal-input{
+    flex: 1;
+    margin-bottom: 0;
+  }
+  .admin-employer-assign-row .modal-btn{
+    flex-shrink: 0;
+    width: auto;
+    padding: 0 16px;
+  }
+  .admin-dash-grid{
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .admin-dash-card{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    padding: 14px;
+  }
+  .admin-dash-label{
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    margin-bottom: 4px;
+  }
+  .admin-dash-value{
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px;
+    color: var(--brass-bright);
+    letter-spacing: 0.5px;
+  }
   .admin-loading{
     text-align:center;
     color: var(--muted);
@@ -3825,7 +3871,7 @@
       </div>
       <div class="entry-time-hint" id="entryEndTimeHint" style="display:none;">종료 시간은 '운동 종료'를 누르면 자동으로 입력돼요.</div>
       <div class="block-row row-trainer-toggles" id="entryTrainerToggles" style="display:none;">
-        <button type="button" class="trainer-toggle-btn" id="entryLockedToggleBtn">🔒 잠금</button>
+        <button type="button" class="trainer-toggle-btn" id="entryPrivateToggleBtn">🙈 비공개</button>
         <button type="button" class="trainer-toggle-btn" id="entryPtRecognizedToggleBtn">✅ PT 인정</button>
         <div class="row-session-no" id="entrySessionNoRow" style="display:none;">
           <input autocapitalize="off" type="number" inputmode="numeric" class="session-no-input" id="entrySessionNoInput" min="1">
@@ -3954,8 +4000,49 @@
     <div class="admin-note">
       ⚠️ 서버 없이 동작하는 제한된 관리자 기능이에요. 비밀번호는 직접 바꿀 수 없고, 복구 이메일이 등록된 회원에게만 재설정 메일을 보낼 수 있어요. "데이터 삭제"는 저장된 기록만 지우고, 로그인 계정 자체는 남아있어요.
     </div>
+    <div class="admin-dashboard" id="adminDashboard">
+      <div class="admin-dash-grid" id="adminDashGrid">
+        <div class="admin-loading">현황 불러오는 중...</div>
+      </div>
+    </div>
+    <div class="admin-employer-assign-row">
+      <input autocapitalize="off" type="text" id="adminEmployerIdInput" class="modal-input" placeholder="고용주로 지정할 로그인 아이디">
+      <button type="button" class="modal-btn modal-btn-primary" id="adminEmployerAssignBtn">고용주 지정</button>
+    </div>
     <div class="admin-member-list" id="adminMemberList">
       <div class="admin-loading" id="adminLoading">불러오는 중...</div>
+    </div>
+  </div>
+
+  <div class="view" id="view-employer-dashboard">
+    <div class="log-header">
+      <h1 class="admin-title">고용주 대시보드</h1>
+      <button class="logout-btn" id="employerRefreshBtn" title="새로고침">⟳</button>
+      <button class="logout-btn" id="employerSettingsBtn" title="설정">⚙</button>
+    </div>
+    <div class="email-reminder-row" style="margin-bottom:14px;">
+      <input autocapitalize="off" id="employerTrainerIdInput" type="text" class="modal-input" placeholder="트레이너 아이디로 연결하기" autocomplete="off">
+      <button class="email-reminder-register-btn" id="employerConnectTrainerBtn">연결</button>
+    </div>
+    <div class="login-error" id="employerConnectError" style="display:none;"></div>
+    <div class="admin-member-list" id="employerTrainerList">
+      <div class="admin-loading">불러오는 중...</div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="employerSettingsModal">
+    <div class="modal-box">
+      <div class="modal-title">설정</div>
+      <div class="theme-option-label">화면 테마</div>
+      <div class="theme-option-row">
+        <button type="button" class="theme-option-btn" data-theme="dark">블랙 · 골드</button>
+        <button type="button" class="theme-option-btn" data-theme="light">화이트 · 그린</button>
+        <button type="button" class="theme-option-btn" data-theme="purple">화이트 · 퍼플</button>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn" id="employerSettingsLogoutBtn">로그아웃</button>
+      </div>
+      <button class="modal-cancel" id="employerSettingsCloseBtn">닫기</button>
     </div>
   </div>
 
@@ -4007,6 +4094,7 @@
       <input autocapitalize="off" id="trainerEditPhoneInput" type="tel" class="modal-input" placeholder="예) 010-1234-5678">
       <div class="login-error" id="trainerMemberEditError" style="display:none;"></div>
       <div class="modal-actions">
+        <button class="modal-btn" id="trainerMemberEditChangeIdBtn">아이디 변경</button>
         <button class="modal-btn modal-btn-primary" id="trainerMemberEditSaveBtn">저장</button>
         <button class="modal-btn modal-btn-danger" id="trainerMemberEditDeleteBtn">회원 삭제</button>
       </div>
@@ -4364,23 +4452,13 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').then((reg) => {
       swRegistration = reg;
 
-      // 이미 새 버전이 설치된 채로 대기 중이면 바로 안내
-      if(reg.waiting && navigator.serviceWorker.controller){
-        showUpdateBanner();
-      }
+      // 이번 업데이트부터는 "새 버전이 나왔어요" 안내를 따로 띄우지 않는다.
+      // 서비스워커가 백그라운드에서 조용히 새 버전으로 바뀌어 있고, 사용자가 다음에 앱을
+      // 새로 열 때(자연스러운 재실행) 그 새 버전으로 자동으로 받게 된다 — 지금 쓰고 있는
+      // 화면을 억지로 새로고침하거나 팝업으로 방해하지 않는다.
 
-      // 새 버전이 배포되어 새로 설치되는 걸 감지
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing;
-        if(!newWorker) return;
-        newWorker.addEventListener('statechange', () => {
-          if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
-            showUpdateBanner();
-          }
-        });
-      });
-
-      // 탭을 오래 켜두고 있다가 다시 돌아왔을 때도 새 버전이 있는지 확인
+      // 탭을 오래 켜두고 있다가 다시 돌아왔을 때, 새 버전이 있는지 조용히 한 번 확인해둔다
+      // (여기서도 안내는 띄우지 않는다 — 다음에 새로 열 때 자연스럽게 반영되도록만 준비해둠)
       document.addEventListener('visibilitychange', () => {
         if(document.visibilityState === 'visible' && swRegistration){
           swRegistration.update().catch(() => {});
@@ -4496,7 +4574,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.42.0';
+const APP_VERSION = '2.49.0';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -4640,10 +4718,56 @@ async function storageGetWithRetry(key, shared, targetUid){
   }
 }
 
+/* ---------- 회원 목록 · 부위별 색상 설정 캐시 (기기 안에 저장) ----------
+   달력화면 캐시와 같은 원리. 앱을 다시 열 때 이 값들도 서버 응답을 기다리지 않고
+   먼저 기기에 저장해둔 걸로 화면을 띄운 뒤, 뒤에서 조용히 최신 값으로 바꿔치기한다. */
+const MEMBERS_CACHE_PREFIX = 'membersCache:';
+const BODYPART_CACHE_PREFIX = 'bodyPartCache:';
+function saveJsonCache(prefix, uid, data){
+  try{ localStorage.setItem(prefix + uid, JSON.stringify(data)); }catch(err){ /* 조용히 건너뜀 */ }
+}
+function loadJsonCache(prefix, uid){
+  try{
+    const raw = localStorage.getItem(prefix + uid);
+    return raw !== null ? JSON.parse(raw) : undefined; // 캐시가 없는 것과 '빈 배열/객체'를 구분하기 위해 undefined 사용
+  }catch(err){
+    return undefined;
+  }
+}
+/* 회원 목록·부위별 색상이 뒤에서 새로 갱신됐을 때, 지금 보고 있는 화면(달력)이 있다면
+   그 자리에서 다시 그려서 최신 내용을 반영한다. 캐시로 먼저 보여준 뒤 조용히 바꿔치기하는
+   부분이라, currentMemberId로 항상 새로 조회해서 예전 객체를 붙들고 있지 않게 한다. */
+function refreshVisibleMemberDataIfNeeded(){
+  if(!currentMemberId) return;
+  const member = members.find(m => m.id === currentMemberId);
+  if(!member) return;
+  updateMemberInfoBar(member);
+  renderWeekCountBadge(logWeekCountBadge);
+  renderCalendar();
+  renderDayDetail();
+}
+
 async function loadMembers(){
+  const uid = auth.currentUser && auth.currentUser.uid;
+  const cached = uid ? loadJsonCache(MEMBERS_CACHE_PREFIX, uid) : undefined;
+  if(cached !== undefined){
+    members = cached;
+    // 뒤에서 조용히 최신 값으로 확인한다 (화면 흐름은 안 기다리게 함)
+    (async () => {
+      try{
+        const result = await storageGetWithRetry(STORAGE_KEY, false);
+        members = result ? JSON.parse(result.value) : [];
+        saveJsonCache(MEMBERS_CACHE_PREFIX, uid, members);
+        refreshVisibleMemberDataIfNeeded();
+      }catch(err){ /* 캐시로 이미 보여주고 있으니 실패해도 조용히 넘어간다 */ }
+    })();
+    return;
+  }
+  // 이 기기에서 처음 로그인하는 경우(캐시가 아직 없음)엔 예전처럼 서버 응답을 기다린다
   try{
     const result = await storageGetWithRetry(STORAGE_KEY, false);
     members = result ? JSON.parse(result.value) : [];
+    if(uid) saveJsonCache(MEMBERS_CACHE_PREFIX, uid, members);
   }catch(err){
     members = [];
   }
@@ -4652,6 +4776,8 @@ async function loadMembers(){
 async function saveMembers(){
   const ok = await storageSetWithRetry(STORAGE_KEY, JSON.stringify(members), false);
   if(!ok) showCopyToast('저장에 실패했어요. 네트워크 상태를 확인하고 다시 시도해주세요.');
+  const uid = auth.currentUser && auth.currentUser.uid;
+  if(ok && uid) saveJsonCache(MEMBERS_CACHE_PREFIX, uid, members);
 }
 
 
@@ -4853,36 +4979,50 @@ const logAddBtn = document.getElementById('logAddBtn');
 const logAddCopyBtn = document.getElementById('logAddCopyBtn');
 const entryLogForm = document.getElementById('entryLogForm');
 const entryTrainerToggles = document.getElementById('entryTrainerToggles');
-const entryLockedToggleBtn = document.getElementById('entryLockedToggleBtn');
+const entryPrivateToggleBtn = document.getElementById('entryPrivateToggleBtn');
 const entryPtRecognizedToggleBtn = document.getElementById('entryPtRecognizedToggleBtn');
 const entrySessionNoRow = document.getElementById('entrySessionNoRow');
 const entrySessionNoInput = document.getElementById('entrySessionNoInput');
 const entrySessionNoTotal = document.getElementById('entrySessionNoTotal');
 let entrySessionGenerationBase = 0; // 지금 입력칸에 보이는 회차가 누적 기준으로 몇 회부터 시작하는지(저장할 때 다시 더해줌)
-entryLockedToggleBtn.addEventListener('click', () => entryLockedToggleBtn.classList.toggle('active'));
+entryPrivateToggleBtn.addEventListener('click', () => entryPrivateToggleBtn.classList.toggle('active'));
+function applySessionNoDisplay(computedCumulative, ptHistory){
+  const cycle = computedCumulative ? resolvePtCycle(ptHistory, computedCumulative) : null;
+  if(cycle){
+    entrySessionGenerationBase = computedCumulative - cycle.inCycleCount;
+    entrySessionNoInput.value = cycle.inCycleCount || '';
+    entrySessionNoTotal.textContent = `/ ${cycle.amount}회차`;
+  } else {
+    entrySessionGenerationBase = 0;
+    entrySessionNoInput.value = computedCumulative || '';
+    entrySessionNoTotal.textContent = '';
+  }
+}
+
 entryPtRecognizedToggleBtn.addEventListener('click', async () => {
   const nowActive = !entryPtRecognizedToggleBtn.classList.contains('active');
   entryPtRecognizedToggleBtn.classList.toggle('active');
   if(nowActive){
     entrySessionNoRow.style.display = 'flex';
-    entrySessionNoTotal.textContent = '';
-    entrySessionNoInput.value = '…';
+    const member = members.find(m => m.id === currentMemberId);
+    const ptHistory = getPtHistory(member);
+
+    // 회원 목록 화면 속도 개선 때 만들어둔 캐시(진행 회차)로 일단 즉시 보여준다 — 서버 왕복을 안 기다림
+    const cachedCumulative = (member && member.ptProgress) ? member.ptProgress + 1 : null;
+    if(cachedCumulative){
+      applySessionNoDisplay(cachedCumulative, ptHistory);
+    } else {
+      entrySessionNoTotal.textContent = '';
+      entrySessionNoInput.value = '…';
+    }
+
+    // 캐시가 다른 기기의 최근 변경 등으로 살짝 낡았을 수 있으니, 뒤에서 조용히 한 번 더 정확하게
+    // 확인해서 다르면 그 자리에서 바로잡는다 (화면은 이미 캐시값으로 떠 있어서 기다림 없이 느껴짐)
     const dateVal = (entryDateInput && entryDateInput.value) || todayStr();
     const computedCumulative = await computeSessionNoForDate(currentMemberId, dateVal);
     // 그 사이에 토글을 다시 꺼버렸으면 계산 결과를 무시한다
-    if(entryPtRecognizedToggleBtn.classList.contains('active')){
-      const member = members.find(m => m.id === currentMemberId);
-      const ptHistory = getPtHistory(member);
-      const cycle = computedCumulative ? resolvePtCycle(ptHistory, computedCumulative) : null;
-      if(cycle){
-        entrySessionGenerationBase = computedCumulative - cycle.inCycleCount;
-        entrySessionNoInput.value = cycle.inCycleCount || '';
-        entrySessionNoTotal.textContent = `/ ${cycle.amount}회차`;
-      } else {
-        entrySessionGenerationBase = 0;
-        entrySessionNoInput.value = computedCumulative || '';
-        entrySessionNoTotal.textContent = '';
-      }
+    if(entryPtRecognizedToggleBtn.classList.contains('active') && computedCumulative !== cachedCumulative){
+      applySessionNoDisplay(computedCumulative, ptHistory);
     }
   } else {
     entrySessionNoRow.style.display = 'none';
@@ -5403,9 +5543,24 @@ function colorForEntry(e){
 }
 
 async function loadBodyPartColors(){
+  const uid = auth.currentUser && auth.currentUser.uid;
+  const cached = uid ? loadJsonCache(BODYPART_CACHE_PREFIX, uid) : undefined;
+  if(cached !== undefined){
+    bodyPartColors = { ...DEFAULT_BODYPART_COLORS, ...cached };
+    (async () => {
+      try{
+        const result = await storageGetWithRetry(BODYPART_COLOR_KEY, false);
+        bodyPartColors = result ? { ...DEFAULT_BODYPART_COLORS, ...JSON.parse(result.value) } : { ...DEFAULT_BODYPART_COLORS };
+        saveJsonCache(BODYPART_CACHE_PREFIX, uid, bodyPartColors);
+        refreshVisibleMemberDataIfNeeded();
+      }catch(err){ /* 캐시로 이미 보여주고 있으니 실패해도 조용히 넘어간다 */ }
+    })();
+    return;
+  }
   try{
     const result = await storageGetWithRetry(BODYPART_COLOR_KEY, false);
     bodyPartColors = result ? { ...DEFAULT_BODYPART_COLORS, ...JSON.parse(result.value) } : { ...DEFAULT_BODYPART_COLORS };
+    if(uid) saveJsonCache(BODYPART_CACHE_PREFIX, uid, bodyPartColors);
   }catch(err){
     bodyPartColors = { ...DEFAULT_BODYPART_COLORS };
   }
@@ -5414,6 +5569,8 @@ async function loadBodyPartColors(){
 async function saveBodyPartColors(){
   const ok = await storageSetWithRetry(BODYPART_COLOR_KEY, JSON.stringify(bodyPartColors), false);
   if(!ok) showCopyToast('저장에 실패했어요. 네트워크 상태를 확인하고 다시 시도해주세요.');
+  const uid = auth.currentUser && auth.currentUser.uid;
+  if(ok && uid) saveJsonCache(BODYPART_CACHE_PREFIX, uid, bodyPartColors);
 }
 
 
@@ -5699,11 +5856,16 @@ function monthDateRange(year, month){
    조용히 최신 내용으로 바꿔치기한다. 회원마다, 이 기기 안에서만 따로 저장된다. */
 const CAL_CACHE_PREFIX = 'calCache:';
 function saveCalCache(memberId, entries){
+  // 트레이너가 보고 있는 회원 데이터는(비공개 기록이 섞여 있을 수 있어서) 그 회원 본인이 나중에
+  // 같은 기기에서 로그인했을 때 잘못 보일 수 있으니, 캐시에는 아예 저장하지 않는다.
+  // 캐시는 본인이 자기 달력을 볼 때만 쓴다.
+  if(isViewingAsTrainer) return;
   try{
     localStorage.setItem(CAL_CACHE_PREFIX + memberId, JSON.stringify({ entries, savedAt: Date.now() }));
   }catch(err){ /* 저장 공간이 꽉 찼거나 지원 안 하면 조용히 건너뛴다 — 캐시는 있으면 좋고 없어도 그만이다 */ }
 }
 function loadCalCache(memberId){
+  if(isViewingAsTrainer) return null; // 트레이너 화면에서는 캐시를 아예 안 쓴다(항상 서버에서 정확하게 받아온다)
   try{
     const raw = localStorage.getItem(CAL_CACHE_PREFIX + memberId);
     if(!raw) return null;
@@ -5718,7 +5880,10 @@ function clearAllCalCache(){
     const keysToRemove = [];
     for(let i = 0; i < localStorage.length; i++){
       const k = localStorage.key(i);
-      if(k && k.startsWith(CAL_CACHE_PREFIX)) keysToRemove.push(k);
+      // 달력 캐시뿐 아니라, 회원 목록·부위별 색상 캐시도 로그아웃할 때 같이 지운다
+      if(k && (k.startsWith(CAL_CACHE_PREFIX) || k.startsWith(MEMBERS_CACHE_PREFIX) || k.startsWith(BODYPART_CACHE_PREFIX))){
+        keysToRemove.push(k);
+      }
     }
     keysToRemove.forEach(k => localStorage.removeItem(k));
   }catch(err){ /* 조용히 건너뛴다 */ }
@@ -5729,9 +5894,15 @@ function clearAllCalCache(){
    기록은 화면에서도 지우고, 내용이 바뀐 기록은 최신 내용으로 덮어쓴다. 캐시로 먼저 보여준
    예전 데이터를 나중에 정확하게 바꿔치기하려면 이 방식이 꼭 필요하다. */
 function reconcileLogsInRange(freshEntries, start, end){
-  const freshIds = new Set(freshEntries.map(e => e.id));
+  // 트레이너가 '비공개'로 표시해둔 기록은, 그 트레이너나 관리자가 보는 게 아니라면
+  // (즉 회원 본인 화면이라면) 애초에 currentLogs에 들어오지 않게 걸러낸다.
+  const visibleEntries = (isViewingAsTrainer || isAdmin())
+    ? freshEntries
+    : freshEntries.filter(e => !e.private);
+  const freshIds = new Set(visibleEntries.map(e => e.id));
+  // 서버에서 이미 사라졌거나(삭제) 방금 비공개 처리로 안 보이게 된 기록은 여기서도 지운다
   currentLogs = currentLogs.filter(e => !(e.date >= start && e.date <= end) || freshIds.has(e.id));
-  freshEntries.forEach(entry => {
+  visibleEntries.forEach(entry => {
     const idx = currentLogs.findIndex(e => e.id === entry.id);
     if(idx >= 0) currentLogs[idx] = entry; else currentLogs.push(entry);
   });
@@ -6265,9 +6436,9 @@ timePickerConfirmBtn.addEventListener('click', () => {
   if(wheelState.ampm === 'PM') h24 += 12;
   timePickerTargetInput.value = `${String(h24).padStart(2,'0')}:${String(wheelState.minute).padStart(2,'0')}`;
   // 시작 시간을 고르면, 종료 시간을 시작 시간으로부터 50분 뒤로 자동으로 맞춰준다 (PT 수업 기본 길이)
-  // 단, 트레이너가 'PT 인정'을 켜둔 채로 작성 중인 일지에만 적용한다
-  const isPtEntry = isViewingAsTrainer && entryPtRecognizedToggleBtn.classList.contains('active');
-  if(timePickerTargetInput === entryStartTimeInput && isPtEntry){
+  // 트레이너가 쓰는 일지라면 PT 인정 여부와 상관없이 항상 적용한다. 종료 시간을 나중에 직접
+  // 바꾸면 당연히 그 값 그대로 저장된다 — 이건 그냥 시작 시간을 고를 때의 기본값일 뿐이다.
+  if(timePickerTargetInput === entryStartTimeInput && isViewingAsTrainer){
     const startMinutes = h24 * 60 + wheelState.minute;
     const endMinutes = (startMinutes + 50) % 1440;
     const endH24 = Math.floor(endMinutes / 60);
@@ -7446,7 +7617,7 @@ function renderCalendar(){
     function tagHtml(e){
       const c = colorForEntry(e);
       const plain = isPlainColor(c);
-      return `<div class="cal-tag ${plain ? 'cal-tag-plain' : ''}" data-entry-id="${e.id}" ${plain ? '' : `style="background:${c}"`}><span class="cal-tag-text">${escapeHtml(e.exercise)}</span></div>`;
+      return `<div class="cal-tag ${plain ? 'cal-tag-plain' : ''}" data-entry-id="${e.id}" ${plain ? '' : `style="background:${c}"`}>${e.private ? '<span class="cal-tag-private-icon" title="비공개 일지">🙈</span>' : ''}<span class="cal-tag-text">${escapeHtml(e.exercise)}</span></div>`;
     }
 
     cellsHtml += `
@@ -8170,7 +8341,7 @@ function openEntryForm(){
   clearAutoSaveTimer();
 
   entryTrainerToggles.style.display = isViewingAsTrainer ? 'flex' : 'none';
-  entryLockedToggleBtn.classList.remove('active');
+  entryPrivateToggleBtn.classList.remove('active');
   entryPtRecognizedToggleBtn.classList.remove('active');
   entrySessionNoRow.style.display = 'none';
   entrySessionNoInput.value = '';
@@ -8217,7 +8388,7 @@ function editEntry(entryId){
 
   entryTrainerToggles.style.display = isViewingAsTrainer ? 'flex' : 'none';
   const firstEntry = dayEntries[0];
-  entryLockedToggleBtn.classList.toggle('active', !!(firstEntry && firstEntry.locked));
+  entryPrivateToggleBtn.classList.toggle('active', !!(firstEntry && firstEntry.private));
   if(firstEntry && firstEntry.ptRecognized){
     entryPtRecognizedToggleBtn.classList.add('active');
     entrySessionNoRow.style.display = 'flex';
@@ -8826,15 +8997,19 @@ async function addLogEntry(opts){
       order: blockIndex,
       // 새로 만드는 기록만 작성자를 지금 로그인한 사람으로 남기고, 수정할 땐 원래 작성자를 그대로 유지한다
       authorId: existingTarget ? existingTarget.authorId : auth.currentUser.uid,
-      // 잠금·PT인정은 이제 일지 전체(하루치)에 한 번만 있는 토글이라, 그 값을 그날의 모든 종목에 똑같이 적용한다.
+      // PT인정·비공개는 이제 일지 전체(하루치)에 한 번만 있는 토글이라, 그 값을 그날의 모든 종목에 똑같이 적용한다.
       // 트레이너 화면에서만 토글이 보이니, 트레이너가 저장할 때만 이 값들을 반영하고
-      // 회원이 저장할 땐(토글 자체가 안 보이니) 원래 값을 그대로 유지한다
-      locked: isViewingAsTrainer
-        ? entryLockedToggleBtn.classList.contains('active')
-        : (existingTarget ? !!existingTarget.locked : false),
+      // 회원이 저장할 땐(토글 자체가 안 보이니) 원래 값을 그대로 유지한다.
+      // '잠금'은 이제 따로 누르는 게 아니라, PT인정을 켜면 자동으로 같이 켜진다(회원이 못 고치게).
       ptRecognized: isViewingAsTrainer
         ? entryPtRecognizedToggleBtn.classList.contains('active')
         : (existingTarget ? !!existingTarget.ptRecognized : false),
+      locked: isViewingAsTrainer
+        ? entryPtRecognizedToggleBtn.classList.contains('active')
+        : (existingTarget ? !!existingTarget.locked : false),
+      private: isViewingAsTrainer
+        ? entryPrivateToggleBtn.classList.contains('active')
+        : (existingTarget ? !!existingTarget.private : false),
     };
 
     let finalEntry;
@@ -9075,7 +9250,11 @@ async function enterMemberHome(){
   try{
     userDoc = await db.collection('users').doc(uid).get();
   }catch(err){
-    console.error('트레이너 확인 오류:', err);
+    console.error('계정 종류 확인 오류:', err);
+  }
+  if(userDoc && userDoc.exists && userDoc.data().isEmployer){
+    showEmployerDashboardView();
+    return;
   }
   if(userDoc && userDoc.exists && userDoc.data().isTrainer){
     showTrainerMemberListView();
@@ -9096,6 +9275,45 @@ async function enterMemberHome(){
    복구 이메일 없이 가입하면 실제로 받을 수 없는 가짜 이메일(아이디@ptdiary.app)을 쓰게 되는데,
    이 경우 비밀번호 재설정 메일을 보낼 방법이 없다는 걸 화면에서 미리 안내한다. */
 const SYNTHETIC_EMAIL_DOMAIN = '@ptdiary.app';
+
+/* 관리자나 트레이너가 다른 사람(회원)의 로그인 아이디를 대신 바꿔줄 때 쓰는 공용 함수.
+   본인이 자기 아이디를 바꿀 때 쓰던 것과 똑같은 로직이지만, 대상 uid를 따로 받는다. */
+async function changeUsernameFor(targetUid, oldRawId, newRawId){
+  if(!/^[a-zA-Z0-9]{3,}$/.test(newRawId)) throw new Error('아이디는 영문/숫자 3자 이상으로 입력해주세요.');
+  const newDocId = usernameDocId(newRawId);
+  if(!newDocId) throw new Error('아이디는 영문/숫자 3자 이상으로 입력해주세요.');
+
+  const newDocSnap = await db.collection('usernames').doc(newDocId).get();
+  const newDocData = newDocSnap.exists ? newDocSnap.data() : null;
+  const alreadyTarget = newDocData && newDocData.uid === targetUid;
+  if(newDocData && !alreadyTarget){
+    throw new Error('이미 사용 중인 아이디예요.');
+  }
+
+  const oldDocId = usernameDocId(oldRawId);
+  if(!alreadyTarget){
+    const oldDoc = await db.collection('usernames').doc(oldDocId).get();
+    const email = oldDoc.exists ? oldDoc.data().email : null;
+    await db.collection('usernames').doc(newDocId).set({ email, uid: targetUid });
+  }
+  if(oldDocId !== newDocId){
+    const staleOldDoc = await db.collection('usernames').doc(oldDocId).get();
+    if(staleOldDoc.exists && staleOldDoc.data().uid === targetUid){
+      await db.collection('usernames').doc(oldDocId).delete();
+    }
+  }
+
+  // 그 사람의 프로필(members-list) 안 이름 필드도 새 아이디로 맞춰준다
+  try{
+    const result = await storageGetWithRetry(STORAGE_KEY, false, targetUid);
+    const list = result ? JSON.parse(result.value) : [];
+    const entry = list.find(m => m.id === targetUid);
+    if(entry){
+      entry.name = newRawId.trim();
+      await storageSetWithRetry(STORAGE_KEY, JSON.stringify(list), false, undefined, targetUid);
+    }
+  }catch(err){ /* 프로필 이름 갱신이 실패해도 아이디 자체는 이미 바뀐 상태라 그냥 넘어간다 */ }
+}
 
 function usernameDocId(rawId){
   return (rawId || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
@@ -9514,6 +9732,7 @@ accountChangeIdBtn.addEventListener('click', () => {
     onSubmit: async (newRawId) => {
       if(!/^[a-zA-Z0-9]{3,}$/.test(newRawId)) throw new Error('아이디는 영문/숫자 3자 이상으로 입력해주세요.');
       const newDocId = usernameDocId(newRawId);
+      if(!newDocId) throw new Error('아이디는 영문/숫자 3자 이상으로 입력해주세요.');
 
       const newDocSnap = await db.collection('usernames').doc(newDocId).get();
       const newDocData = newDocSnap.exists ? newDocSnap.data() : null;
@@ -9652,8 +9871,224 @@ function showAdminView(){
   viewLog.classList.remove('active');
   viewEntry.classList.remove('active');
   viewAdmin.classList.add('active');
+  loadAdminDashboard();
   loadAdminMemberList();
 }
+
+const adminDashGrid = document.getElementById('adminDashGrid');
+const adminEmployerIdInput = document.getElementById('adminEmployerIdInput');
+const adminEmployerAssignBtn = document.getElementById('adminEmployerAssignBtn');
+adminEmployerAssignBtn.addEventListener('click', async () => {
+  const rawId = adminEmployerIdInput.value.trim();
+  if(!rawId){
+    showCopyToast('아이디를 입력해주세요.');
+    return;
+  }
+  adminEmployerAssignBtn.disabled = true;
+  try{
+    const docId = usernameDocId(rawId);
+    const usernameSnap = await db.collection('usernames').doc(docId).get();
+    if(!usernameSnap.exists){
+      showCopyToast('그 아이디를 가진 계정을 찾지 못했어요.');
+      return;
+    }
+    const targetUid = usernameSnap.data().uid;
+    await db.collection('users').doc(targetUid).set({ isEmployer: true }, { merge: true });
+    adminEmployerIdInput.value = '';
+    showCopyToast(`'${rawId}' 계정에 고용주 권한을 부여했어요.`);
+  }catch(err){
+    console.error('고용주 지정 오류:', err);
+    showCopyToast('지정 중 오류가 발생했어요.');
+  }finally{
+    adminEmployerAssignBtn.disabled = false;
+  }
+});
+async function loadAdminDashboard(){
+  adminDashGrid.innerHTML = '<div class="admin-loading">현황 불러오는 중...</div>';
+  try{
+    const today = todayStr();
+    const weekAgo = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 6);
+      return toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+    })();
+
+    const [usersSnap, todayLogsSnap, weekLogsSnap, todayPhotosSnap] = await Promise.all([
+      db.collection('users').get(),
+      db.collectionGroup('logs').where('date', '==', today).get(),
+      db.collectionGroup('logs').where('date', '>=', weekAgo).get(),
+      db.collectionGroup('bodyPhotos').where('date', '==', today).get(),
+    ]);
+
+    let trainerCount = 0;
+    let memberCount = 0;
+    usersSnap.forEach(doc => {
+      if(doc.data().isTrainer) trainerCount++; else memberCount++;
+    });
+
+    const todayLogDates = new Set(todayLogsSnap.docs.map(d => d.ref.parent.parent.id));
+    const weekActiveUsers = new Set(weekLogsSnap.docs.map(d => d.ref.parent.parent.id));
+
+    const cards = [
+      { label: '전체 회원', value: memberCount },
+      { label: '전체 트레이너', value: trainerCount },
+      { label: '이번 주 활동 회원', value: weekActiveUsers.size },
+      { label: '오늘 작성된 일지', value: todayLogsSnap.size },
+      { label: '오늘 등록된 사진', value: todayPhotosSnap.size },
+    ];
+    adminDashGrid.innerHTML = cards.map(c => `
+      <div class="admin-dash-card">
+        <div class="admin-dash-label">${c.label}</div>
+        <div class="admin-dash-value">${c.value}</div>
+      </div>
+    `).join('');
+  }catch(err){
+    console.error('관리자 대시보드 조회 오류:', err);
+    adminDashGrid.innerHTML = '<div class="admin-empty">현황을 불러오지 못했어요.</div>';
+  }
+}
+
+/* ---------- 고용주 대시보드 ---------- */
+const viewEmployerDashboard = document.getElementById('view-employer-dashboard');
+const employerTrainerList = document.getElementById('employerTrainerList');
+const employerTrainerIdInput = document.getElementById('employerTrainerIdInput');
+const employerConnectTrainerBtn = document.getElementById('employerConnectTrainerBtn');
+const employerConnectError = document.getElementById('employerConnectError');
+const employerRefreshBtn = document.getElementById('employerRefreshBtn');
+const employerSettingsBtn = document.getElementById('employerSettingsBtn');
+const employerSettingsModal = document.getElementById('employerSettingsModal');
+const employerSettingsCloseBtn = document.getElementById('employerSettingsCloseBtn');
+const employerSettingsLogoutBtn = document.getElementById('employerSettingsLogoutBtn');
+
+function showEmployerDashboardView(){
+  viewLanding.classList.remove('active');
+  viewLogin.classList.remove('active');
+  viewLog.classList.remove('active');
+  viewEntry.classList.remove('active');
+  viewAdmin.classList.remove('active');
+  document.getElementById('view-trainer-members').classList.remove('active');
+  viewEmployerDashboard.classList.add('active');
+  loadEmployerDashboard();
+}
+
+employerConnectTrainerBtn.addEventListener('click', async () => {
+  const rawId = employerTrainerIdInput.value.trim();
+  employerConnectError.style.display = 'none';
+  if(!rawId){
+    employerConnectError.textContent = '아이디를 입력해주세요.';
+    employerConnectError.style.display = 'block';
+    return;
+  }
+  employerConnectTrainerBtn.disabled = true;
+  try{
+    const docId = usernameDocId(rawId);
+    const usernameSnap = await db.collection('usernames').doc(docId).get();
+    if(!usernameSnap.exists){
+      employerConnectError.textContent = '그 아이디를 가진 계정을 찾지 못했어요.';
+      employerConnectError.style.display = 'block';
+      return;
+    }
+    const trainerUid = usernameSnap.data().uid;
+    const trainerDoc = await db.collection('users').doc(trainerUid).get();
+    if(!trainerDoc.exists || !trainerDoc.data().isTrainer){
+      employerConnectError.textContent = '트레이너 계정이 아니에요.';
+      employerConnectError.style.display = 'block';
+      return;
+    }
+    await db.collection('users').doc(trainerUid).set({ employerId: auth.currentUser.uid }, { merge: true });
+    employerTrainerIdInput.value = '';
+    showCopyToast('트레이너를 연결했어요.');
+    loadEmployerDashboard();
+  }catch(err){
+    console.error('트레이너 연결 오류:', err);
+    employerConnectError.textContent = '연결 중 오류가 발생했어요.';
+    employerConnectError.style.display = 'block';
+  }finally{
+    employerConnectTrainerBtn.disabled = false;
+  }
+});
+
+async function loadEmployerDashboard(){
+  employerTrainerList.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
+  try{
+    const myUid = auth.currentUser.uid;
+    const trainersSnap = await db.collection('users').where('employerId', '==', myUid).get();
+    if(trainersSnap.empty){
+      employerTrainerList.innerHTML = '<div class="admin-empty">아직 연결된 트레이너가 없어요.</div>';
+      return;
+    }
+
+    const today = todayStr();
+    const now = new Date();
+    const weekStart = (() => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - d.getDay());
+      return toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+    })();
+    const monthStart = toDateStr(now.getFullYear(), now.getMonth(), 1);
+
+    const rows = await Promise.all(trainersSnap.docs.map(async (trainerDoc) => {
+      const trainerUid = trainerDoc.id;
+      let trainerName = '트레이너';
+      try{
+        const result = await storageGetWithRetry(STORAGE_KEY, false, trainerUid);
+        const list = result ? JSON.parse(result.value) : [];
+        const self = list.find(m => m.id === trainerUid);
+        if(self && self.name) trainerName = self.name;
+      }catch(err){ /* 이름을 못 가져와도 기본값으로 계속 진행 */ }
+      const membersSnap = await db.collection('users').where('trainerId', '==', trainerUid).get();
+      const memberIds = membersSnap.docs.map(d => d.id);
+
+      let todayCount = 0, weekCount = 0, monthCount = 0;
+      await Promise.all(memberIds.map(async (memberId) => {
+        try{
+          const logsSnap = await logsCollection(memberId)
+            .where('ptRecognized', '==', true)
+            .where('date', '>=', monthStart)
+            .get();
+          logsSnap.docs.forEach(d => {
+            const date = d.data().date;
+            if(date >= monthStart) monthCount++;
+            if(date >= weekStart) weekCount++;
+            if(date === today) todayCount++;
+          });
+        }catch(err){ /* 이 회원 기록만 실패해도 나머지는 계속 진행 */ }
+      }));
+
+      return {
+        uid: trainerUid,
+        name: trainerName,
+        memberCount: memberIds.length,
+        todayCount, weekCount, monthCount,
+      };
+    }));
+
+    rows.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    employerTrainerList.innerHTML = rows.map(r => `
+      <div class="admin-member-row">
+        <div class="admin-member-id">${escapeHtml(r.name)}</div>
+        <div class="admin-member-meta">회원 ${r.memberCount}명 · 오늘 ${r.todayCount}건 · 이번 주 ${r.weekCount}건 · 이번 달 ${r.monthCount}건</div>
+      </div>
+    `).join('');
+  }catch(err){
+    console.error('고용주 대시보드 조회 오류:', err);
+    employerTrainerList.innerHTML = '<div class="admin-empty">불러오지 못했어요.</div>';
+  }
+}
+
+employerRefreshBtn.addEventListener('click', loadEmployerDashboard);
+employerSettingsBtn.addEventListener('click', () => employerSettingsModal.classList.add('open'));
+employerSettingsCloseBtn.addEventListener('click', () => employerSettingsModal.classList.remove('open'));
+employerSettingsModal.addEventListener('click', (ev) => {
+  if(ev.target === employerSettingsModal) employerSettingsModal.classList.remove('open');
+});
+employerSettingsLogoutBtn.addEventListener('click', () => {
+  employerSettingsModal.classList.remove('open');
+  showConfirmModal('로그아웃', '로그아웃 하시겠어요?', async () => {
+    await auth.signOut();
+  }, '로그아웃');
+});
+
 function closeAdminView(){
   viewAdmin.classList.remove('active');
   viewLog.classList.add('active');
@@ -9744,11 +10179,26 @@ async function loadAdminMemberList(){
         운동 기록: ${row.recordCount}일 · UID: ${row.uid}
       </div>
       <div class="admin-member-actions">
+        <button type="button" class="admin-action-btn" data-action="change-id">아이디 변경</button>
         <button type="button" class="admin-action-btn" data-action="reset" ${row.hasRealEmail ? '' : 'disabled'}>비밀번호 재설정 메일</button>
         <button type="button" class="admin-action-btn" data-action="toggle-trainer">${row.isTrainer ? '트레이너 해제' : '트레이너로 지정'}</button>
         <button type="button" class="admin-action-btn danger" data-action="delete">회원 데이터 삭제</button>
       </div>
     `;
+    div.querySelector('[data-action="change-id"]').addEventListener('click', () => {
+      openPromptModal({
+        title: '아이디 변경',
+        sub: `현재 아이디: ${row.id}`,
+        fields: [{ placeholder: '새 아이디' }],
+        submitLabel: '변경하기',
+        onSubmit: async (newRawId) => {
+          await changeUsernameFor(row.uid, row.id, newRawId);
+          closePromptModal();
+          showCopyToast('아이디를 변경했어요.');
+          loadAdminMemberList();
+        },
+      });
+    });
     div.querySelector('[data-action="toggle-trainer"]').addEventListener('click', () => {
       const next = !row.isTrainer;
       showConfirmModal(
@@ -10237,6 +10687,34 @@ trainerEditPtAddBtn.addEventListener('click', () => {
 });
 
 const trainerMemberEditDeleteBtn = document.getElementById('trainerMemberEditDeleteBtn');
+const trainerMemberEditChangeIdBtn = document.getElementById('trainerMemberEditChangeIdBtn');
+trainerMemberEditChangeIdBtn.addEventListener('click', async () => {
+  if(!trainerEditingUid) return;
+  const targetUid = trainerEditingUid;
+  trainerMemberEditChangeIdBtn.disabled = true;
+  try{
+    const usernameSnap = await db.collection('usernames').where('uid', '==', targetUid).limit(1).get();
+    const oldRawId = usernameSnap.empty ? '' : usernameSnap.docs[0].id;
+    closeTrainerMemberEditModal();
+    openPromptModal({
+      title: '아이디 변경',
+      sub: oldRawId ? `현재 아이디: ${oldRawId}` : '현재 아이디를 찾지 못했어요.',
+      fields: [{ placeholder: '새 아이디' }],
+      submitLabel: '변경하기',
+      onSubmit: async (newRawId) => {
+        await changeUsernameFor(targetUid, oldRawId, newRawId);
+        closePromptModal();
+        showCopyToast('아이디를 변경했어요.');
+        loadTrainerMemberList();
+      },
+    });
+  }catch(err){
+    console.error('아이디 조회 오류:', err);
+    showCopyToast('아이디 조회 중 오류가 발생했어요.');
+  }finally{
+    trainerMemberEditChangeIdBtn.disabled = false;
+  }
+});
 trainerMemberEditDeleteBtn.addEventListener('click', () => {
   if(!trainerEditingUid) return;
   const uid = trainerEditingUid;
