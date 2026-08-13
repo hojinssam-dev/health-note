@@ -4005,6 +4005,7 @@
         <div class="admin-loading">현황 불러오는 중...</div>
       </div>
     </div>
+    <button type="button" class="modal-btn modal-btn-primary" id="adminAddMemberBtn" style="width:100%; margin-bottom:14px;">+ 새 회원 추가</button>
     <div class="admin-employer-assign-row">
       <input autocapitalize="off" type="text" id="adminEmployerIdInput" class="modal-input" placeholder="고용주로 지정할 로그인 아이디">
       <button type="button" class="modal-btn modal-btn-primary" id="adminEmployerAssignBtn">고용주 지정</button>
@@ -4053,6 +4054,7 @@
       <button class="logout-btn" id="trainerMembersSettingsBtn" title="설정">⚙</button>
     </div>
     <div class="trainer-list-summary" id="trainerListSummary"></div>
+    <button type="button" class="modal-btn modal-btn-primary" id="trainerAddMemberBtn" style="width:100%; margin-bottom:14px;">+ 새 회원 추가</button>
     <div class="email-reminder-row" style="margin-bottom:14px;">
       <input autocapitalize="off" id="trainerDirectConnectInput" type="text" class="modal-input" placeholder="회원 아이디로 바로 연결하기" autocomplete="off">
       <button class="email-reminder-register-btn" id="trainerDirectConnectBtn">연결</button>
@@ -4574,7 +4576,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.49.1';
+const APP_VERSION = '2.51.0';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -9319,6 +9321,37 @@ function usernameDocId(rawId){
   return (rawId || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
 }
 
+/* 관리자나 트레이너가 '새 회원'을 직접 만들어줄 때 쓰는 함수.
+   Firebase Auth는 클라이언트에서 새 계정을 만드는 순간 그 계정으로 로그인 상태가 바뀌어버리는데,
+   그러면 지금 로그인해 있던 관리자/트레이너 세션이 끊겨버린다. 그래서 '보조 앱' 인스턴스를 따로
+   띄워서 그 안에서만 새 계정을 만들고, 끝나면 그 보조 인스턴스만 정리한다 — 원래 로그인은 그대로 유지된다. */
+async function createMemberAccountFor({ rawId, password, name, phone, trainerId }){
+  const secondaryApp = firebase.apps.find(a => a.name === 'secondary')
+    || firebase.initializeApp(firebaseConfig, 'secondary');
+  const secondaryAuth = secondaryApp.auth();
+  const secondaryDb = secondaryApp.firestore();
+  try{
+    const email = idToSyntheticEmail(rawId);
+    const cred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
+    const newUid = cred.user.uid;
+
+    // 아래 문서들은 전부 '새로 만든 본인' 자격으로 쓰는 거라(보조 인스턴스가 그 계정으로 로그인된 상태),
+    // 셀프 쓰기 규칙만으로 충분히 통과된다 — 별도 권한 규칙을 추가할 필요가 없다.
+    await secondaryDb.collection('usernames').doc(usernameDocId(rawId)).set({
+      email, uid: newUid, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    const membersList = [{ id: newUid, name: (name || rawId).trim(), phone: phone || '', ptHistory: [], memo: '' }];
+    const profileUpdate = { data: { 'members-list': JSON.stringify(membersList) } };
+    if(trainerId) profileUpdate.trainerId = trainerId;
+    await secondaryDb.collection('users').doc(newUid).set(profileUpdate, { merge: true });
+
+    await secondaryAuth.signOut();
+    return newUid;
+  }finally{
+    // 다음에 또 쓸 수 있게 보조 인스턴스 자체는 지우지 않고 로그아웃 상태로만 남겨둔다
+  }
+}
+
 function idToSyntheticEmail(rawId){
   return `${usernameDocId(rawId)}${SYNTHETIC_EMAIL_DOMAIN}`;
 }
@@ -9878,6 +9911,28 @@ function showAdminView(){
 const adminDashGrid = document.getElementById('adminDashGrid');
 const adminEmployerIdInput = document.getElementById('adminEmployerIdInput');
 const adminEmployerAssignBtn = document.getElementById('adminEmployerAssignBtn');
+const adminAddMemberBtn = document.getElementById('adminAddMemberBtn');
+adminAddMemberBtn.addEventListener('click', () => {
+  openPromptModal({
+    title: '새 회원 추가',
+    sub: '이 계정으로 로그인할 수 있는 새 아이디를 만들어요.',
+    fields: [
+      { placeholder: '새 아이디 (영문/숫자 3자 이상)' },
+      { type: 'password', placeholder: '비밀번호 (6자리 이상)', autocomplete: 'new-password' },
+      { placeholder: '회원 이름' },
+    ],
+    submitLabel: '추가하기',
+    onSubmit: async (rawId, password, name) => {
+      if(!/^[a-zA-Z0-9]{3,}$/.test(rawId)) throw new Error('아이디는 영문/숫자 3자 이상으로 입력해주세요.');
+      if(!password || password.length < 6) throw new Error('비밀번호는 6자리 이상으로 입력해주세요.');
+      await createMemberAccountFor({ rawId, password, name });
+      closePromptModal();
+      showCopyToast('새 회원을 추가했어요.');
+      loadAdminMemberList();
+      loadAdminDashboard();
+    },
+  });
+});
 adminEmployerAssignBtn.addEventListener('click', async () => {
   const rawId = adminEmployerIdInput.value.trim();
   if(!rawId){
@@ -10202,6 +10257,7 @@ async function loadAdminMemberList(){
       <div class="admin-member-actions">
         <button type="button" class="admin-action-btn" data-action="change-id">아이디 변경</button>
         <button type="button" class="admin-action-btn" data-action="reset" ${row.hasRealEmail ? '' : 'disabled'}>비밀번호 재설정 메일</button>
+        <button type="button" class="admin-action-btn" data-action="force-reset">비밀번호 초기화 (000000)</button>
         <button type="button" class="admin-action-btn" data-action="toggle-trainer">${row.isTrainer ? '트레이너 해제' : '트레이너로 지정'}</button>
         <button type="button" class="admin-action-btn danger" data-action="delete">회원 데이터 삭제</button>
       </div>
@@ -10236,6 +10292,29 @@ async function loadAdminMemberList(){
           }
         },
         next ? '지정' : '해제'
+      );
+    });
+    div.querySelector('[data-action="force-reset"]').addEventListener('click', () => {
+      showConfirmModal(
+        '비밀번호 초기화',
+        `"${row.id}" 님의 비밀번호를 000000으로 바로 바꿀까요? 이메일을 입력 못 하는 분들을 위한 기능이에요. 다음 로그인 시 이 비밀번호로 들어가실 수 있어요.`,
+        async () => {
+          try{
+            const idToken = await auth.currentUser.getIdToken();
+            const res = await fetch('/.netlify/functions/admin-reset-password', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+              body: JSON.stringify({ targetUid: row.uid }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if(!res.ok) throw new Error(data.error || '초기화에 실패했어요.');
+            showCopyToast('비밀번호를 000000으로 초기화했어요.');
+          }catch(err){
+            console.error('비밀번호 초기화 오류:', err);
+            showCopyToast(err.message || '초기화 중 오류가 발생했어요.');
+          }
+        },
+        '초기화'
       );
     });
     div.querySelector('[data-action="reset"]').addEventListener('click', () => {
@@ -10603,6 +10682,27 @@ async function loadTrainerMemberList(){
   });
 }
 
+const trainerAddMemberBtn = document.getElementById('trainerAddMemberBtn');
+trainerAddMemberBtn.addEventListener('click', () => {
+  openPromptModal({
+    title: '새 회원 추가',
+    sub: '이 계정으로 로그인할 수 있는 새 아이디를 만들고, 나에게 바로 연결해요.',
+    fields: [
+      { placeholder: '새 아이디 (영문/숫자 3자 이상)' },
+      { type: 'password', placeholder: '비밀번호 (6자리 이상)', autocomplete: 'new-password' },
+      { placeholder: '회원 이름' },
+    ],
+    submitLabel: '추가하기',
+    onSubmit: async (rawId, password, name) => {
+      if(!/^[a-zA-Z0-9]{3,}$/.test(rawId)) throw new Error('아이디는 영문/숫자 3자 이상으로 입력해주세요.');
+      if(!password || password.length < 6) throw new Error('비밀번호는 6자리 이상으로 입력해주세요.');
+      await createMemberAccountFor({ rawId, password, name, trainerId: auth.currentUser.uid });
+      closePromptModal();
+      showCopyToast('새 회원을 추가하고 연결했어요.');
+      loadTrainerMemberList();
+    },
+  });
+});
 trainerDirectConnectBtn.addEventListener('click', async () => {
   const rawId = trainerDirectConnectInput.value.trim();
   trainerDirectConnectError.style.display = 'none';
