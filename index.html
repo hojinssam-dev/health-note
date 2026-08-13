@@ -4577,7 +4577,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.53.5';
+const APP_VERSION = '2.53.6';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5889,8 +5889,8 @@ function clearAllCalCache(){
     const keysToRemove = [];
     for(let i = 0; i < localStorage.length; i++){
       const k = localStorage.key(i);
-      // 달력 캐시(회원용·트레이너용 둘 다)뿐 아니라, 회원 목록·부위별 색상 캐시도 로그아웃할 때 같이 지운다
-      if(k && (k.startsWith(CAL_CACHE_PREFIX) || k.startsWith(TRAINER_CAL_CACHE_PREFIX) || k.startsWith(MEMBERS_CACHE_PREFIX) || k.startsWith(BODYPART_CACHE_PREFIX))){
+      // 달력 캐시(회원용·트레이너용 둘 다)뿐 아니라, 회원 목록·트레이너 회원목록·부위별 색상 캐시도 로그아웃할 때 같이 지운다
+      if(k && (k.startsWith(CAL_CACHE_PREFIX) || k.startsWith(TRAINER_CAL_CACHE_PREFIX) || k.startsWith(MEMBERS_CACHE_PREFIX) || k.startsWith(TRAINER_MEMBER_LIST_CACHE_PREFIX) || k.startsWith(BODYPART_CACHE_PREFIX))){
         keysToRemove.push(k);
       }
     }
@@ -10642,21 +10642,13 @@ function showTrainerMemberListView(){
   loadTrainerMemberList();
 }
 
-async function loadTrainerMemberList(){
-  trainerMemberListEl.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
-  trainerListSummary.textContent = '';
-  const myUid = auth.currentUser.uid;
-  let confirmedSnap, pendingSnap;
-  try{
-    [confirmedSnap, pendingSnap] = await Promise.all([
-      db.collection('users').where('trainerId', '==', myUid).get(),
-      db.collection('users').where('trainerIdPending', '==', myUid).get(),
-    ]);
-  }catch(err){
-    console.error('트레이너 회원 목록 조회 오류:', err);
-    trainerMemberListEl.innerHTML = `<div class="admin-empty">회원 목록을 불러오지 못했어요.<br>오류 내용: ${escapeHtml(err.code || '')} ${escapeHtml(err.message || '')}</div>`;
-    return;
-  }
+const TRAINER_MEMBER_LIST_CACHE_PREFIX = 'trainerMemberListCache:';
+
+async function fetchTrainerMemberListData(myUid){
+  const [confirmedSnap, pendingSnap] = await Promise.all([
+    db.collection('users').where('trainerId', '==', myUid).get(),
+    db.collection('users').where('trainerIdPending', '==', myUid).get(),
+  ]);
 
   function readProfile(topData, uid){
     let profile = { name: '회원', ptTotal: null, phone: '' };
@@ -10702,6 +10694,11 @@ async function loadTrainerMemberList(){
   }));
 
   rows.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  return { rows, pendingRows };
+}
+
+function renderTrainerMemberList(data, myUid){
+  const { rows, pendingRows } = data;
   const isExhausted = (r) => {
     if(!r.ptHistory.length) return false;
     const cycle = resolvePtCycle(r.ptHistory, r.recordCount);
@@ -10801,6 +10798,40 @@ async function loadTrainerMemberList(){
       );
     });
   });
+}
+
+async function loadTrainerMemberList(){
+  const myUid = auth.currentUser.uid;
+  const cached = loadJsonCache(TRAINER_MEMBER_LIST_CACHE_PREFIX, myUid);
+
+  if(cached !== undefined){
+    // 이 기기에 지난번 목록이 저장돼 있으면, 서버 응답을 기다리지 않고 먼저 그걸로 채운다.
+    renderTrainerMemberList(cached, myUid);
+    // 뒤에서 조용히 최신 값으로 확인한다 (화면 흐름은 안 기다리게 함)
+    (async () => {
+      try{
+        const fresh = await fetchTrainerMemberListData(myUid);
+        saveJsonCache(TRAINER_MEMBER_LIST_CACHE_PREFIX, myUid, fresh);
+        renderTrainerMemberList(fresh, myUid);
+      }catch(err){
+        console.error('트레이너 회원 목록 조회 오류:', err);
+        // 캐시로 이미 보여주고 있으니 실패해도 조용히 넘어간다
+      }
+    })();
+    return;
+  }
+
+  // 이 기기에서 처음 보는 경우(캐시가 아직 없음)엔 예전처럼 로딩 표시 후 서버 응답을 기다린다
+  trainerMemberListEl.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
+  trainerListSummary.textContent = '';
+  try{
+    const fresh = await fetchTrainerMemberListData(myUid);
+    saveJsonCache(TRAINER_MEMBER_LIST_CACHE_PREFIX, myUid, fresh);
+    renderTrainerMemberList(fresh, myUid);
+  }catch(err){
+    console.error('트레이너 회원 목록 조회 오류:', err);
+    trainerMemberListEl.innerHTML = `<div class="admin-empty">회원 목록을 불러오지 못했어요.<br>오류 내용: ${escapeHtml(err.code || '')} ${escapeHtml(err.message || '')}</div>`;
+  }
 }
 
 const trainerAddMemberBtn = document.getElementById('trainerAddMemberBtn');
