@@ -4007,8 +4007,8 @@
     </div>
     <button type="button" class="modal-btn modal-btn-primary" id="adminAddMemberBtn" style="width:100%; margin-bottom:14px;">+ 새 회원 추가</button>
     <div class="admin-employer-assign-row">
-      <input autocapitalize="off" type="text" id="adminEmployerIdInput" class="modal-input" placeholder="고용주로 지정할 로그인 아이디">
-      <button type="button" class="modal-btn modal-btn-primary" id="adminEmployerAssignBtn">고용주 지정</button>
+      <input autocapitalize="off" type="text" id="adminEmployerIdInput" class="modal-input" placeholder="센터장으로 지정할 로그인 아이디">
+      <button type="button" class="modal-btn modal-btn-primary" id="adminEmployerAssignBtn">센터장 지정</button>
     </div>
     <input autocapitalize="off" type="text" id="adminMemberSearchInput" class="modal-input" placeholder="아이디 또는 이름으로 회원 찾기" style="margin-bottom:14px;">
     <div class="admin-member-list" id="adminMemberList">
@@ -4018,7 +4018,7 @@
 
   <div class="view" id="view-employer-dashboard">
     <div class="log-header">
-      <h1 class="admin-title">고용주 대시보드</h1>
+      <h1 class="admin-title">센터장 대시보드</h1>
       <button class="logout-btn" id="employerRefreshBtn" title="새로고침">⟳</button>
       <button class="logout-btn" id="employerSettingsBtn" title="설정">⚙</button>
     </div>
@@ -4577,7 +4577,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.53.0';
+const APP_VERSION = '2.53.5';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5539,9 +5539,14 @@ function colorForBodyPart(part){
 function colorForEntry(e){
   if(!e) return '#FFFFFF';
   const isOwnEntry = !!(auth.currentUser && e.authorId && e.authorId === auth.currentUser.uid);
-  // 작성자 본인이 아닌 다른 사람이 보는 거고, 부위 분류가 남아있으면
-  // 보는 사람 자신의 현재 부위별 색상 설정으로 다시 계산해서 보여준다
-  if(!isOwnEntry && e.bodyPart) return colorForBodyPart(e.bodyPart);
+  // 작성자 본인이 아닌 다른 사람이 보는 거면, 보는 사람 자신의 현재 부위별 색상
+  // 설정으로 다시 계산해서 보여준다. bodyPart가 저장 안 된 예전 기록(이 분류가
+  // 생기기 전에 만들어진 기록)은 종목 이름으로 그 자리에서 즉석 판별한다.
+  // 어느 쪽이든 문서 자체는 전혀 건드리지 않고 화면에 보여줄 때만 계산한다.
+  if(!isOwnEntry){
+    const part = e.bodyPart || detectBodyPartFromName(e.exercise);
+    if(part) return colorForBodyPart(part);
+  }
   return upgradeLegacyColor(e.color || '#FFFFFF');
 }
 
@@ -5858,19 +5863,20 @@ function monthDateRange(year, month){
    지난번에 이 기기에서 봤던 내용을 먼저 그대로 보여준다. 서버 응답이 도착하면 그 자리에서
    조용히 최신 내용으로 바꿔치기한다. 회원마다, 이 기기 안에서만 따로 저장된다. */
 const CAL_CACHE_PREFIX = 'calCache:';
+const TRAINER_CAL_CACHE_PREFIX = 'trainerCalCache:'; // 트레이너가 회원 달력을 볼 때 쓰는 별도 캐시.
+// 회원 본인용 캐시(calCache:)와 키를 완전히 분리해서, 트레이너 화면에서 캐시해둔 내용이
+// 나중에 같은 기기에서 그 회원 본인이 로그인했을 때 섞여 보이는 일이 없도록 한다.
+// (트레이너끼리는 서로 같은 데이터를 다 볼 수 있으니 트레이너 캐시끼리 섞이는 건 문제없다)
 function saveCalCache(memberId, entries){
-  // 트레이너가 보고 있는 회원 데이터는(비공개 기록이 섞여 있을 수 있어서) 그 회원 본인이 나중에
-  // 같은 기기에서 로그인했을 때 잘못 보일 수 있으니, 캐시에는 아예 저장하지 않는다.
-  // 캐시는 본인이 자기 달력을 볼 때만 쓴다.
-  if(isViewingAsTrainer) return;
+  const prefix = isViewingAsTrainer ? TRAINER_CAL_CACHE_PREFIX : CAL_CACHE_PREFIX;
   try{
-    localStorage.setItem(CAL_CACHE_PREFIX + memberId, JSON.stringify({ entries, savedAt: Date.now() }));
+    localStorage.setItem(prefix + memberId, JSON.stringify({ entries, savedAt: Date.now() }));
   }catch(err){ /* 저장 공간이 꽉 찼거나 지원 안 하면 조용히 건너뛴다 — 캐시는 있으면 좋고 없어도 그만이다 */ }
 }
 function loadCalCache(memberId){
-  if(isViewingAsTrainer) return null; // 트레이너 화면에서는 캐시를 아예 안 쓴다(항상 서버에서 정확하게 받아온다)
+  const prefix = isViewingAsTrainer ? TRAINER_CAL_CACHE_PREFIX : CAL_CACHE_PREFIX;
   try{
-    const raw = localStorage.getItem(CAL_CACHE_PREFIX + memberId);
+    const raw = localStorage.getItem(prefix + memberId);
     if(!raw) return null;
     const data = JSON.parse(raw);
     return Array.isArray(data.entries) ? data.entries : null;
@@ -5883,8 +5889,8 @@ function clearAllCalCache(){
     const keysToRemove = [];
     for(let i = 0; i < localStorage.length; i++){
       const k = localStorage.key(i);
-      // 달력 캐시뿐 아니라, 회원 목록·부위별 색상 캐시도 로그아웃할 때 같이 지운다
-      if(k && (k.startsWith(CAL_CACHE_PREFIX) || k.startsWith(MEMBERS_CACHE_PREFIX) || k.startsWith(BODYPART_CACHE_PREFIX))){
+      // 달력 캐시(회원용·트레이너용 둘 다)뿐 아니라, 회원 목록·부위별 색상 캐시도 로그아웃할 때 같이 지운다
+      if(k && (k.startsWith(CAL_CACHE_PREFIX) || k.startsWith(TRAINER_CAL_CACHE_PREFIX) || k.startsWith(MEMBERS_CACHE_PREFIX) || k.startsWith(BODYPART_CACHE_PREFIX))){
         keysToRemove.push(k);
       }
     }
@@ -6704,6 +6710,8 @@ function makeBlock(){
      더 올라갔으면(= 그 뒤에 또 입력이 있었으면) 낡은 응답이니 화면에 반영하지 않고 버린다. */
   let nameInputGen = 0;
   let prevBestWeight = null; // 이 종목의 이전 세션 최고 무게 (세트 순번과 무관하게 신기록 판단용)
+  let prevBestReps = null; // 무게 없는 맨몸운동일 때, 이전 세션 한 세트 최다 횟수 (신기록 판단용)
+  let prevBestSeconds = null; // 시간 기록 종목일 때, 이전 세션 최장 시간(초) (신기록 판단용)
   nameInputEl.addEventListener('input', () => { nameInputGen++; });
   findExerciseLink.addEventListener('click', () => {
     openExercisePicker((chosenName) => {
@@ -6719,6 +6727,8 @@ function makeBlock(){
       prevHintEl.style.display = 'none';
       prevHintEl.textContent = '';
       prevBestWeight = null;
+      prevBestReps = null;
+      prevBestSeconds = null;
       return;
     }
     const dateVal = (entryDateInput && entryDateInput.value) || todayStr();
@@ -6728,21 +6738,28 @@ function makeBlock(){
       prevHintEl.style.display = 'none';
       prevHintEl.textContent = '';
       prevBestWeight = null;
+      prevBestReps = null;
+      prevBestSeconds = null;
       return;
     }
 
     let text = '';
     if(prev.recordMode === 'time'){
       prevBestWeight = null;
+      prevBestReps = null;
       let maxSec = -1;
       prev.setRows.forEach(s => {
         const sec = (parseFloat(s.minutes) || 0) * 60 + (parseFloat(s.seconds) || 0);
         if(sec > maxSec) maxSec = sec;
       });
       if(maxSec >= 0){
+        prevBestSeconds = maxSec;
         text = `⏱ 이전 최고 기록: ${formatSeconds(maxSec)} (${formatDateHintStyle(prev.date)})`;
+      } else {
+        prevBestSeconds = null;
       }
     } else {
+      prevBestSeconds = null;
       let topSet = null;
       let maxReps = 0;
       let hasWeight = false;
@@ -6758,16 +6775,19 @@ function makeBlock(){
       });
       if(hasWeight && topSet){
         prevBestWeight = topSet.weight;
+        prevBestReps = null;
         const metric = exerciseMetric(prev);
         const volumeText = metric && metric.type === 'volume' ? ` · 이전 총 볼륨 ${formatNum(metric.value)}kg` : '';
         text = `⏱ 이전 최고 기록: ${formatNum(topSet.weight)}kg × ${topSet.reps}회${volumeText} (${formatDateHintStyle(prev.date)})`;
       } else if(maxReps > 0){
         prevBestWeight = null;
+        prevBestReps = maxReps;
         const metric = exerciseMetric(prev);
         const totalRepsText = metric && metric.type === 'reps' ? ` · 이전 총 갯수 ${metric.value}회` : '';
         text = `⏱ 이전 맨몸 운동 기록: 한 세트 최대 ${maxReps}회${totalRepsText} (${formatDateHintStyle(prev.date)})`;
       } else {
         prevBestWeight = null;
+        prevBestReps = null;
       }
     }
 
@@ -6913,6 +6933,7 @@ function makeBlock(){
           <button type="button" class="remove-set-btn" title="이 세트 삭제">×</button>
         </div>
         <div class="set-row-prev-hint" style="display:none;">이전 기록이에요</div>
+        <div class="set-row-newrecord-hint" style="display:none;">🔥 신기록이에요</div>
       `;
       if(insertAfterRow) setRowsEl.insertBefore(row, insertAfterRow.nextSibling); else setRowsEl.appendChild(row);
       makeSwipeAdjustable(row.querySelector('.set-minutes'));
@@ -6957,18 +6978,37 @@ function makeBlock(){
   function updatePrevRowHints(){
     const rows = [...setRowsEl.querySelectorAll('.set-row')];
 
-    // 1단계: 시간 모드가 아니면, 오늘 입력된 세트 중 무게가 가장 높은 세트가 어디인지 먼저 찾는다.
-    // (신기록 표시는 "이전 최고 기록보다 높아지는 세트마다"가 아니라, "오늘 중 가장 무거운 세트" 딱 하나에만 붙어야 한다)
+    // 1단계: 오늘 입력된 세트 중 "신기록" 후보가 될 세트를 모드별로 딱 하나씩 찾는다.
+    // (신기록 표시는 "이전 최고 기록보다 높아지는 세트마다"가 아니라, 오늘 중 가장 무거운/많은/긴
+    //  세트 딱 하나에만 붙어야 한다)
     let todayMaxWeight = null;
     let todayMaxWeightReps = null;
     let todayMaxWeightRowIndex = -1;
-    if(recordMode !== 'time'){
+    let todayMaxReps = null; // 무게 없는 맨몸 세트 중 최다 횟수
+    let todayMaxRepsRowIndex = -1;
+    let todayMaxSeconds = null; // 시간 기록 세트 중 최장 시간
+    let todayMaxSecondsRowIndex = -1;
+
+    if(recordMode === 'time'){
+      rows.forEach((row, i) => {
+        const curMin = (row.querySelector('.set-minutes').value || '').trim();
+        const curSec = (row.querySelector('.set-seconds').value || '').trim();
+        if(curMin === '' && curSec === '') return;
+        const sec = (parseFloat(curMin) || 0) * 60 + (parseFloat(curSec) || 0);
+        if(todayMaxSeconds === null || sec > todayMaxSeconds){
+          todayMaxSeconds = sec;
+          todayMaxSecondsRowIndex = i;
+        }
+      });
+    } else {
       rows.forEach((row, i) => {
         const curWeight = (row.querySelector('.set-weight').value || '').trim();
         const curReps = (row.querySelector('.set-reps').value || '').trim();
-        const curWeightNum = parseFloat(curWeight);
         const curRepsNum = parseFloat(curReps);
-        if(curWeight !== '' && curReps !== '' && !isNaN(curWeightNum) && !isNaN(curRepsNum)){
+        if(curReps === '' || isNaN(curRepsNum)) return;
+        if(curWeight !== ''){
+          const curWeightNum = parseFloat(curWeight);
+          if(isNaN(curWeightNum)) return;
           if(
             todayMaxWeight === null
             || curWeightNum > todayMaxWeight
@@ -6978,10 +7018,20 @@ function makeBlock(){
             todayMaxWeightReps = curRepsNum;
             todayMaxWeightRowIndex = i;
           }
+        } else {
+          // 무게가 없는 맨몸 세트는 무게 대신 횟수로 신기록을 판단한다
+          if(todayMaxReps === null || curRepsNum > todayMaxReps){
+            todayMaxReps = curRepsNum;
+            todayMaxRepsRowIndex = i;
+          }
         }
       });
     }
-    const isTodayRecord = todayMaxWeight !== null && (prevBestWeight === null || todayMaxWeight > prevBestWeight);
+
+    const isTodayWeightRecord = todayMaxWeight !== null && (prevBestWeight === null || todayMaxWeight > prevBestWeight);
+    // 무게가 있는 세트가 하나라도 있으면 그 종목은 '무게 운동'으로 보고, 맨몸 세트의 횟수 신기록은 따로 따지지 않는다
+    const isTodayRepsRecord = todayMaxWeight === null && todayMaxReps !== null && (prevBestReps === null || todayMaxReps > prevBestReps);
+    const isTodaySecondsRecord = todayMaxSeconds !== null && (prevBestSeconds === null || todayMaxSeconds > prevBestSeconds);
 
     // 2단계: '이전 기록이에요' 일치 여부는 세트별로 그대로 확인하고, 신기록 표시는 위에서 찾은 그 세트에만 붙인다
     rows.forEach((row, i) => {
@@ -6989,18 +7039,25 @@ function makeBlock(){
       const newRecordEl = row.querySelector('.set-row-newrecord-hint');
       const prevRow = prevCompareRows && prevCompareRows[i];
       let match = false;
+      let isNewRecord = false;
       if(recordMode === 'time'){
         if(prevRow){
           const curMin = (row.querySelector('.set-minutes').value || '').trim();
           const curSec = (row.querySelector('.set-seconds').value || '').trim();
           match = curMin === (prevRow.minutes || '').toString().trim() && curSec === (prevRow.seconds || '').toString().trim();
         }
-      } else if(prevRow){
-        const curWeight = (row.querySelector('.set-weight').value || '').trim();
-        const curReps = (row.querySelector('.set-reps').value || '').trim();
-        match = curWeight === (prevRow.weight || '').toString().trim() && curReps === (prevRow.reps || '').toString().trim();
+        isNewRecord = !match && isTodaySecondsRecord && i === todayMaxSecondsRowIndex;
+      } else {
+        if(prevRow){
+          const curWeight = (row.querySelector('.set-weight').value || '').trim();
+          const curReps = (row.querySelector('.set-reps').value || '').trim();
+          match = curWeight === (prevRow.weight || '').toString().trim() && curReps === (prevRow.reps || '').toString().trim();
+        }
+        isNewRecord = !match && (
+          (isTodayWeightRecord && i === todayMaxWeightRowIndex)
+          || (isTodayRepsRecord && i === todayMaxRepsRowIndex)
+        );
       }
-      const isNewRecord = !match && isTodayRecord && i === todayMaxWeightRowIndex;
       hintEl.style.display = match ? 'block' : 'none';
       if(newRecordEl) newRecordEl.style.display = isNewRecord ? 'block' : 'none';
     });
@@ -9130,6 +9187,7 @@ function showLandingView(){
   viewEntry.classList.remove('active');
   viewAdmin.classList.remove('active');
   viewTrainerMembers.classList.remove('active');
+  viewEmployerDashboard.classList.remove('active');
 }
 landingStartBtn.addEventListener('click', () => {
   isTrainerSignup = false;
@@ -9209,6 +9267,9 @@ function showLoginView(){
   viewTerms.classList.remove('active');
   viewLog.classList.remove('active');
   viewEntry.classList.remove('active');
+  viewAdmin.classList.remove('active');
+  viewTrainerMembers.classList.remove('active');
+  viewEmployerDashboard.classList.remove('active');
   viewLogin.classList.add('active');
   loginPasswordInput.value = '';
   loginRecoveryEmailInput.value = '';
@@ -9902,8 +9963,12 @@ function isAdmin(){
 }
 
 function showAdminView(){
+  viewLanding.classList.remove('active');
+  viewLogin.classList.remove('active');
   viewLog.classList.remove('active');
   viewEntry.classList.remove('active');
+  viewTrainerMembers.classList.remove('active');
+  viewEmployerDashboard.classList.remove('active');
   viewAdmin.classList.add('active');
   loadAdminDashboard();
   loadAdminMemberList();
@@ -9951,9 +10016,9 @@ adminEmployerAssignBtn.addEventListener('click', async () => {
     const targetUid = usernameSnap.data().uid;
     await db.collection('users').doc(targetUid).set({ isEmployer: true }, { merge: true });
     adminEmployerIdInput.value = '';
-    showCopyToast(`'${rawId}' 계정에 고용주 권한을 부여했어요.`);
+    showCopyToast(`'${rawId}' 계정에 센터장 권한을 부여했어요.`);
   }catch(err){
-    console.error('고용주 지정 오류:', err);
+    console.error('센터장 지정 오류:', err);
     showCopyToast('지정 중 오류가 발생했어요.');
   }finally{
     adminEmployerAssignBtn.disabled = false;
@@ -10018,7 +10083,7 @@ async function loadAdminDashboard(){
     const cards = [
       { label: '전체 회원', value: memberCount },
       { label: '전체 트레이너', value: trainerCount },
-      { label: '전체 고용주', value: employerCount },
+      { label: '전체 센터장', value: employerCount },
       { label: '이번 주 활동 회원', value: weekActiveUsers.size },
       { label: '오늘 작성된 일지', value: todayJournalKeys.size },
       { label: '오늘 등록된 사진', value: todayPhotosSnap.size },
@@ -10035,7 +10100,7 @@ async function loadAdminDashboard(){
   }
 }
 
-/* ---------- 고용주 대시보드 ---------- */
+/* ---------- 센터장 대시보드 ---------- */
 const viewEmployerDashboard = document.getElementById('view-employer-dashboard');
 const employerTrainerList = document.getElementById('employerTrainerList');
 const employerTrainerIdInput = document.getElementById('employerTrainerIdInput');
@@ -10144,7 +10209,7 @@ async function loadEmployerDashboard(){
             if(date === today) todayKeys.add(key);
           });
         }catch(err){
-          console.error(`고용주 대시보드 - 회원 기록 조회 오류 (${memberId}):`, err);
+          console.error(`센터장 대시보드 - 회원 기록 조회 오류 (${memberId}):`, err);
         }
       }));
       const todayCount = todayKeys.size;
@@ -10167,7 +10232,7 @@ async function loadEmployerDashboard(){
       </div>
     `).join('');
   }catch(err){
-    console.error('고용주 대시보드 조회 오류:', err);
+    console.error('센터장 대시보드 조회 오류:', err);
     employerTrainerList.innerHTML = '<div class="admin-empty">불러오지 못했어요.</div>';
   }
 }
@@ -10571,6 +10636,7 @@ function showTrainerMemberListView(){
   viewLog.classList.remove('active');
   viewEntry.classList.remove('active');
   viewAdmin.classList.remove('active');
+  viewEmployerDashboard.classList.remove('active');
   viewTrainerMembers.classList.add('active');
   isViewingAsTrainer = false;
   loadTrainerMemberList();
