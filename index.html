@@ -1541,6 +1541,26 @@
   .next-note-field textarea:focus{ outline:none; border-color: var(--brass); }
   .next-note-field textarea::placeholder{ color: var(--muted); }
 
+  .day-detail-note{
+    margin: 14px 0 4px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+  .day-detail-note-label{
+    display:block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--brass);
+    margin-bottom: 6px;
+    letter-spacing: 0.6px;
+  }
+  .day-detail-note-text{
+    font-size: 13px;
+    color: var(--chalk);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
   .prev-note-banner{
     display:flex;
     flex-direction: column;
@@ -4577,7 +4597,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.53.6';
+const APP_VERSION = '2.53.9';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -7768,6 +7788,8 @@ async function renderDayDetail(){
   // 회차 정보는 순서상 첫 번째 종목이 아니라, 그 날 기록 중 회차가 적힌 종목을 찾아서 써야 한다
   // (예: 복사해서 붙여넣은 PT 기록이 순서상 뒤에 있는 경우에도 놓치지 않도록)
   const sessionInfoEntry = entries.find(e => e.sessionNo);
+  // 이 날 남겨둔 메모(📌)도 찾는다 — 일지 수정 화면에 들어가야만 보이던 걸, 상세보기에서도 바로 보이게
+  const dayNoteEntry = entries.find(e => e.nextNote && e.nextNote.trim());
 
   dayDetail.innerHTML = `
     <div class="day-detail">
@@ -7777,6 +7799,11 @@ async function renderDayDetail(){
         ${dayTimeText ? `<span class="day-detail-time">${dayTimeText}</span>` : ''}
       </div>
       ${orderedEntries.map((e, i) => entryHtml(e, isMixedDay && e === personalEntries[0])).join('')}
+      ${dayNoteEntry ? `
+      <div class="day-detail-note">
+        <span class="day-detail-note-label">📌 메모</span>
+        <div class="day-detail-note-text">${formatMemoForDisplay(dayNoteEntry.nextNote)}</div>
+      </div>` : ''}
       ${canManageWholeDay ? `
       <div class="day-detail-actions">
         <button class="day-copy-btn" id="dayCopyBtn">${isMixedDay && !(isViewingAsTrainer || isAdmin()) ? '개인 운동만 다른 날짜로 복사' : '다른 날짜로 일지 복사'}</button>
@@ -9344,28 +9371,17 @@ const SYNTHETIC_EMAIL_DOMAIN = '@ptdiary.app';
    본인이 자기 아이디를 바꿀 때 쓰던 것과 똑같은 로직이지만, 대상 uid를 따로 받는다. */
 async function changeUsernameFor(targetUid, oldRawId, newRawId){
   if(!/^[a-zA-Z0-9]{3,}$/.test(newRawId)) throw new Error('아이디는 영문/숫자 3자 이상으로 입력해주세요.');
-  const newDocId = usernameDocId(newRawId);
-  if(!newDocId) throw new Error('아이디는 영문/숫자 3자 이상으로 입력해주세요.');
 
-  const newDocSnap = await db.collection('usernames').doc(newDocId).get();
-  const newDocData = newDocSnap.exists ? newDocSnap.data() : null;
-  const alreadyTarget = newDocData && newDocData.uid === targetUid;
-  if(newDocData && !alreadyTarget){
-    throw new Error('이미 사용 중인 아이디예요.');
-  }
-
-  const oldDocId = usernameDocId(oldRawId);
-  if(!alreadyTarget){
-    const oldDoc = await db.collection('usernames').doc(oldDocId).get();
-    const email = oldDoc.exists ? oldDoc.data().email : null;
-    await db.collection('usernames').doc(newDocId).set({ email, uid: targetUid });
-  }
-  if(oldDocId !== newDocId){
-    const staleOldDoc = await db.collection('usernames').doc(oldDocId).get();
-    if(staleOldDoc.exists && staleOldDoc.data().uid === targetUid){
-      await db.collection('usernames').doc(oldDocId).delete();
-    }
-  }
+  // 이제 Firestore만 옮기지 않고, 서버(Admin SDK)가 대상 계정의 실제 Auth 이메일도 새 아이디에
+  // 맞춰 같이 바꿔준다 — 그래야 예전 아이디가 나중에 다른 회원에게 다시 배정될 수 있다.
+  const idToken = await auth.currentUser.getIdToken();
+  const res = await fetch('/.netlify/functions/change-username', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+    body: JSON.stringify({ targetUid, newRawId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if(!res.ok) throw new Error(data.error || '아이디 변경에 실패했어요.');
 
   // 그 사람의 프로필(members-list) 안 이름 필드도 새 아이디로 맞춰준다
   try{
@@ -9692,9 +9708,25 @@ async function reauthenticate(currentPassword){
   await user.reauthenticateWithCredential(cred);
 }
 
+// 실명(member.name)이 아니라, 이 계정이 실제로 로그인에 쓰는 아이디를 찾는다.
+// 트레이너가 새 회원을 만들 때는 로그인 아이디와 실명을 다르게 지어줄 수 있어서,
+// member.name을 아이디로 착각하면 안 된다 — usernames 컬렉션에서 내 uid로 역조회한다.
+async function findMyCurrentUsername(){
+  try{
+    const snap = await db.collection('usernames').where('uid', '==', auth.currentUser.uid).limit(1).get();
+    return snap.empty ? null : snap.docs[0].id;
+  }catch(err){
+    console.error('내 아이디 조회 오류:', err);
+    return null;
+  }
+}
+
 function refreshMyAccountModal(){
   const member = members.find(m => m.id === currentMemberId);
-  accountIdValue.textContent = member ? member.name : '-';
+  accountIdValue.textContent = '...';
+  findMyCurrentUsername().then(username => {
+    accountIdValue.textContent = username || (member ? member.name : '-');
+  });
   const currentEmail = auth.currentUser ? auth.currentUser.email : '';
   const hasRealEmail = currentEmail && !currentEmail.endsWith(SYNTHETIC_EMAIL_DOMAIN);
   accountRecoveryEmailValue.textContent = hasRealEmail ? currentEmail : '';
@@ -9815,45 +9847,29 @@ trainerConnectRemoveBtn.addEventListener('click', () => {
   }, '해제');
 });
 
-accountChangeIdBtn.addEventListener('click', () => {
+accountChangeIdBtn.addEventListener('click', async () => {
   closeMyAccountModal();
-  const member = members.find(m => m.id === currentMemberId);
-  const oldId = member ? member.name : '';
+  const oldId = await findMyCurrentUsername();
   openPromptModal({
     title: '아이디 변경',
-    sub: `현재 아이디: ${oldId}`,
+    sub: oldId ? `현재 아이디: ${oldId}` : '',
     fields: [{ placeholder: '새 아이디' }],
     submitLabel: '변경하기',
     onSubmit: async (newRawId) => {
       if(!/^[a-zA-Z0-9]{3,}$/.test(newRawId)) throw new Error('아이디는 영문/숫자 3자 이상으로 입력해주세요.');
-      const newDocId = usernameDocId(newRawId);
-      if(!newDocId) throw new Error('아이디는 영문/숫자 3자 이상으로 입력해주세요.');
+      // 이제 Firestore만 옮기지 않고, 서버(Admin SDK)가 실제 Auth 이메일도 새 아이디에 맞춰
+      // 같이 바꿔준다 — 그래야 예전 아이디가 나중에 다른 회원에게 다시 배정될 수 있다.
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch('/.netlify/functions/change-username', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ newRawId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(data.error || '아이디 변경에 실패했어요.');
 
-      const newDocSnap = await db.collection('usernames').doc(newDocId).get();
-      const newDocData = newDocSnap.exists ? newDocSnap.data() : null;
-      const alreadyMine = newDocData && newDocData.uid === auth.currentUser.uid;
-      if(newDocData && !alreadyMine){
-        throw new Error('이미 사용 중인 아이디예요.');
-      }
-
-      const oldDocId = usernameDocId(oldId);
-      if(!alreadyMine){
-        const oldDoc = await db.collection('usernames').doc(oldDocId).get();
-        const email = oldDoc.exists ? oldDoc.data().email : auth.currentUser.email;
-        await db.collection('usernames').doc(newDocId).set({ email, uid: auth.currentUser.uid });
-      }
-      if(oldDocId !== newDocId){
-        const staleOldDoc = await db.collection('usernames').doc(oldDocId).get();
-        if(staleOldDoc.exists && staleOldDoc.data().uid === auth.currentUser.uid){
-          await db.collection('usernames').doc(oldDocId).delete();
-        }
-      }
-
-      if(member){
-        member.name = newRawId.trim();
-        await saveMembers();
-        logMemberName.textContent = formatDateHintStyle(todayStr());
-      }
+      // 로그인 아이디는 여기서 바뀌지만, 회원의 실명(member.name)은 트레이너가 알아보는 표시용
+      // 정보라 아이디와 별개로 그대로 둔다 (트레이너가 만들어준 계정은 이름과 아이디가 원래 다름).
       closePromptModal();
       showCopyToast('아이디를 변경했어요.');
     },
@@ -9929,7 +9945,7 @@ accountWithdrawBtn.addEventListener('click', () => {
           }
           const uid = auth.currentUser.uid;
           const member = members.find(m => m.id === uid);
-          const myId = member ? member.name : '';
+          const myId = (await findMyCurrentUsername()) || (member ? member.name : '');
           try{
             if(myId){
               const doc = await db.collection('usernames').doc(usernameDocId(myId)).get();
