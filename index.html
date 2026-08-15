@@ -576,6 +576,15 @@
   .password-field-wrap input{
     padding-right: 44px !important;
   }
+  .input-suffix{
+    position: absolute;
+    top: 50%;
+    right: 14px;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 13px;
+    pointer-events: none;
+  }
   .password-toggle-btn{
     position: absolute;
     top: 50%;
@@ -3133,6 +3142,20 @@
   .employer-stat-value.today-active{
     color: var(--brass-bright);
   }
+  .earnings-stat-value{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--chalk);
+    white-space: nowrap;
+    letter-spacing: -0.3px;
+  }
+  .earnings-stat-unit{
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--muted);
+    margin-left: 1px;
+  }
   .earnings-calendar-month-label{
     font-family: 'IBM Plex Mono', monospace;
     font-size: 13px;
@@ -3170,8 +3193,7 @@
   }
   .earnings-calendar-cell.is-empty{ background: none; border: none; min-height: 0; }
   .earnings-calendar-cell.is-today{ border-color: var(--brass); }
-  .earnings-calendar-cell.has-earning{ cursor: pointer; }
-  .earnings-calendar-cell.has-earning:hover{ border-color: var(--brass); }
+  .earnings-calendar-cell.has-earning{ border-color: var(--line-soft); }
   .earnings-calendar-day-num{
     font-size: 11px;
     color: var(--muted);
@@ -3181,9 +3203,10 @@
   .earnings-calendar-cell.is-today .earnings-calendar-day-num{ color: var(--brass-bright); }
   .earnings-calendar-row{
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 2px;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 2px;
   }
   .earnings-calendar-amount{
     font-family: 'IBM Plex Mono', monospace;
@@ -3196,35 +3219,32 @@
   .earnings-calendar-name{
     font-size: 9px;
     color: var(--chalk);
-    min-width: 0;
+    width: 100%;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-align: center;
   }
-  .earnings-calendar-cell.is-selected{ background: var(--surface-raised); border-color: var(--brass-bright); }
-  .earnings-day-detail-card{
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-m);
-    padding: 14px;
-    margin-top: 4px;
-  }
-  .earnings-day-detail-date{
-    font-size: 13px;
-    color: var(--chalk);
-    font-weight: 600;
-    margin-bottom: 10px;
-  }
-  .earnings-day-detail-row{
-    display: flex;
-    justify-content: space-between;
-    font-size: 13px;
-    padding: 6px 0;
+  .earnings-calendar-day-total{
+    margin-top: 2px;
+    padding-top: 2px;
     border-top: 1px solid var(--line-soft);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--brass-bright);
+    font-weight: 600;
+    text-align: center;
+    width: 100%;
   }
-  .earnings-day-detail-row:first-of-type{ border-top: none; }
-  .earnings-day-detail-name{ color: var(--muted); }
-  .earnings-day-detail-value{ color: var(--chalk); font-family: 'IBM Plex Mono', monospace; }
+  .earnings-calendar-week-total{
+    grid-column: 1 / -1;
+    text-align: right;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    padding: 4px 6px 10px;
+  }
   .trainer-pending-badge{
     background: var(--brass);
     color: var(--bg);
@@ -4254,15 +4274,15 @@
     <div class="employer-stat-grid" style="margin-bottom:16px;">
       <div class="employer-stat-box">
         <div class="employer-stat-label">오늘</div>
-        <div class="employer-stat-value" id="trainerEarningsTodayValue">0원</div>
+        <div class="earnings-stat-value" id="trainerEarningsTodayValue">0<span class="earnings-stat-unit">원</span></div>
       </div>
       <div class="employer-stat-box">
         <div class="employer-stat-label">이번 주</div>
-        <div class="employer-stat-value" id="trainerEarningsWeekValue">0원</div>
+        <div class="earnings-stat-value" id="trainerEarningsWeekValue">0<span class="earnings-stat-unit">원</span></div>
       </div>
       <div class="employer-stat-box">
         <div class="employer-stat-label">이번 달</div>
-        <div class="employer-stat-value" id="trainerEarningsMonthValue">0원</div>
+        <div class="earnings-stat-value" id="trainerEarningsMonthValue">0<span class="earnings-stat-unit">원</span></div>
       </div>
     </div>
     <div class="login-error" id="trainerEarningsMissingNotice" style="display:none; margin-bottom:14px;"></div>
@@ -4271,7 +4291,6 @@
       <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
     </div>
     <div class="earnings-calendar-grid" id="trainerEarningsCalendarGrid"></div>
-    <div id="trainerEarningsDayDetail"></div>
   </div>
 
   <div class="modal-overlay" id="trainerSettingsModal">
@@ -4411,6 +4430,7 @@
     <div class="modal-sub" id="promptModalSub"></div>
     <div class="password-field-wrap" id="promptModalInput1Wrap" style="display:none;">
       <input autocapitalize="off" id="promptModalInput1" class="modal-input" type="text">
+      <span class="input-suffix" id="promptModalInput1Suffix" style="display:none;"></span>
       <button type="button" class="password-toggle-btn" data-target="promptModalInput1" title="비밀번호 보기" style="display:none;">
         <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
         <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
@@ -4418,6 +4438,7 @@
     </div>
     <div class="password-field-wrap" id="promptModalInput2Wrap" style="display:none;">
       <input autocapitalize="off" id="promptModalInput2" class="modal-input" type="text">
+      <span class="input-suffix" id="promptModalInput2Suffix" style="display:none;"></span>
       <button type="button" class="password-toggle-btn" data-target="promptModalInput2" title="비밀번호 보기" style="display:none;">
         <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
         <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
@@ -4425,6 +4446,7 @@
     </div>
     <div class="password-field-wrap" id="promptModalInput3Wrap" style="display:none;">
       <input autocapitalize="off" id="promptModalInput3" class="modal-input" type="text">
+      <span class="input-suffix" id="promptModalInput3Suffix" style="display:none;"></span>
       <button type="button" class="password-toggle-btn" data-target="promptModalInput3" title="비밀번호 보기" style="display:none;">
         <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
         <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
@@ -4792,7 +4814,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.54.3';
+const APP_VERSION = '2.54.7';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -9783,9 +9805,15 @@ function openPromptModal({ title, sub, fields, submitLabel, onSubmit }){
     document.getElementById('promptModalInput2Wrap'),
     document.getElementById('promptModalInput3Wrap'),
   ];
+  const suffixes = [
+    document.getElementById('promptModalInput1Suffix'),
+    document.getElementById('promptModalInput2Suffix'),
+    document.getElementById('promptModalInput3Suffix'),
+  ];
   inputs.forEach((input, i) => {
     const f = fields[i];
     const wrap = wraps[i];
+    const suffixEl = suffixes[i];
     const toggleBtn = wrap.querySelector('.password-toggle-btn');
     if(f){
       wrap.style.display = 'block';
@@ -9796,9 +9824,16 @@ function openPromptModal({ title, sub, fields, submitLabel, onSubmit }){
       toggleBtn.style.display = f.type === 'password' ? 'flex' : 'none';
       toggleBtn.querySelector('.eye-open').style.display = 'none';
       toggleBtn.querySelector('.eye-closed').style.display = 'block';
+      if(f.unit){
+        suffixEl.textContent = f.unit;
+        suffixEl.style.display = 'block';
+      } else {
+        suffixEl.style.display = 'none';
+      }
     } else {
       wrap.style.display = 'none';
       input.value = '';
+      suffixEl.style.display = 'none';
     }
   });
 
@@ -11162,7 +11197,6 @@ const trainerEarningsMonthValue = document.getElementById('trainerEarningsMonthV
 const trainerEarningsMissingNotice = document.getElementById('trainerEarningsMissingNotice');
 const trainerEarningsMonthLabel = document.getElementById('trainerEarningsMonthLabel');
 const trainerEarningsCalendarGrid = document.getElementById('trainerEarningsCalendarGrid');
-const trainerEarningsDayDetail = document.getElementById('trainerEarningsDayDetail');
 const viewTrainerEarnings = document.getElementById('view-trainer-earnings');
 
 let trainerEarningsCurrentUid = null;
@@ -11185,12 +11219,11 @@ function showTrainerEarningsView(trainerUid, { trainerName, returnTo } = {}){
 
 async function loadTrainerEarnings(){
   if(!trainerEarningsCurrentUid) return;
-  trainerEarningsDayDetail.innerHTML = '';
   try{
     const data = await computeTrainerEarnings(trainerEarningsCurrentUid);
-    trainerEarningsTodayValue.textContent = `${formatNum(data.todayTotal)}원`;
-    trainerEarningsWeekValue.textContent = `${formatNum(data.weekTotal)}원`;
-    trainerEarningsMonthValue.textContent = `${formatNum(data.monthTotal)}원`;
+    trainerEarningsTodayValue.innerHTML = `${formatNum(data.todayTotal)}<span class="earnings-stat-unit">원</span>`;
+    trainerEarningsWeekValue.innerHTML = `${formatNum(data.weekTotal)}<span class="earnings-stat-unit">원</span>`;
+    trainerEarningsMonthValue.innerHTML = `${formatNum(data.monthTotal)}<span class="earnings-stat-unit">원</span>`;
 
     if(data.missingRateCount > 0){
       trainerEarningsMissingNotice.textContent = `단가 미등록 ${data.missingRateCount}회 — 0원으로 계산됐어요. 회원 정보 수정에서 단가를 채워주세요.`;
@@ -11213,12 +11246,8 @@ function renderTrainerEarningsCalendar(data){
   const startWeekday = firstOfMonth.getDay(); // 0=일요일
   const today = todayStr();
 
-  let html = '';
-  for(let i = 0; i < startWeekday; i++){
-    html += '<div class="earnings-calendar-cell is-empty"></div>';
-  }
-  for(let day = 1; day <= daysInMonth; day++){
-    const dateStr = toDateStr(data.year, data.month, day);
+  function cellHtml(dateStr, day){
+    if(!dateStr) return '<div class="earnings-calendar-cell is-empty"></div>';
     const amount = data.dailyTotals[dateStr] || 0;
     const isToday = dateStr === today;
     const hasEarning = amount > 0;
@@ -11229,32 +11258,37 @@ function renderTrainerEarningsCalendar(data){
         <span class="earnings-calendar-amount">${formatNum(r.amount)}</span>
       </div>
     `).join('');
-    html += `<div class="earnings-calendar-cell${isToday ? ' is-today' : ''}${hasEarning ? ' has-earning' : ''}" data-date="${dateStr}">
+    const totalHtml = dayRows.length > 1 ? `<div class="earnings-calendar-day-total">합계 ${formatNum(amount)}</div>` : '';
+    return `<div class="earnings-calendar-cell${isToday ? ' is-today' : ''}${hasEarning ? ' has-earning' : ''}">
       <div class="earnings-calendar-day-num">${day}</div>
       ${rowsHtml}
+      ${totalHtml}
     </div>`;
   }
-  trainerEarningsCalendarGrid.innerHTML = html;
 
-  trainerEarningsCalendarGrid.querySelectorAll('.earnings-calendar-cell.has-earning').forEach(cell => {
-    cell.addEventListener('click', () => {
-      trainerEarningsCalendarGrid.querySelectorAll('.earnings-calendar-cell').forEach(c => c.classList.remove('is-selected'));
-      cell.classList.add('is-selected');
-      const dateStr = cell.getAttribute('data-date');
-      const rows = data.dailyBreakdown[dateStr] || [];
-      trainerEarningsDayDetail.innerHTML = `
-        <div class="earnings-day-detail-card">
-          <div class="earnings-day-detail-date">${formatDate(dateStr)}</div>
-          ${rows.map(r => `
-            <div class="earnings-day-detail-row">
-              <span class="earnings-day-detail-name">${escapeHtml(r.name)}</span>
-              <span class="earnings-day-detail-value">${formatNum(r.amount)}원</span>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    });
-  });
+  // 한 주(일~토) 단위로 묶어서, 주가 끝날 때마다 그 주의 합계를 같이 보여준다
+  let html = '';
+  let week = [];
+  for(let i = 0; i < startWeekday; i++) week.push(null);
+  let weekTotal = 0;
+
+  function flushWeek(){
+    while(week.length < 7) week.push(null);
+    html += week.map(d => cellHtml(d ? d.dateStr : null, d ? d.day : '')).join('');
+    html += `<div class="earnings-calendar-week-total">이번 주 합계 ${formatNum(weekTotal)}원</div>`;
+    week = [];
+    weekTotal = 0;
+  }
+
+  for(let day = 1; day <= daysInMonth; day++){
+    const dateStr = toDateStr(data.year, data.month, day);
+    week.push({ dateStr, day });
+    weekTotal += data.dailyTotals[dateStr] || 0;
+    if(week.length === 7) flushWeek();
+  }
+  if(week.length) flushWeek();
+
+  trainerEarningsCalendarGrid.innerHTML = html;
 }
 
 trainerEarningsOpenBtn.addEventListener('click', () => {
@@ -11374,16 +11408,19 @@ function renderTrainerEditPtHistory(){
       const h = trainerEditingPtHistory[i];
       trainerMemberEditModal.classList.remove('open');
       openPromptModal({
-        title: `${i + 1}차 등록 (${h.amount}회) - 수업료 수정`,
-        sub: '등록 횟수는 여기서 바꿀 수 없어요. 1회당 수업료만 고쳐주세요.',
+        title: `${i + 1}차 등록 수정`,
+        sub: '등록 횟수는 이미 입력되어 있어요. 필요하면 고치고, 1회당 수업료도 입력해주세요.',
         fields: [
-          { placeholder: '1회당 수업료 (예: 50000)', type: 'number', value: h.rate || '' },
+          { placeholder: '등록 횟수 (예: 10)', type: 'number', value: h.amount, unit: '회' },
+          { placeholder: '1회당 수업료 (예: 50000)', type: 'number', unit: '원' },
         ],
         submitLabel: '수정하기',
-        onSubmit: async (rawRate) => {
+        onSubmit: async (rawAmount, rawRate) => {
+          const amount = parseInt(rawAmount, 10);
+          if(!amount || amount <= 0) throw new Error('올바른 횟수를 입력해주세요.');
           const rate = rawRate ? parseInt(rawRate, 10) : 0;
           if(rawRate && (isNaN(rate) || rate < 0)) throw new Error('올바른 수업료를 입력해주세요.');
-          trainerEditingPtHistory[i] = { amount: h.amount, rate: rate || 0 };
+          trainerEditingPtHistory[i] = { amount, rate: rate || 0 };
           closePromptModal();
           renderTrainerEditPtHistory();
           trainerMemberEditModal.classList.add('open');
@@ -11426,8 +11463,8 @@ trainerEditPtAddBtn.addEventListener('click', () => {
     title: '추가 등록',
     sub: '이번에 등록할 횟수와 1회당 수업료를 입력해주세요. (수업료는 나중에 채워도 돼요)',
     fields: [
-      { placeholder: '등록 횟수 (예: 10)', type: 'number' },
-      { placeholder: '1회당 수업료 (예: 50000)', type: 'number' },
+      { placeholder: '등록 횟수 (예: 10)', type: 'number', unit: '회' },
+      { placeholder: '1회당 수업료 (예: 50000)', type: 'number', unit: '원' },
     ],
     submitLabel: '등록',
     onSubmit: async (rawAmount, rawRate) => {
