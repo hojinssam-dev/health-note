@@ -4814,7 +4814,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.54.7';
+const APP_VERSION = '2.54.8';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -11412,7 +11412,7 @@ function renderTrainerEditPtHistory(){
         sub: '등록 횟수는 이미 입력되어 있어요. 필요하면 고치고, 1회당 수업료도 입력해주세요.',
         fields: [
           { placeholder: '등록 횟수 (예: 10)', type: 'number', value: h.amount, unit: '회' },
-          { placeholder: '1회당 수업료 (예: 50000)', type: 'number', unit: '원' },
+          { placeholder: '1회당 수업료 (예: 50000)', type: 'number', value: h.rate || '', unit: '원' },
         ],
         submitLabel: '수정하기',
         onSubmit: async (rawAmount, rawRate) => {
