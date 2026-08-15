@@ -2906,20 +2906,31 @@
     margin-bottom: 10px;
   }
   .pt-history-item{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
+    display:block;
     background: var(--surface-raised);
     border: 1px solid var(--line);
     border-radius: var(--radius-s);
     padding: 9px 12px;
     font-size: 13px;
+    cursor: pointer;
+  }
+  .pt-history-item-top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
   }
   .pt-history-item.is-current{ border-color: var(--brass); }
   .pt-history-item .gen{ color: var(--muted); font-family:'IBM Plex Mono', monospace; font-size:11px; }
   .pt-history-item .amount{ color: var(--chalk); font-weight:600; }
   .pt-history-item .status{ font-size:11px; color: var(--muted); }
   .pt-history-item.is-current .status{ color: var(--brass-bright); }
+  .pt-history-item-rate{
+    margin-top: 5px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .pt-history-item-rate.is-missing{ font-style: italic; }
   .pt-add-btn{
     width:100%;
     background: none;
@@ -3067,6 +3078,130 @@
     color: var(--muted);
     margin-bottom: 14px;
   }
+  .employer-trainer-card{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--line);
+    border-radius: var(--radius-m);
+    padding: 14px;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+  }
+  .employer-trainer-card.has-activity-today{
+    border-left-color: var(--brass);
+  }
+  .employer-trainer-header{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .employer-trainer-name{
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--chalk);
+  }
+  .employer-trainer-member-count{
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .employer-stat-grid{
+    display: flex;
+    gap: 8px;
+  }
+  .employer-stat-box{
+    flex: 1;
+    background: var(--surface-raised);
+    border-radius: var(--radius-s);
+    padding: 8px 6px;
+    text-align: center;
+  }
+  .employer-stat-label{
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+  .employer-stat-value{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--chalk);
+  }
+  .employer-stat-value.today-active{
+    color: var(--brass-bright);
+  }
+  .earnings-calendar-month-label{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .earnings-calendar-weekdays{
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .earnings-calendar-grid{
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+  .earnings-calendar-cell{
+    aspect-ratio: 1;
+    border-radius: var(--radius-s);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    cursor: default;
+  }
+  .earnings-calendar-cell.is-empty{ background: none; border: none; }
+  .earnings-calendar-cell.is-today{ border-color: var(--brass); }
+  .earnings-calendar-cell.has-earning{ cursor: pointer; }
+  .earnings-calendar-cell.has-earning:hover{ border-color: var(--brass); }
+  .earnings-calendar-cell.is-selected{ background: var(--surface-raised); border-color: var(--brass-bright); }
+  .earnings-calendar-day-num{
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .earnings-calendar-cell.is-today .earnings-calendar-day-num{ color: var(--brass-bright); }
+  .earnings-calendar-amount{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--brass-bright);
+    font-weight: 600;
+  }
+  .earnings-day-detail-card{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    padding: 14px;
+    margin-top: 4px;
+  }
+  .earnings-day-detail-date{
+    font-size: 13px;
+    color: var(--chalk);
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .earnings-day-detail-row{
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 6px 0;
+    border-top: 1px solid var(--line-soft);
+  }
+  .earnings-day-detail-row:first-of-type{ border-top: none; }
+  .earnings-day-detail-name{ color: var(--muted); }
+  .earnings-day-detail-value{ color: var(--chalk); font-family: 'IBM Plex Mono', monospace; }
   .trainer-pending-badge{
     background: var(--brass);
     color: var(--bg);
@@ -4071,6 +4206,7 @@
   <div class="view" id="view-trainer-members">
     <div class="log-header">
       <h1 class="admin-title">회원 목록</h1>
+      <button class="logout-btn" id="trainerEarningsOpenBtn" title="수업료 달력">💰</button>
       <button class="logout-btn" id="trainerMembersRefreshBtn" title="새로고침">⟳</button>
       <button class="logout-btn" id="trainerMembersSettingsBtn" title="설정">⚙</button>
     </div>
@@ -4084,6 +4220,35 @@
     <div class="admin-member-list" id="trainerMemberList">
       <div class="admin-loading">불러오는 중...</div>
     </div>
+  </div>
+
+  <div class="view" id="view-trainer-earnings">
+    <div class="log-header">
+      <h1 class="admin-title" id="trainerEarningsTitle">수업료 달력</h1>
+      <button class="logout-btn" id="trainerEarningsRefreshBtn" title="새로고침">⟳</button>
+      <button class="logout-btn" id="trainerEarningsBackBtn" title="닫기">✕</button>
+    </div>
+    <div class="employer-stat-grid" style="margin-bottom:16px;">
+      <div class="employer-stat-box">
+        <div class="employer-stat-label">오늘</div>
+        <div class="employer-stat-value" id="trainerEarningsTodayValue">0원</div>
+      </div>
+      <div class="employer-stat-box">
+        <div class="employer-stat-label">이번 주</div>
+        <div class="employer-stat-value" id="trainerEarningsWeekValue">0원</div>
+      </div>
+      <div class="employer-stat-box">
+        <div class="employer-stat-label">이번 달</div>
+        <div class="employer-stat-value" id="trainerEarningsMonthValue">0원</div>
+      </div>
+    </div>
+    <div class="login-error" id="trainerEarningsMissingNotice" style="display:none; margin-bottom:14px;"></div>
+    <div class="earnings-calendar-month-label" id="trainerEarningsMonthLabel"></div>
+    <div class="earnings-calendar-weekdays">
+      <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+    </div>
+    <div class="earnings-calendar-grid" id="trainerEarningsCalendarGrid"></div>
+    <div id="trainerEarningsDayDetail"></div>
   </div>
 
   <div class="modal-overlay" id="trainerSettingsModal">
@@ -4113,6 +4278,7 @@
       <div class="account-field-label">PT 등록 이력</div>
       <div class="pt-history-list" id="trainerEditPtHistoryList"></div>
       <button type="button" class="pt-add-btn" id="trainerEditPtAddBtn">+ 추가 등록</button>
+      <button type="button" class="trainer-toggle-btn" id="trainerEditSettlementExemptBtn" style="width:100%; margin-top:10px;">💰 수업료 정산 제외</button>
       <div class="account-field-label">휴대폰 번호</div>
       <input autocapitalize="off" id="trainerEditPhoneInput" type="tel" class="modal-input" placeholder="예) 010-1234-5678">
       <div class="login-error" id="trainerMemberEditError" style="display:none;"></div>
@@ -4603,7 +4769,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.53.13';
+const APP_VERSION = '2.54.1';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -9228,6 +9394,7 @@ function showLandingView(){
   viewAdmin.classList.remove('active');
   viewTrainerMembers.classList.remove('active');
   viewEmployerDashboard.classList.remove('active');
+  viewTrainerEarnings.classList.remove('active');
 }
 landingStartBtn.addEventListener('click', () => {
   isTrainerSignup = false;
@@ -9310,6 +9477,7 @@ function showLoginView(){
   viewAdmin.classList.remove('active');
   viewTrainerMembers.classList.remove('active');
   viewEmployerDashboard.classList.remove('active');
+  viewTrainerEarnings.classList.remove('active');
   viewLogin.classList.add('active');
   loginPasswordInput.value = '';
   loginRecoveryEmailInput.value = '';
@@ -9998,6 +10166,7 @@ function showAdminView(){
   viewEntry.classList.remove('active');
   viewTrainerMembers.classList.remove('active');
   viewEmployerDashboard.classList.remove('active');
+  viewTrainerEarnings.classList.remove('active');
   viewAdmin.classList.add('active');
   loadAdminDashboard();
   loadAdminMemberList();
@@ -10148,6 +10317,7 @@ function showEmployerDashboardView(){
   viewEntry.classList.remove('active');
   viewAdmin.classList.remove('active');
   document.getElementById('view-trainer-members').classList.remove('active');
+  viewTrainerEarnings.classList.remove('active');
   viewEmployerDashboard.classList.add('active');
   loadEmployerDashboard();
 }
@@ -10255,11 +10425,35 @@ async function loadEmployerDashboard(){
 
     rows.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
     employerTrainerList.innerHTML = rows.map(r => `
-      <div class="admin-member-row">
-        <div class="admin-member-id">${escapeHtml(r.name)}</div>
-        <div class="admin-member-meta">회원 ${r.memberCount}명 · 오늘 ${r.todayCount}건 · 이번 주 ${r.weekCount}건 · 이번 달 ${r.monthCount}건</div>
+      <div class="employer-trainer-card${r.todayCount > 0 ? ' has-activity-today' : ''}" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}">
+        <div class="employer-trainer-header">
+          <span class="employer-trainer-name">${escapeHtml(r.name)}</span>
+          <span class="employer-trainer-member-count">회원 ${r.memberCount}명</span>
+        </div>
+        <div class="employer-stat-grid">
+          <div class="employer-stat-box">
+            <div class="employer-stat-label">오늘</div>
+            <div class="employer-stat-value${r.todayCount > 0 ? ' today-active' : ''}">${r.todayCount}</div>
+          </div>
+          <div class="employer-stat-box">
+            <div class="employer-stat-label">이번 주</div>
+            <div class="employer-stat-value">${r.weekCount}</div>
+          </div>
+          <div class="employer-stat-box">
+            <div class="employer-stat-label">이번 달</div>
+            <div class="employer-stat-value">${r.monthCount}</div>
+          </div>
+        </div>
       </div>
     `).join('');
+    employerTrainerList.querySelectorAll('.employer-trainer-card').forEach(card => {
+      card.addEventListener('click', () => {
+        showTrainerEarningsView(card.getAttribute('data-trainer-uid'), {
+          trainerName: card.getAttribute('data-trainer-name'),
+          returnTo: 'employer',
+        });
+      });
+    });
   }catch(err){
     console.error('센터장 대시보드 조회 오류:', err);
     employerTrainerList.innerHTML = '<div class="admin-empty">불러오지 못했어요.</div>';
@@ -10666,6 +10860,7 @@ function showTrainerMemberListView(){
   viewEntry.classList.remove('active');
   viewAdmin.classList.remove('active');
   viewEmployerDashboard.classList.remove('active');
+  viewTrainerEarnings.classList.remove('active');
   viewTrainerMembers.classList.add('active');
   isViewingAsTrainer = false;
   loadTrainerMemberList();
@@ -10719,7 +10914,7 @@ async function fetchTrainerMemberListData(myUid){
         console.error('회원 기록 조회 오류:', uid, err);
       }
     }
-    return { uid, name: profile.name || '회원', ptHistory: getPtHistory(profile), phone: profile.phone || '', recordCount, lastPtDate };
+    return { uid, name: profile.name || '회원', ptHistory: getPtHistory(profile), phone: profile.phone || '', recordCount, lastPtDate, settlementExempt: !!profile.settlementExempt };
   }));
 
   rows.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
@@ -10772,7 +10967,7 @@ function renderTrainerMemberList(data, myUid){
         <div class="admin-member-id">${escapeHtml(r.name)} <span class="trainer-pt-badge">${ptText}</span></div>
         <div class="admin-member-meta">${lastPtText}</div>
       </div>
-      <button type="button" class="trainer-member-settings-btn" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}" data-pthistory='${JSON.stringify(r.ptHistory).replace(/'/g, "&#39;")}' data-recordcount="${r.recordCount}" data-phone="${escapeHtml(r.phone)}" title="회원 정보 수정">⚙</button>
+      <button type="button" class="trainer-member-settings-btn" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}" data-pthistory='${JSON.stringify(r.ptHistory).replace(/'/g, "&#39;")}' data-recordcount="${r.recordCount}" data-phone="${escapeHtml(r.phone)}" data-settlementexempt="${r.settlementExempt ? '1' : ''}" title="회원 정보 수정">⚙</button>
     </div>`;
   }
   function pendingRowHtml(r){
@@ -10823,7 +11018,8 @@ function renderTrainerMemberList(data, myUid){
         btn.getAttribute('data-name'),
         ptHistory,
         parseInt(btn.getAttribute('data-recordcount'), 10) || 0,
-        btn.getAttribute('data-phone')
+        btn.getAttribute('data-phone'),
+        btn.getAttribute('data-settlementexempt') === '1'
       );
     });
   });
@@ -10862,6 +11058,188 @@ async function loadTrainerMemberList(){
     trainerMemberListEl.innerHTML = `<div class="admin-empty">회원 목록을 불러오지 못했어요.<br>오류 내용: ${escapeHtml(err.code || '')} ${escapeHtml(err.message || '')}</div>`;
   }
 }
+
+/* ---------- 수업료 달력 (트레이너 본인 확인용 + 센터장도 열람 가능) ---------- */
+
+/* 이 트레이너가 담당하는 회원들의 PT 일지를 훑어서 오늘/이번 주/이번 달 수업료와 날짜별 내역을 계산한다.
+   '일지' 한 건이 아니라 '회원+날짜' 조합 하나당 그날의 등록 단가를 한 번만 반영한다 — 하루에 여러
+   종목을 기록해도 세션 번호(sessionNo)는 같은 값을 공유하기 때문에, 종목 개수만큼 중복으로 세면 안 된다.
+   수업료 정산에서 제외로 표시해둔 회원은 계산 대상에서 완전히 빠진다(단가 미등록 카운트에도 안 잡힘). */
+async function computeTrainerEarnings(trainerUid){
+  const today = todayStr();
+  const now = new Date();
+  const weekStart = (() => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - d.getDay());
+    return toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+  })();
+  const monthStart = toDateStr(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = toDateStr(now.getFullYear(), now.getMonth() + 1, 0);
+  const rangeStart = weekStart < monthStart ? weekStart : monthStart;
+
+  const membersSnap = await db.collection('users').where('trainerId', '==', trainerUid).get();
+  const memberIds = membersSnap.docs.map(d => d.id);
+
+  let todayTotal = 0, weekTotal = 0, monthTotal = 0, missingRateCount = 0;
+  const dailyTotals = {};
+  const dailyBreakdown = {};
+
+  await Promise.all(memberIds.map(async (memberId) => {
+    try{
+      const result = await storageGetWithRetry(STORAGE_KEY, false, memberId);
+      const list = result ? JSON.parse(result.value) : [];
+      const profile = list.find(m => m.id === memberId) || {};
+      if(profile.settlementExempt) return; // 정산 제외 회원은 완전히 건너뛴다
+
+      const ptHistory = getPtHistory(profile);
+      if(!ptHistory.length) return; // 등록 이력 자체가 없으면 계산할 대상이 없다
+
+      const logsSnap = await logsCollection(memberId)
+        .where('ptRecognized', '==', true)
+        .where('date', '>=', rangeStart)
+        .get();
+
+      // 하루에 여러 종목이 있어도 세션 번호는 같은 값을 공유하니, 날짜별로 한 번만 모은다
+      const sessionNoByDate = {};
+      logsSnap.docs.forEach(d => {
+        const e = d.data();
+        if(!e.sessionNo) return;
+        if(!sessionNoByDate[e.date]) sessionNoByDate[e.date] = e.sessionNo;
+      });
+
+      Object.entries(sessionNoByDate).forEach(([date, sessionNo]) => {
+        const cycle = resolvePtCycle(ptHistory, sessionNo);
+        const rate = cycle ? (ptHistory[cycle.generation - 1].rate || 0) : 0;
+        if(rate <= 0) missingRateCount++;
+
+        if(date >= monthStart && date <= monthEnd){
+          monthTotal += rate;
+          dailyTotals[date] = (dailyTotals[date] || 0) + rate;
+          if(!dailyBreakdown[date]) dailyBreakdown[date] = [];
+          if(rate > 0) dailyBreakdown[date].push({ name: profile.name || '회원', amount: rate });
+        }
+        if(date >= weekStart) weekTotal += rate;
+        if(date === today) todayTotal += rate;
+      });
+    }catch(err){
+      console.error('수업료 계산 오류 (회원):', memberId, err);
+    }
+  }));
+
+  return { todayTotal, weekTotal, monthTotal, missingRateCount, dailyTotals, dailyBreakdown, monthStart, monthEnd, year: now.getFullYear(), month: now.getMonth() };
+}
+
+const trainerEarningsTitle = document.getElementById('trainerEarningsTitle');
+const trainerEarningsRefreshBtn = document.getElementById('trainerEarningsRefreshBtn');
+const trainerEarningsBackBtn = document.getElementById('trainerEarningsBackBtn');
+const trainerEarningsOpenBtn = document.getElementById('trainerEarningsOpenBtn');
+const trainerEarningsTodayValue = document.getElementById('trainerEarningsTodayValue');
+const trainerEarningsWeekValue = document.getElementById('trainerEarningsWeekValue');
+const trainerEarningsMonthValue = document.getElementById('trainerEarningsMonthValue');
+const trainerEarningsMissingNotice = document.getElementById('trainerEarningsMissingNotice');
+const trainerEarningsMonthLabel = document.getElementById('trainerEarningsMonthLabel');
+const trainerEarningsCalendarGrid = document.getElementById('trainerEarningsCalendarGrid');
+const trainerEarningsDayDetail = document.getElementById('trainerEarningsDayDetail');
+const viewTrainerEarnings = document.getElementById('view-trainer-earnings');
+
+let trainerEarningsCurrentUid = null;
+let trainerEarningsReturnTo = 'trainer'; // 'trainer' | 'employer' — 닫기 버튼을 눌렀을 때 어디로 돌아갈지
+
+function showTrainerEarningsView(trainerUid, { trainerName, returnTo } = {}){
+  trainerEarningsCurrentUid = trainerUid;
+  trainerEarningsReturnTo = returnTo || 'trainer';
+  trainerEarningsTitle.textContent = trainerName ? `${trainerName} 수업료 달력` : '수업료 달력';
+  viewLanding.classList.remove('active');
+  viewLogin.classList.remove('active');
+  viewLog.classList.remove('active');
+  viewEntry.classList.remove('active');
+  viewAdmin.classList.remove('active');
+  viewTrainerMembers.classList.remove('active');
+  viewEmployerDashboard.classList.remove('active');
+  viewTrainerEarnings.classList.add('active');
+  loadTrainerEarnings();
+}
+
+async function loadTrainerEarnings(){
+  if(!trainerEarningsCurrentUid) return;
+  trainerEarningsDayDetail.innerHTML = '';
+  try{
+    const data = await computeTrainerEarnings(trainerEarningsCurrentUid);
+    trainerEarningsTodayValue.textContent = `${formatNum(data.todayTotal)}원`;
+    trainerEarningsWeekValue.textContent = `${formatNum(data.weekTotal)}원`;
+    trainerEarningsMonthValue.textContent = `${formatNum(data.monthTotal)}원`;
+
+    if(data.missingRateCount > 0){
+      trainerEarningsMissingNotice.textContent = `단가 미등록 ${data.missingRateCount}회 — 0원으로 계산됐어요. 회원 정보 수정에서 단가를 채워주세요.`;
+      trainerEarningsMissingNotice.style.display = 'block';
+    } else {
+      trainerEarningsMissingNotice.style.display = 'none';
+    }
+
+    trainerEarningsMonthLabel.textContent = `${data.year}년 ${data.month + 1}월`;
+    renderTrainerEarningsCalendar(data);
+  }catch(err){
+    console.error('수업료 달력 조회 오류:', err);
+    trainerEarningsCalendarGrid.innerHTML = '<div class="admin-empty">불러오지 못했어요.</div>';
+  }
+}
+
+function renderTrainerEarningsCalendar(data){
+  const firstOfMonth = new Date(data.year, data.month, 1);
+  const daysInMonth = new Date(data.year, data.month + 1, 0).getDate();
+  const startWeekday = firstOfMonth.getDay(); // 0=일요일
+  const today = todayStr();
+
+  let html = '';
+  for(let i = 0; i < startWeekday; i++){
+    html += '<div class="earnings-calendar-cell is-empty"></div>';
+  }
+  for(let day = 1; day <= daysInMonth; day++){
+    const dateStr = toDateStr(data.year, data.month, day);
+    const amount = data.dailyTotals[dateStr] || 0;
+    const isToday = dateStr === today;
+    const hasEarning = amount > 0;
+    html += `<div class="earnings-calendar-cell${isToday ? ' is-today' : ''}${hasEarning ? ' has-earning' : ''}" data-date="${dateStr}">
+      <div class="earnings-calendar-day-num">${day}</div>
+      ${hasEarning ? `<div class="earnings-calendar-amount">${formatNum(amount)}</div>` : ''}
+    </div>`;
+  }
+  trainerEarningsCalendarGrid.innerHTML = html;
+
+  trainerEarningsCalendarGrid.querySelectorAll('.earnings-calendar-cell.has-earning').forEach(cell => {
+    cell.addEventListener('click', () => {
+      trainerEarningsCalendarGrid.querySelectorAll('.earnings-calendar-cell').forEach(c => c.classList.remove('is-selected'));
+      cell.classList.add('is-selected');
+      const dateStr = cell.getAttribute('data-date');
+      const rows = data.dailyBreakdown[dateStr] || [];
+      trainerEarningsDayDetail.innerHTML = `
+        <div class="earnings-day-detail-card">
+          <div class="earnings-day-detail-date">${formatDate(dateStr)}</div>
+          ${rows.map(r => `
+            <div class="earnings-day-detail-row">
+              <span class="earnings-day-detail-name">${escapeHtml(r.name)}</span>
+              <span class="earnings-day-detail-value">${formatNum(r.amount)}원</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    });
+  });
+}
+
+trainerEarningsOpenBtn.addEventListener('click', () => {
+  showTrainerEarningsView(auth.currentUser.uid, { returnTo: 'trainer' });
+});
+trainerEarningsRefreshBtn.addEventListener('click', loadTrainerEarnings);
+trainerEarningsBackBtn.addEventListener('click', () => {
+  viewTrainerEarnings.classList.remove('active');
+  trainerEarningsCurrentUid = null;
+  if(trainerEarningsReturnTo === 'employer'){
+    showEmployerDashboardView();
+  } else {
+    showTrainerMemberListView();
+  }
+});
 
 const trainerAddMemberBtn = document.getElementById('trainerAddMemberBtn');
 trainerAddMemberBtn.addEventListener('click', () => {
@@ -10950,18 +11328,57 @@ function renderTrainerEditPtHistory(){
     if(!isCurrent) statusText = '완료';
     else if(inCycle <= 0) statusText = '진행 예정';
     else statusText = `진행 중 (${Math.min(inCycle, h.amount)}/${h.amount})`;
-    return `<div class="pt-history-item ${isCurrent ? 'is-current' : ''}">
-      <span class="gen">${i + 1}차</span>
-      <span class="amount">${h.amount}회</span>
-      <span class="status">${statusText}</span>
+    const rateText = h.rate ? `${formatNum(h.rate)}원/회` : '단가 미등록';
+    return `<div class="pt-history-item ${isCurrent ? 'is-current' : ''}" data-index="${i}">
+      <div class="pt-history-item-top">
+        <span class="gen">${i + 1}차</span>
+        <span class="amount">${h.amount}회</span>
+        <span class="status">${statusText}</span>
+      </div>
+      <div class="pt-history-item-rate ${h.rate ? '' : 'is-missing'}">${rateText}</div>
     </div>`;
   }).join('');
+  trainerEditPtHistoryList.querySelectorAll('.pt-history-item').forEach(row => {
+    row.addEventListener('click', () => {
+      const i = parseInt(row.getAttribute('data-index'), 10);
+      const h = trainerEditingPtHistory[i];
+      trainerMemberEditModal.classList.remove('open');
+      openPromptModal({
+        title: `${i + 1}차 등록 수정`,
+        sub: '횟수와 1회당 수업료를 고쳐주세요.',
+        fields: [
+          { placeholder: '등록 횟수 (예: 10)', type: 'number' },
+          { placeholder: '1회당 수업료 (예: 50000)', type: 'number' },
+        ],
+        submitLabel: '수정하기',
+        onSubmit: async (rawAmount, rawRate) => {
+          const amount = parseInt(rawAmount, 10);
+          if(!amount || amount <= 0) throw new Error('올바른 횟수를 입력해주세요.');
+          const rate = rawRate ? parseInt(rawRate, 10) : 0;
+          if(rawRate && (isNaN(rate) || rate < 0)) throw new Error('올바른 수업료를 입력해주세요.');
+          trainerEditingPtHistory[i] = { amount, rate: rate || 0 };
+          closePromptModal();
+          renderTrainerEditPtHistory();
+          trainerMemberEditModal.classList.add('open');
+        },
+      });
+    });
+  });
 }
 
-function openTrainerMemberEditModal(uid, name, ptHistory, recordCount, phone){
+let trainerEditingSettlementExempt = false;
+const trainerEditSettlementExemptBtn = document.getElementById('trainerEditSettlementExemptBtn');
+trainerEditSettlementExemptBtn.addEventListener('click', () => {
+  trainerEditingSettlementExempt = !trainerEditingSettlementExempt;
+  trainerEditSettlementExemptBtn.classList.toggle('active', trainerEditingSettlementExempt);
+});
+
+function openTrainerMemberEditModal(uid, name, ptHistory, recordCount, phone, settlementExempt){
   trainerEditingUid = uid;
-  trainerEditingPtHistory = Array.isArray(ptHistory) ? ptHistory.map(h => ({ amount: h.amount })) : [];
+  trainerEditingPtHistory = Array.isArray(ptHistory) ? ptHistory.map(h => ({ amount: h.amount, rate: h.rate || 0 })) : [];
   trainerEditingRecordCount = recordCount || 0;
+  trainerEditingSettlementExempt = !!settlementExempt;
+  trainerEditSettlementExemptBtn.classList.toggle('active', trainerEditingSettlementExempt);
   trainerEditNameInput.value = name || '';
   trainerEditPhoneInput.value = phone || '';
   trainerMemberEditError.style.display = 'none';
@@ -10977,15 +11394,26 @@ trainerMemberEditModal.addEventListener('click', (ev) => {
   if(ev.target === trainerMemberEditModal) closeTrainerMemberEditModal();
 });
 trainerEditPtAddBtn.addEventListener('click', () => {
-  const raw = window.prompt('추가로 등록할 PT 횟수를 입력해주세요. (예: 10)');
-  if(raw === null) return;
-  const amount = parseInt(raw.trim(), 10);
-  if(!amount || amount <= 0){
-    showCopyToast('올바른 횟수를 입력해주세요.');
-    return;
-  }
-  trainerEditingPtHistory.push({ amount });
-  renderTrainerEditPtHistory();
+  trainerMemberEditModal.classList.remove('open');
+  openPromptModal({
+    title: '추가 등록',
+    sub: '이번에 등록할 횟수와 1회당 수업료를 입력해주세요. (수업료는 나중에 채워도 돼요)',
+    fields: [
+      { placeholder: '등록 횟수 (예: 10)', type: 'number' },
+      { placeholder: '1회당 수업료 (예: 50000)', type: 'number' },
+    ],
+    submitLabel: '등록',
+    onSubmit: async (rawAmount, rawRate) => {
+      const amount = parseInt(rawAmount, 10);
+      if(!amount || amount <= 0) throw new Error('올바른 횟수를 입력해주세요.');
+      const rate = rawRate ? parseInt(rawRate, 10) : 0;
+      if(rawRate && (isNaN(rate) || rate < 0)) throw new Error('올바른 수업료를 입력해주세요.');
+      trainerEditingPtHistory.push({ amount, rate: rate || 0 });
+      closePromptModal();
+      renderTrainerEditPtHistory();
+      trainerMemberEditModal.classList.add('open');
+    },
+  });
 });
 
 const trainerMemberEditDeleteBtn = document.getElementById('trainerMemberEditDeleteBtn');
@@ -11064,6 +11492,7 @@ trainerMemberEditSaveBtn.addEventListener('click', async () => {
     entry.name = newName;
     entry.ptHistory = trainerEditingPtHistory;
     entry.ptTotal = null; // 예전 방식 필드는 이제 안 쓰니 비워서, 다음부턴 항상 ptHistory 기준으로 계산되게 한다
+    entry.settlementExempt = trainerEditingSettlementExempt;
     entry.phone = newPhone;
     const ok = await storageSetWithRetry(STORAGE_KEY, JSON.stringify(list), false, undefined, trainerEditingUid);
     if(!ok){
