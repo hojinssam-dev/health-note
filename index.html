@@ -4925,7 +4925,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.54.17';
+const APP_VERSION = '2.54.19';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -9336,10 +9336,14 @@ async function updateCachedPtProgress(memberId){
 
     const result = await storageGetWithRetry(STORAGE_KEY, false, memberId);
     const list = result ? JSON.parse(result.value) : [];
-    let entry = list.find(m => m.id === memberId);
+    const entry = list.find(m => m.id === memberId);
     if(!entry){
-      entry = { id: memberId, name: '', phone: '', ptHistory: [], memo: '' };
-      list.push(entry);
+      // 이 함수는 '이미 있는 프로필의 캐시 값만' 갱신하는 용도다. 프로필을 못 찾았다고
+      // 여기서 이름 빈 채로 새로 만들어버리면(특히 새 회원 추가 직후처럼 아직 프로필 쓰기가
+      // 화면에 반영되기 전 타이밍이면), 진짜 프로필을 빈 이름으로 덮어써버리는 사고로 이어진다.
+      // 그래서 못 찾으면 조용히 건너뛴다 — 다음에 이 회원 목록을 다시 불러올 때 다시 시도된다.
+      console.error('PT 진행 캐시 갱신 건너뜀 - 프로필을 찾지 못함:', memberId);
+      return;
     }
     entry.ptProgress = recordCount;
     entry.lastPtDate = lastPtDate;
@@ -10482,14 +10486,19 @@ async function loadAdminDashboard(){
 }
 
 // '일지' 하나 = 회원+날짜+PT여부 조합 하나. 컬렉션 그룹 쿼리 결과에서 이 묶음과 작성자(authorId)를 뽑아낸다.
+// '일지' 하나 = 회원+날짜+PT여부 조합 하나. 컬렉션 그룹 쿼리 결과에서 이 묶음과 작성자(authorId)를 뽑아낸다.
+// 같은 묶음 안에 여러 종목 기록이 있으면, 그중 가장 먼저 만들어진 기록의 id(Date.now 기반이라 시간순
+// 정렬이 가능)를 대표값으로 남겨서 나중에 "그 일지가 언제 시작됐는지" 순서를 매길 수 있게 한다.
 function buildJournalMapFromLogsSnap(logsSnap){
   const map = new Map();
   logsSnap.docs.forEach(d => {
     const data = d.data();
     const memberId = d.ref.parent.parent.id;
     const key = `${memberId}:${data.date}:${!!data.locked}`;
-    if(!map.has(key)){
-      map.set(key, { memberId, authorId: data.authorId || memberId, locked: !!data.locked });
+    const entryId = data.id || d.id;
+    const existing = map.get(key);
+    if(!existing || entryId < existing.id){
+      map.set(key, { memberId, authorId: data.authorId || memberId, locked: !!data.locked, id: entryId });
     }
   });
   return map;
@@ -10509,8 +10518,10 @@ function fetchTrainerJournalMapForDate(trainerUid){
         logsSnap.docs.forEach(d => {
           const data = d.data();
           const key = `${memberId}:${data.date}:${!!data.locked}`;
-          if(!map.has(key)){
-            map.set(key, { memberId, authorId: data.authorId || memberId, locked: !!data.locked });
+          const entryId = data.id || d.id;
+          const existing = map.get(key);
+          if(!existing || entryId < existing.id){
+            map.set(key, { memberId, authorId: data.authorId || memberId, locked: !!data.locked, id: entryId });
           }
         });
       }catch(err){
@@ -10587,8 +10598,11 @@ async function renderJournalDetailForDate(container, dateStr, fetchMapForDate, c
     memberName: nameMap[v.memberId] || v.memberId,
     authorName: v.authorId === v.memberId ? '본인' : (nameMap[v.authorId] || v.authorId),
     locked: v.locked,
+    id: v.id,
   }));
-  rows.sort((a, b) => a.memberName.localeCompare(b.memberName, 'ko'));
+  // 일지가 생성된 시간 순서대로: id가 Date.now() 기반이라 문자열로 비교해도 시간순이 된다.
+  // 가장 최근에 만들어진 일지가 맨 아래로 오도록 오름차순(과거 → 최신) 정렬한다.
+  rows.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
 
   const isToday = dateStr === todayStr();
   const dateLabel = formatDate(dateStr) + (isToday ? ' (오늘)' : '');
@@ -11798,6 +11812,29 @@ function openTrainerMemberEditModal(uid, name, ptHistory, recordCount, phone, se
   trainerMemberEditError.style.display = 'none';
   renderTrainerEditPtHistory();
   trainerMemberEditModal.classList.add('open');
+
+  // 목록에 표시되던 값은 화면 상태(캐시 등)에 따라 최신이 아닐 수 있다. '저장'을 눌렀을 때
+  // 잘못된(비어있는) 값으로 회원 이름 등을 덮어쓰는 일이 없도록, 여는 즉시 Firestore에서 진짜
+  // 최신 값을 다시 확인해서(그 사이 다른 회원으로 넘어가지 않았다면) 조용히 정확한 값으로 맞춰준다.
+  // 그 사이 트레이너가 이미 입력칸을 고쳐 쓰기 시작했다면(전달받은 값과 달라졌다면), 덮어쓰지 않는다.
+  storageGetWithRetry(STORAGE_KEY, false, uid).then((result) => {
+    if(trainerEditingUid !== uid) return; // 그 사이 다른 회원으로 넘어갔으면 반영하지 않는다
+    try{
+      const list = result ? JSON.parse(result.value) : [];
+      const entry = list.find(m => m.id === uid);
+      if(!entry) return;
+      trainerEditingPtHistory = Array.isArray(entry.ptHistory) ? entry.ptHistory.map(h => ({ amount: h.amount, rate: h.rate || 0 })) : [];
+      trainerEditingSettlementExempt = !!entry.settlementExempt;
+      trainerEditSettlementExemptBtn.classList.toggle('active', trainerEditingSettlementExempt);
+      if(trainerEditNameInput.value === (name || '')) trainerEditNameInput.value = entry.name || '';
+      if(trainerEditPhoneInput.value === (phone || '')) trainerEditPhoneInput.value = entry.phone || '';
+      renderTrainerEditPtHistory();
+    }catch(err){
+      console.error('회원 정보 최신값 확인 오류:', uid, err);
+    }
+  }).catch((err) => {
+    console.error('회원 정보 최신값 조회 오류:', uid, err);
+  });
 }
 function closeTrainerMemberEditModal(){
   trainerMemberEditModal.classList.remove('open');
