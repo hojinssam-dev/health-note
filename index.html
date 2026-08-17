@@ -229,7 +229,7 @@
     transition: all .15s var(--ease);
   }
   .logout-btn:hover{ border-color: var(--danger); color: var(--danger); }
-  #trainerEarningsRefreshBtn, #trainerEarningsBackBtn{
+  #trainerEarningsRefreshBtn, #trainerEarningsBackBtn, #employerRefreshBtn{
     font-size: 20px;
   }
   #bodyPartSettingsBtn{
@@ -2918,31 +2918,19 @@
     margin-bottom: 10px;
   }
   .pt-history-item{
-    display:block;
     background: var(--surface-raised);
     border: 1px solid var(--line);
     border-radius: var(--radius-s);
-    padding: 9px 12px;
-    font-size: 13px;
-    cursor: pointer;
-  }
-  .pt-history-item-top{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-  }
-  .pt-history-item.is-current{ border-color: var(--brass); }
-  .pt-history-item .gen{ color: var(--muted); font-family:'IBM Plex Mono', monospace; font-size:11px; }
-  .pt-history-item .amount{ color: var(--chalk); font-weight:600; }
-  .pt-history-item .status{ font-size:11px; color: var(--muted); }
-  .pt-history-item.is-current .status{ color: var(--brass-bright); }
-  .pt-history-item-rate{
-    margin-top: 5px;
-    font-family:'IBM Plex Mono', monospace;
+    padding: 9px 10px;
     font-size: 11px;
-    color: var(--muted);
+    color: var(--chalk);
+    line-height: 1.5;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .pt-history-item-rate.is-missing{ font-style: italic; }
+  .pt-history-item.is-current{ border-color: var(--brass); color: var(--brass-bright); }
   .pt-add-btn{
     width:100%;
     background: none;
@@ -3042,6 +3030,27 @@
     color: var(--brass-bright);
     letter-spacing: 0.5px;
   }
+  .admin-dash-card.is-clickable{ cursor: pointer; }
+  .admin-dash-card.is-clickable:hover{ border-color: var(--brass); }
+  .admin-dash-detail{
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .admin-dash-detail-row{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
+    padding: 9px 12px;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .admin-dash-detail-member{ color: var(--chalk); }
+  .admin-dash-detail-author{ color: var(--muted); font-size: 12px; white-space: nowrap; }
   .admin-loading{
     text-align:center;
     color: var(--muted);
@@ -3108,6 +3117,24 @@
     justify-content: space-between;
     margin-bottom: 10px;
   }
+  .employer-trainer-name-group{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .employer-trainer-edit-btn{
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-s);
+    border: 1px solid var(--line);
+    background: var(--surface-raised);
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .employer-trainer-edit-btn:hover{ border-color: var(--brass); color: var(--brass-bright); }
   .employer-trainer-name{
     font-size: 15px;
     font-weight: 600;
@@ -4202,6 +4229,7 @@
       <div class="admin-dash-grid" id="adminDashGrid">
         <div class="admin-loading">현황 불러오는 중...</div>
       </div>
+      <div class="admin-dash-detail" id="adminTodayJournalDetail" style="display:none;"></div>
     </div>
     <button type="button" class="modal-btn modal-btn-primary" id="adminAddMemberBtn" style="width:100%; margin-bottom:14px;">+ 새 회원 추가</button>
     <div class="admin-employer-assign-row">
@@ -4240,6 +4268,7 @@
         <button type="button" class="theme-option-btn" data-theme="purple">화이트 · 퍼플</button>
       </div>
       <div class="modal-actions">
+        <button class="modal-btn" id="employerSettingsCheckUpdateBtn">새 버전 받기</button>
         <button class="modal-btn" id="employerSettingsLogoutBtn">로그아웃</button>
       </div>
       <button class="modal-cancel" id="employerSettingsCloseBtn">닫기</button>
@@ -4814,7 +4843,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.54.8';
+const APP_VERSION = '2.54.14';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -10231,6 +10260,7 @@ function showAdminView(){
 }
 
 const adminDashGrid = document.getElementById('adminDashGrid');
+const adminTodayJournalDetail = document.getElementById('adminTodayJournalDetail');
 const adminEmployerIdInput = document.getElementById('adminEmployerIdInput');
 const adminEmployerAssignBtn = document.getElementById('adminEmployerAssignBtn');
 const adminAddMemberBtn = document.getElementById('adminAddMemberBtn');
@@ -10330,30 +10360,87 @@ async function loadAdminDashboard(){
     const weekActiveUsers = new Set(weekLogsSnap.docs.map(d => d.ref.parent.parent.id));
     // '일지' 하나 = 어떤 회원의 그 날짜 안에서 PT 기록 묶음 하나, 또는 개인 운동 묶음 하나.
     // 종목(운동 하나하나)이 아니라 이 묶음 단위로 세야 하므로, 회원+날짜+PT여부 조합이 같으면 하나로 친다.
-    const todayJournalKeys = new Set(todayLogsSnap.docs.map(d => {
+    // 누가 작성했는지(authorId)도 같이 남겨둬서, "오늘 작성된 일지" 카드를 눌렀을 때 보여줄 수 있게 한다.
+    const todayJournalMap = new Map();
+    todayLogsSnap.docs.forEach(d => {
       const data = d.data();
       const memberId = d.ref.parent.parent.id;
-      return `${memberId}:${data.date}:${!!data.locked}`;
-    }));
+      const key = `${memberId}:${data.date}:${!!data.locked}`;
+      if(!todayJournalMap.has(key)){
+        todayJournalMap.set(key, { memberId, authorId: data.authorId || memberId });
+      }
+    });
 
     const cards = [
       { label: '전체 회원', value: memberCount },
       { label: '전체 트레이너', value: trainerCount },
       { label: '전체 센터장', value: employerCount },
       { label: '이번 주 활동 회원', value: weekActiveUsers.size },
-      { label: '오늘 작성된 일지', value: todayJournalKeys.size },
+      { id: 'todayJournal', label: '오늘 작성된 일지', value: todayJournalMap.size },
       { label: '오늘 등록된 사진', value: todayPhotosSnap.size },
     ];
     adminDashGrid.innerHTML = cards.map(c => `
-      <div class="admin-dash-card">
+      <div class="admin-dash-card${c.id ? ' is-clickable' : ''}" ${c.id ? `data-card-id="${c.id}"` : ''}>
         <div class="admin-dash-label">${c.label}</div>
         <div class="admin-dash-value">${c.value}</div>
       </div>
     `).join('');
+
+    adminTodayJournalDetail.style.display = 'none';
+    adminTodayJournalDetail.innerHTML = '';
+    const todayJournalCard = adminDashGrid.querySelector('[data-card-id="todayJournal"]');
+    if(todayJournalCard){
+      todayJournalCard.addEventListener('click', () => toggleAdminTodayJournalDetail(todayJournalMap));
+    }
   }catch(err){
     console.error('관리자 대시보드 조회 오류:', err);
     adminDashGrid.innerHTML = '<div class="admin-empty">현황을 불러오지 못했어요.</div>';
   }
+}
+
+// 회원이든 트레이너든, 각자 자기 계정(users/{uid})에 저장해둔 members-list 안에서 자기 이름을 찾는다
+async function resolveProfileName(uid){
+  try{
+    const result = await storageGetWithRetry(STORAGE_KEY, false, uid);
+    const list = result ? JSON.parse(result.value) : [];
+    const entry = list.find(m => m.id === uid);
+    return (entry && entry.name) || uid;
+  }catch(err){
+    console.error('이름 조회 오류:', uid, err);
+    return uid;
+  }
+}
+
+async function toggleAdminTodayJournalDetail(todayJournalMap){
+  const isOpen = adminTodayJournalDetail.style.display !== 'none';
+  if(isOpen){
+    adminTodayJournalDetail.style.display = 'none';
+    return;
+  }
+  adminTodayJournalDetail.style.display = 'flex';
+  adminTodayJournalDetail.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
+
+  const uniqueUids = new Set();
+  todayJournalMap.forEach(v => { uniqueUids.add(v.memberId); uniqueUids.add(v.authorId); });
+  const nameMap = {};
+  await Promise.all([...uniqueUids].map(async uid => {
+    nameMap[uid] = await resolveProfileName(uid);
+  }));
+
+  const rows = [...todayJournalMap.values()].map(v => ({
+    memberName: nameMap[v.memberId] || v.memberId,
+    authorName: v.authorId === v.memberId ? '본인' : (nameMap[v.authorId] || v.authorId),
+  }));
+  rows.sort((a, b) => a.memberName.localeCompare(b.memberName, 'ko'));
+
+  adminTodayJournalDetail.innerHTML = rows.length
+    ? rows.map(r => `
+      <div class="admin-dash-detail-row">
+        <span class="admin-dash-detail-member">${escapeHtml(r.memberName)}</span>
+        <span class="admin-dash-detail-author">작성자: ${escapeHtml(r.authorName)}</span>
+      </div>
+    `).join('')
+    : '<div class="admin-empty">오늘 작성된 일지가 없어요.</div>';
 }
 
 /* ---------- 센터장 대시보드 ---------- */
@@ -10367,6 +10454,7 @@ const employerSettingsBtn = document.getElementById('employerSettingsBtn');
 const employerSettingsModal = document.getElementById('employerSettingsModal');
 const employerSettingsCloseBtn = document.getElementById('employerSettingsCloseBtn');
 const employerSettingsLogoutBtn = document.getElementById('employerSettingsLogoutBtn');
+const employerSettingsCheckUpdateBtn = document.getElementById('employerSettingsCheckUpdateBtn');
 
 function showEmployerDashboardView(){
   viewLanding.classList.remove('active');
@@ -10485,7 +10573,10 @@ async function loadEmployerDashboard(){
     employerTrainerList.innerHTML = rows.map(r => `
       <div class="employer-trainer-card${r.todayCount > 0 ? ' has-activity-today' : ''}" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}">
         <div class="employer-trainer-header">
-          <span class="employer-trainer-name">${escapeHtml(r.name)}</span>
+          <div class="employer-trainer-name-group">
+            <span class="employer-trainer-name">${escapeHtml(r.name)}</span>
+            <button type="button" class="employer-trainer-edit-btn" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}" title="이름 수정">✎</button>
+          </div>
           <span class="employer-trainer-member-count">회원 ${r.memberCount}명</span>
         </div>
         <div class="employer-stat-grid">
@@ -10512,6 +10603,34 @@ async function loadEmployerDashboard(){
         });
       });
     });
+    employerTrainerList.querySelectorAll('.employer-trainer-edit-btn').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const trainerUid = btn.getAttribute('data-trainer-uid');
+        const currentName = btn.getAttribute('data-trainer-name');
+        openPromptModal({
+          title: '트레이너 이름 수정',
+          fields: [{ placeholder: '이름', value: currentName }],
+          submitLabel: '수정하기',
+          onSubmit: async (newName) => {
+            const trimmed = newName.trim();
+            if(!trimmed) throw new Error('이름을 입력해주세요.');
+            const result = await storageGetWithRetry(STORAGE_KEY, false, trainerUid);
+            const list = result ? JSON.parse(result.value) : [];
+            const entry = list.find(m => m.id === trainerUid);
+            if(entry){
+              entry.name = trimmed;
+            } else {
+              list.push({ id: trainerUid, name: trimmed, phone: '', ptHistory: [], memo: '' });
+            }
+            await storageSetWithRetry(STORAGE_KEY, JSON.stringify(list), false, undefined, trainerUid);
+            closePromptModal();
+            showCopyToast('이름을 수정했어요.');
+            loadEmployerDashboard();
+          },
+        });
+      });
+    });
   }catch(err){
     console.error('센터장 대시보드 조회 오류:', err);
     employerTrainerList.innerHTML = '<div class="admin-empty">불러오지 못했어요.</div>';
@@ -10523,6 +10642,10 @@ employerSettingsBtn.addEventListener('click', () => employerSettingsModal.classL
 employerSettingsCloseBtn.addEventListener('click', () => employerSettingsModal.classList.remove('open'));
 employerSettingsModal.addEventListener('click', (ev) => {
   if(ev.target === employerSettingsModal) employerSettingsModal.classList.remove('open');
+});
+employerSettingsCheckUpdateBtn.addEventListener('click', () => {
+  employerSettingsModal.classList.remove('open');
+  checkForNewVersionManually();
 });
 employerSettingsLogoutBtn.addEventListener('click', () => {
   employerSettingsModal.classList.remove('open');
@@ -11391,15 +11514,10 @@ function renderTrainerEditPtHistory(){
     let statusText;
     if(!isCurrent) statusText = '완료';
     else if(inCycle <= 0) statusText = '진행 예정';
-    else statusText = `진행 중 (${Math.min(inCycle, h.amount)}/${h.amount})`;
-    const rateText = h.rate ? `${formatNum(h.rate)}원/회` : '단가 미등록';
+    else statusText = `진행중(${Math.min(inCycle, h.amount)}/${h.amount})`;
+    const rateText = h.rate ? `${formatNum(h.rate)}원` : '단가 미등록';
     return `<div class="pt-history-item ${isCurrent ? 'is-current' : ''}" data-index="${i}">
-      <div class="pt-history-item-top">
-        <span class="gen">${i + 1}차</span>
-        <span class="amount">${h.amount}회</span>
-        <span class="status">${statusText}</span>
-      </div>
-      <div class="pt-history-item-rate ${h.rate ? '' : 'is-missing'}">${rateText}</div>
+      ${i + 1}차 ${h.amount}회(회당 수업료 ${rateText}) ${statusText}
     </div>`;
   }).join('');
   trainerEditPtHistoryList.querySelectorAll('.pt-history-item').forEach(row => {
