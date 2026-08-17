@@ -3032,6 +3032,40 @@
   }
   .admin-dash-card.is-clickable{ cursor: pointer; }
   .admin-dash-card.is-clickable:hover{ border-color: var(--brass); }
+  .trainer-journal-card{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+  }
+  .trainer-journal-card.is-open{ border-color: var(--brass); }
+  .trainer-journal-card:hover{ border-color: var(--brass); }
+  .trainer-journal-card-label{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .trainer-journal-card-right{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .trainer-journal-card-value{
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    color: var(--brass-bright);
+    letter-spacing: 0.5px;
+  }
+  .trainer-journal-card-chevron{
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .trainer-journal-card.is-open .trainer-journal-card-chevron{ color: var(--brass-bright); }
   .admin-dash-detail{
     margin-top: 10px;
     display: flex;
@@ -3051,6 +3085,19 @@
   }
   .admin-dash-detail-member{ color: var(--chalk); }
   .admin-dash-detail-author{ color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .admin-dash-detail-row.is-clickable{ cursor: pointer; }
+  .admin-dash-detail-row.is-clickable:hover{ border-color: var(--brass); }
+  .journal-type-badge{
+    display: inline-block;
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 4px;
+    background: var(--surface-raised);
+    color: var(--muted);
+  }
+  .journal-type-badge.is-pt{ color: var(--brass-bright); }
   .admin-dash-detail-nav{
     display: flex;
     align-items: center;
@@ -4316,6 +4363,14 @@
       <button class="email-reminder-register-btn" id="trainerDirectConnectBtn">연결</button>
     </div>
     <div class="login-error" id="trainerDirectConnectError" style="display:none;"></div>
+    <div class="trainer-journal-card" id="trainerTodayJournalCard" style="display:none;">
+      <span class="trainer-journal-card-label">오늘 작성된 일지</span>
+      <div class="trainer-journal-card-right">
+        <span class="trainer-journal-card-value" id="trainerTodayJournalValue">0</span>
+        <span class="trainer-journal-card-chevron" id="trainerTodayJournalChevron">▾</span>
+      </div>
+    </div>
+    <div class="admin-dash-detail" id="trainerJournalDetail" style="display:none;"></div>
     <div class="admin-member-list" id="trainerMemberList">
       <div class="admin-loading">불러오는 중...</div>
     </div>
@@ -4870,7 +4925,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.54.15';
+const APP_VERSION = '2.54.17';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -7514,7 +7569,7 @@ addExerciseTab.addEventListener('click', () => {
 
 /* ---------- 회원 상세: 달력 화면 (View 2) ---------- */
 
-async function openMember(memberId, isNewMember){
+async function openMember(memberId, isNewMember, jumpToDate){
   let member = members.find(m => m.id === memberId);
   if(!member){
     // 내 계정이 아닌 다른 회원(트레이너·관리자가 보는 경우)은 members 목록에 없으니,
@@ -7584,6 +7639,14 @@ async function openMember(memberId, isNewMember){
     // 1단계: 이번 주 분량만 먼저 빠르게 불러와서 실제 기록을 채운다 (캐시로 미리 보여준 게 있었다면,
     // 여기서 서버의 진짜 최신 내용으로 정확하게 바꿔치기된다 — reconcileLogsInRange가 처리)
     await loadWeekLogs(memberId, new Date());
+    if(jumpToDate){
+      // 특정 날짜로 곧바로 열어야 하는 경우(예: '오늘 작성된 일지' 목록에서 클릭해서 들어옴):
+      // 그 날짜가 속한 달의 기록을 먼저 마저 불러온 뒤에 달력을 그 달·그 날짜로 맞춰서 연다.
+      const [jy, jm] = jumpToDate.split('-').map(Number);
+      await loadMonthLogs(memberId, jy, jm - 1);
+      calViewDate = new Date(jy, jm - 1, 1);
+      selectedDetailDate = jumpToDate;
+    }
   }catch(err){
     // 캐시로 이미 뭔가 보여주고 있었다면, 이번 불러오기가 실패했다고 그걸 지우지는 않는다
     if(!cachedEntries) currentLogs = [];
@@ -10426,10 +10489,36 @@ function buildJournalMapFromLogsSnap(logsSnap){
     const memberId = d.ref.parent.parent.id;
     const key = `${memberId}:${data.date}:${!!data.locked}`;
     if(!map.has(key)){
-      map.set(key, { memberId, authorId: data.authorId || memberId });
+      map.set(key, { memberId, authorId: data.authorId || memberId, locked: !!data.locked });
     }
   });
   return map;
+}
+
+// 트레이너는 컬렉션 그룹 쿼리 권한이 없어서, 관리자처럼 전체를 한 번에 훑을 수 없다.
+// 대신 이미 알고 있는 '자기한테 연결된 회원 목록'만 각자 조회해서 합친다 — 결과적으로
+// 연결된 회원의 일지만 자연스럽게 나온다 (수업료 달력 계산과 같은 방식).
+function fetchTrainerJournalMapForDate(trainerUid){
+  return async (dateStr) => {
+    const membersSnap = await db.collection('users').where('trainerId', '==', trainerUid).get();
+    const memberIds = membersSnap.docs.map(d => d.id);
+    const map = new Map();
+    await Promise.all(memberIds.map(async (memberId) => {
+      try{
+        const logsSnap = await logsCollection(memberId).where('date', '==', dateStr).get();
+        logsSnap.docs.forEach(d => {
+          const data = d.data();
+          const key = `${memberId}:${data.date}:${!!data.locked}`;
+          if(!map.has(key)){
+            map.set(key, { memberId, authorId: data.authorId || memberId, locked: !!data.locked });
+          }
+        });
+      }catch(err){
+        console.error('일지 작성자 조회 오류 (회원):', memberId, err);
+      }
+    }));
+    return map;
+  };
 }
 
 function shiftDateStr(dateStr, delta){
@@ -10463,22 +10552,25 @@ async function toggleAdminJournalDetail(todayJournalMap){
   }
   adminTodayJournalDetail.style.display = 'flex';
   adminJournalDetailDate = todayStr();
-  await renderAdminJournalDetailForDate(adminJournalDetailDate, todayJournalMap);
+  const fetchMapForDate = (dateStr) => db.collectionGroup('logs').where('date', '==', dateStr).get().then(buildJournalMapFromLogsSnap);
+  await renderJournalDetailForDate(adminTodayJournalDetail, adminJournalDetailDate, fetchMapForDate, todayJournalMap, (d) => { adminJournalDetailDate = d; });
 }
 
-async function renderAdminJournalDetailForDate(dateStr, cachedMapForToday){
-  adminTodayJournalDetail.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
+// '일지 작성자' 상세 목록을 날짜 이동(◀▶)과 함께 그리는 공용 함수.
+// 관리자 페이지(전체 회원)와 트레이너 회원 목록(연결된 회원만) 양쪽에서 재사용한다 —
+// 둘의 차이는 fetchMapForDate(그 날짜의 journalMap을 어떻게 가져올지)뿐이다.
+async function renderJournalDetailForDate(container, dateStr, fetchMapForDate, cachedMapForToday, onDateChange, onRowClick){
+  container.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
 
   let journalMap;
   if(dateStr === todayStr() && cachedMapForToday){
     journalMap = cachedMapForToday;
   } else {
     try{
-      const logsSnap = await db.collectionGroup('logs').where('date', '==', dateStr).get();
-      journalMap = buildJournalMapFromLogsSnap(logsSnap);
+      journalMap = await fetchMapForDate(dateStr);
     }catch(err){
       console.error('일지 작성자 조회 오류:', dateStr, err);
-      adminTodayJournalDetail.innerHTML = '<div class="admin-empty">불러오지 못했어요.</div>';
+      container.innerHTML = '<div class="admin-empty">불러오지 못했어요.</div>';
       return;
     }
   }
@@ -10491,38 +10583,51 @@ async function renderAdminJournalDetailForDate(dateStr, cachedMapForToday){
   }));
 
   const rows = [...journalMap.values()].map(v => ({
+    memberId: v.memberId,
     memberName: nameMap[v.memberId] || v.memberId,
     authorName: v.authorId === v.memberId ? '본인' : (nameMap[v.authorId] || v.authorId),
+    locked: v.locked,
   }));
   rows.sort((a, b) => a.memberName.localeCompare(b.memberName, 'ko'));
 
   const isToday = dateStr === todayStr();
   const dateLabel = formatDate(dateStr) + (isToday ? ' (오늘)' : '');
+  const navId = 'journalNav-' + Math.random().toString(36).slice(2, 8);
 
-  adminTodayJournalDetail.innerHTML = `
+  container.innerHTML = `
     <div class="admin-dash-detail-nav">
-      <button type="button" class="admin-dash-detail-nav-btn" id="adminJournalPrevBtn">◀</button>
+      <button type="button" class="admin-dash-detail-nav-btn" id="${navId}-prev">◀</button>
       <span class="admin-dash-detail-nav-label">${dateLabel}</span>
-      <button type="button" class="admin-dash-detail-nav-btn" id="adminJournalNextBtn" ${isToday ? 'disabled' : ''}>▶</button>
+      <button type="button" class="admin-dash-detail-nav-btn" id="${navId}-next" ${isToday ? 'disabled' : ''}>▶</button>
     </div>
     ${rows.length
-      ? rows.map(r => `
-        <div class="admin-dash-detail-row">
-          <span class="admin-dash-detail-member">${escapeHtml(r.memberName)}</span>
+      ? rows.map((r, i) => `
+        <div class="admin-dash-detail-row${onRowClick ? ' is-clickable' : ''}" data-row-index="${i}">
+          <span class="admin-dash-detail-member">${escapeHtml(r.memberName)} <span class="journal-type-badge ${r.locked ? 'is-pt' : 'is-personal'}">${r.locked ? 'PT' : '개인'}</span></span>
           <span class="admin-dash-detail-author">작성자: ${escapeHtml(r.authorName)}</span>
         </div>
       `).join('')
       : '<div class="admin-empty">이 날짜에 작성된 일지가 없어요.</div>'}
   `;
 
-  document.getElementById('adminJournalPrevBtn').addEventListener('click', () => {
-    adminJournalDetailDate = shiftDateStr(dateStr, -1);
-    renderAdminJournalDetailForDate(adminJournalDetailDate);
+  document.getElementById(`${navId}-prev`).addEventListener('click', () => {
+    const prevDate = shiftDateStr(dateStr, -1);
+    if(onDateChange) onDateChange(prevDate);
+    renderJournalDetailForDate(container, prevDate, fetchMapForDate, null, onDateChange, onRowClick);
   });
   if(!isToday){
-    document.getElementById('adminJournalNextBtn').addEventListener('click', () => {
-      adminJournalDetailDate = shiftDateStr(dateStr, 1);
-      renderAdminJournalDetailForDate(adminJournalDetailDate);
+    document.getElementById(`${navId}-next`).addEventListener('click', () => {
+      const nextDate = shiftDateStr(dateStr, 1);
+      if(onDateChange) onDateChange(nextDate);
+      renderJournalDetailForDate(container, nextDate, fetchMapForDate, null, onDateChange, onRowClick);
+    });
+  }
+  if(onRowClick){
+    container.querySelectorAll('.admin-dash-detail-row.is-clickable').forEach(row => {
+      row.addEventListener('click', () => {
+        const r = rows[parseInt(row.getAttribute('data-row-index'), 10)];
+        onRowClick(r.memberId, dateStr);
+      });
     });
   }
 }
@@ -11290,8 +11395,51 @@ function renderTrainerMemberList(data, myUid){
   });
 }
 
+const trainerTodayJournalCard = document.getElementById('trainerTodayJournalCard');
+const trainerTodayJournalValue = document.getElementById('trainerTodayJournalValue');
+const trainerJournalDetail = document.getElementById('trainerJournalDetail');
+let trainerJournalDetailDate = null;
+
+async function loadTrainerTodayJournalCard(trainerUid){
+  try{
+    const fetchMapForDate = fetchTrainerJournalMapForDate(trainerUid);
+    const todayMap = await fetchMapForDate(todayStr());
+    trainerTodayJournalValue.textContent = todayMap.size;
+    trainerTodayJournalCard.style.display = 'flex';
+    trainerJournalDetail.style.display = 'none';
+    trainerJournalDetail.innerHTML = '';
+    trainerTodayJournalCard.classList.remove('is-open');
+    trainerJournalDetailDate = null;
+    trainerTodayJournalCard.onclick = () => toggleTrainerJournalDetail(trainerUid, todayMap);
+  }catch(err){
+    console.error('트레이너 오늘 일지 조회 오류:', err);
+  }
+}
+
+async function toggleTrainerJournalDetail(trainerUid, todayJournalMap){
+  const isOpen = trainerJournalDetail.style.display !== 'none';
+  if(isOpen){
+    trainerJournalDetail.style.display = 'none';
+    trainerTodayJournalCard.classList.remove('is-open');
+    trainerJournalDetailDate = null;
+    return;
+  }
+  trainerJournalDetail.style.display = 'flex';
+  trainerTodayJournalCard.classList.add('is-open');
+  trainerJournalDetailDate = todayStr();
+  const fetchMapForDate = fetchTrainerJournalMapForDate(trainerUid);
+  const onRowClick = (memberId, dateStr) => {
+    isViewingAsTrainer = true;
+    viewTrainerMembers.classList.remove('active');
+    trainerBackToListBtn.style.display = 'inline-flex';
+    openMember(memberId, false, dateStr);
+  };
+  await renderJournalDetailForDate(trainerJournalDetail, trainerJournalDetailDate, fetchMapForDate, todayJournalMap, (d) => { trainerJournalDetailDate = d; }, onRowClick);
+}
+
 async function loadTrainerMemberList(){
   const myUid = auth.currentUser.uid;
+  loadTrainerTodayJournalCard(myUid); // 회원 목록과 별개로 조용히 채워지게 기다리지 않는다
   const cached = loadJsonCache(TRAINER_MEMBER_LIST_CACHE_PREFIX, myUid);
 
   if(cached !== undefined){
