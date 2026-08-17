@@ -3051,6 +3051,33 @@
   }
   .admin-dash-detail-member{ color: var(--chalk); }
   .admin-dash-detail-author{ color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .admin-dash-detail-nav{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 4px 0 8px;
+  }
+  .admin-dash-detail-nav-label{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--chalk);
+    min-width: 130px;
+    text-align: center;
+  }
+  .admin-dash-detail-nav-btn{
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-s);
+    border: 1px solid var(--line);
+    background: var(--surface-raised);
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .admin-dash-detail-nav-btn:hover{ border-color: var(--brass); color: var(--brass-bright); }
+  .admin-dash-detail-nav-btn:disabled{ opacity: 0.35; cursor: default; }
+  .admin-dash-detail-nav-btn:disabled:hover{ border-color: var(--line); color: var(--muted); }
   .admin-loading{
     text-align:center;
     color: var(--muted);
@@ -4843,7 +4870,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.54.14';
+const APP_VERSION = '2.54.15';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -10361,15 +10388,7 @@ async function loadAdminDashboard(){
     // '일지' 하나 = 어떤 회원의 그 날짜 안에서 PT 기록 묶음 하나, 또는 개인 운동 묶음 하나.
     // 종목(운동 하나하나)이 아니라 이 묶음 단위로 세야 하므로, 회원+날짜+PT여부 조합이 같으면 하나로 친다.
     // 누가 작성했는지(authorId)도 같이 남겨둬서, "오늘 작성된 일지" 카드를 눌렀을 때 보여줄 수 있게 한다.
-    const todayJournalMap = new Map();
-    todayLogsSnap.docs.forEach(d => {
-      const data = d.data();
-      const memberId = d.ref.parent.parent.id;
-      const key = `${memberId}:${data.date}:${!!data.locked}`;
-      if(!todayJournalMap.has(key)){
-        todayJournalMap.set(key, { memberId, authorId: data.authorId || memberId });
-      }
-    });
+    const todayJournalMap = buildJournalMapFromLogsSnap(todayLogsSnap);
 
     const cards = [
       { label: '전체 회원', value: memberCount },
@@ -10388,14 +10407,36 @@ async function loadAdminDashboard(){
 
     adminTodayJournalDetail.style.display = 'none';
     adminTodayJournalDetail.innerHTML = '';
+    adminJournalDetailDate = null;
     const todayJournalCard = adminDashGrid.querySelector('[data-card-id="todayJournal"]');
     if(todayJournalCard){
-      todayJournalCard.addEventListener('click', () => toggleAdminTodayJournalDetail(todayJournalMap));
+      todayJournalCard.addEventListener('click', () => toggleAdminJournalDetail(todayJournalMap));
     }
   }catch(err){
     console.error('관리자 대시보드 조회 오류:', err);
     adminDashGrid.innerHTML = '<div class="admin-empty">현황을 불러오지 못했어요.</div>';
   }
+}
+
+// '일지' 하나 = 회원+날짜+PT여부 조합 하나. 컬렉션 그룹 쿼리 결과에서 이 묶음과 작성자(authorId)를 뽑아낸다.
+function buildJournalMapFromLogsSnap(logsSnap){
+  const map = new Map();
+  logsSnap.docs.forEach(d => {
+    const data = d.data();
+    const memberId = d.ref.parent.parent.id;
+    const key = `${memberId}:${data.date}:${!!data.locked}`;
+    if(!map.has(key)){
+      map.set(key, { memberId, authorId: data.authorId || memberId });
+    }
+  });
+  return map;
+}
+
+function shiftDateStr(dateStr, delta){
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + delta);
+  return toDateStr(dt.getFullYear(), dt.getMonth(), dt.getDate());
 }
 
 // 회원이든 트레이너든, 각자 자기 계정(users/{uid})에 저장해둔 members-list 안에서 자기 이름을 찾는다
@@ -10411,36 +10452,79 @@ async function resolveProfileName(uid){
   }
 }
 
-async function toggleAdminTodayJournalDetail(todayJournalMap){
+let adminJournalDetailDate = null;
+
+async function toggleAdminJournalDetail(todayJournalMap){
   const isOpen = adminTodayJournalDetail.style.display !== 'none';
   if(isOpen){
     adminTodayJournalDetail.style.display = 'none';
+    adminJournalDetailDate = null;
     return;
   }
   adminTodayJournalDetail.style.display = 'flex';
+  adminJournalDetailDate = todayStr();
+  await renderAdminJournalDetailForDate(adminJournalDetailDate, todayJournalMap);
+}
+
+async function renderAdminJournalDetailForDate(dateStr, cachedMapForToday){
   adminTodayJournalDetail.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
 
+  let journalMap;
+  if(dateStr === todayStr() && cachedMapForToday){
+    journalMap = cachedMapForToday;
+  } else {
+    try{
+      const logsSnap = await db.collectionGroup('logs').where('date', '==', dateStr).get();
+      journalMap = buildJournalMapFromLogsSnap(logsSnap);
+    }catch(err){
+      console.error('일지 작성자 조회 오류:', dateStr, err);
+      adminTodayJournalDetail.innerHTML = '<div class="admin-empty">불러오지 못했어요.</div>';
+      return;
+    }
+  }
+
   const uniqueUids = new Set();
-  todayJournalMap.forEach(v => { uniqueUids.add(v.memberId); uniqueUids.add(v.authorId); });
+  journalMap.forEach(v => { uniqueUids.add(v.memberId); uniqueUids.add(v.authorId); });
   const nameMap = {};
   await Promise.all([...uniqueUids].map(async uid => {
     nameMap[uid] = await resolveProfileName(uid);
   }));
 
-  const rows = [...todayJournalMap.values()].map(v => ({
+  const rows = [...journalMap.values()].map(v => ({
     memberName: nameMap[v.memberId] || v.memberId,
     authorName: v.authorId === v.memberId ? '본인' : (nameMap[v.authorId] || v.authorId),
   }));
   rows.sort((a, b) => a.memberName.localeCompare(b.memberName, 'ko'));
 
-  adminTodayJournalDetail.innerHTML = rows.length
-    ? rows.map(r => `
-      <div class="admin-dash-detail-row">
-        <span class="admin-dash-detail-member">${escapeHtml(r.memberName)}</span>
-        <span class="admin-dash-detail-author">작성자: ${escapeHtml(r.authorName)}</span>
-      </div>
-    `).join('')
-    : '<div class="admin-empty">오늘 작성된 일지가 없어요.</div>';
+  const isToday = dateStr === todayStr();
+  const dateLabel = formatDate(dateStr) + (isToday ? ' (오늘)' : '');
+
+  adminTodayJournalDetail.innerHTML = `
+    <div class="admin-dash-detail-nav">
+      <button type="button" class="admin-dash-detail-nav-btn" id="adminJournalPrevBtn">◀</button>
+      <span class="admin-dash-detail-nav-label">${dateLabel}</span>
+      <button type="button" class="admin-dash-detail-nav-btn" id="adminJournalNextBtn" ${isToday ? 'disabled' : ''}>▶</button>
+    </div>
+    ${rows.length
+      ? rows.map(r => `
+        <div class="admin-dash-detail-row">
+          <span class="admin-dash-detail-member">${escapeHtml(r.memberName)}</span>
+          <span class="admin-dash-detail-author">작성자: ${escapeHtml(r.authorName)}</span>
+        </div>
+      `).join('')
+      : '<div class="admin-empty">이 날짜에 작성된 일지가 없어요.</div>'}
+  `;
+
+  document.getElementById('adminJournalPrevBtn').addEventListener('click', () => {
+    adminJournalDetailDate = shiftDateStr(dateStr, -1);
+    renderAdminJournalDetailForDate(adminJournalDetailDate);
+  });
+  if(!isToday){
+    document.getElementById('adminJournalNextBtn').addEventListener('click', () => {
+      adminJournalDetailDate = shiftDateStr(dateStr, 1);
+      renderAdminJournalDetailForDate(adminJournalDetailDate);
+    });
+  }
 }
 
 /* ---------- 센터장 대시보드 ---------- */
