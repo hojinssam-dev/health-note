@@ -4940,7 +4940,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.54.22';
+const APP_VERSION = '2.54.25';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6266,13 +6266,31 @@ function loadCalCache(memberId){
     return null;
   }
 }
+// 사진 앨범도 같은 방식으로 캐시한다. 사진은 잠금/비공개 개념이 없어서(트레이너·회원 둘 다 항상
+// 같은 걸 보게 되어 있어서) 달력 캐시처럼 트레이너용/회원용을 나눌 필요 없이 하나만 쓴다.
+const BODY_PHOTOS_CACHE_PREFIX = 'bodyPhotosCache:';
+function saveBodyPhotosCache(memberId, photos){
+  try{
+    localStorage.setItem(BODY_PHOTOS_CACHE_PREFIX + memberId, JSON.stringify({ photos, savedAt: Date.now() }));
+  }catch(err){ /* 조용히 건너뛴다 */ }
+}
+function loadBodyPhotosCache(memberId){
+  try{
+    const raw = localStorage.getItem(BODY_PHOTOS_CACHE_PREFIX + memberId);
+    if(!raw) return null;
+    const data = JSON.parse(raw);
+    return Array.isArray(data.photos) ? data.photos : null;
+  }catch(err){
+    return null;
+  }
+}
 function clearAllCalCache(){
   try{
     const keysToRemove = [];
     for(let i = 0; i < localStorage.length; i++){
       const k = localStorage.key(i);
-      // 달력 캐시(회원용·트레이너용 둘 다)뿐 아니라, 회원 목록·트레이너 회원목록·부위별 색상 캐시도 로그아웃할 때 같이 지운다
-      if(k && (k.startsWith(CAL_CACHE_PREFIX) || k.startsWith(TRAINER_CAL_CACHE_PREFIX) || k.startsWith(MEMBERS_CACHE_PREFIX) || k.startsWith(TRAINER_MEMBER_LIST_CACHE_PREFIX) || k.startsWith(BODYPART_CACHE_PREFIX))){
+      // 달력 캐시(회원용·트레이너용 둘 다)뿐 아니라, 회원 목록·트레이너 회원목록·부위별 색상·사진 앨범 캐시도 로그아웃할 때 같이 지운다
+      if(k && (k.startsWith(CAL_CACHE_PREFIX) || k.startsWith(TRAINER_CAL_CACHE_PREFIX) || k.startsWith(MEMBERS_CACHE_PREFIX) || k.startsWith(TRAINER_MEMBER_LIST_CACHE_PREFIX) || k.startsWith(BODYPART_CACHE_PREFIX) || k.startsWith(BODY_PHOTOS_CACHE_PREFIX))){
         keysToRemove.push(k);
       }
     }
@@ -7720,10 +7738,19 @@ async function openMember(memberId, isNewMember, jumpToDate){
   bodyPhotosPanel.style.display = 'none';
   bodyPhotosTabArrow.classList.remove('open');
   bodyPhotosStatus.style.display = 'none';
+  // 패널을 숨기기만 하고 안의 내용을 안 지우면, 새 데이터가 도착하기 전에 패널을 펼쳤을 때
+  // 예전 회원의 사진이 잠깐 보였다가 사라지는 문제가 생긴다. 그래서 여기서 곧바로 비워둔 다음,
+  // 이 기기에 저장해둔 지난번 내용이 있으면(캐시) 서버 응답을 기다리지 않고 먼저 그걸로 채운다.
+  const cachedPhotos = loadBodyPhotosCache(memberId);
+  currentBodyPhotos = cachedPhotos || [];
+  renderBodyPhotos();
   (async () => {
     await migrateBodyPhotosIfNeeded(memberId);
-    currentBodyPhotos = await loadBodyPhotos(memberId);
-    if(currentMemberId === memberId) renderBodyPhotos();
+    const photos = await loadBodyPhotos(memberId);
+    if(currentMemberId !== memberId) return; // 그 사이 다른 회원으로 넘어갔으면 반영하지 않는다
+    currentBodyPhotos = photos;
+    renderBodyPhotos();
+    saveBodyPhotosCache(memberId, photos);
     pruneBrokenBodyPhotos(memberId, currentBodyPhotos); // 화면 막지 않고 뒤에서 깨진 사진만 조용히 정리
   })();
   storageGetWithRetry(dismissedNoteKey(memberId), false, memberId).then((dismissedResult) => {
@@ -11448,6 +11475,16 @@ const trainerTodayJournalCard = document.getElementById('trainerTodayJournalCard
 const trainerTodayJournalValue = document.getElementById('trainerTodayJournalValue');
 const trainerJournalDetail = document.getElementById('trainerJournalDetail');
 let trainerJournalDetailDate = null;
+let trainerJournalWasOpen = false; // 다른 화면 갔다가 회원 목록으로 돌아왔을 때, 펼쳐둔 상태를 그대로 이어가기 위함
+
+function trainerJournalRowClickHandler(){
+  return (memberId, dateStr) => {
+    isViewingAsTrainer = true;
+    viewTrainerMembers.classList.remove('active');
+    trainerBackToListBtn.style.display = 'inline-flex';
+    openMember(memberId, false, dateStr);
+  };
+}
 
 async function loadTrainerTodayJournalCard(trainerUid){
   try{
@@ -11455,11 +11492,25 @@ async function loadTrainerTodayJournalCard(trainerUid){
     const todayMap = await fetchMapForDate(todayStr());
     trainerTodayJournalValue.textContent = todayMap.size;
     trainerTodayJournalCard.style.display = 'flex';
-    trainerJournalDetail.style.display = 'none';
-    trainerJournalDetail.innerHTML = '';
-    trainerTodayJournalCard.classList.remove('is-open');
-    trainerJournalDetailDate = null;
     trainerTodayJournalCard.onclick = () => toggleTrainerJournalDetail(trainerUid, todayMap);
+
+    if(trainerJournalWasOpen){
+      // 예전에 펼쳐둔 상태였다면(다른 화면 갔다가 돌아온 것뿐이라면) 접지 않고, 보고 있던 날짜까지 그대로 이어간다
+      trainerJournalDetail.style.display = 'flex';
+      trainerTodayJournalCard.classList.add('is-open');
+      const dateToShow = trainerJournalDetailDate || todayStr();
+      await renderJournalDetailForDate(
+        trainerJournalDetail, dateToShow, fetchMapForDate,
+        dateToShow === todayStr() ? todayMap : null,
+        (d) => { trainerJournalDetailDate = d; },
+        trainerJournalRowClickHandler()
+      );
+    } else {
+      trainerJournalDetail.style.display = 'none';
+      trainerJournalDetail.innerHTML = '';
+      trainerTodayJournalCard.classList.remove('is-open');
+      trainerJournalDetailDate = null;
+    }
   }catch(err){
     console.error('트레이너 오늘 일지 조회 오류:', err);
   }
@@ -11471,19 +11522,19 @@ async function toggleTrainerJournalDetail(trainerUid, todayJournalMap){
     trainerJournalDetail.style.display = 'none';
     trainerTodayJournalCard.classList.remove('is-open');
     trainerJournalDetailDate = null;
+    trainerJournalWasOpen = false;
     return;
   }
   trainerJournalDetail.style.display = 'flex';
   trainerTodayJournalCard.classList.add('is-open');
+  trainerJournalWasOpen = true;
   trainerJournalDetailDate = todayStr();
   const fetchMapForDate = fetchTrainerJournalMapForDate(trainerUid);
-  const onRowClick = (memberId, dateStr) => {
-    isViewingAsTrainer = true;
-    viewTrainerMembers.classList.remove('active');
-    trainerBackToListBtn.style.display = 'inline-flex';
-    openMember(memberId, false, dateStr);
-  };
-  await renderJournalDetailForDate(trainerJournalDetail, trainerJournalDetailDate, fetchMapForDate, todayJournalMap, (d) => { trainerJournalDetailDate = d; }, onRowClick);
+  await renderJournalDetailForDate(
+    trainerJournalDetail, trainerJournalDetailDate, fetchMapForDate, todayJournalMap,
+    (d) => { trainerJournalDetailDate = d; },
+    trainerJournalRowClickHandler()
+  );
 }
 
 let trainerMemberListRequestId = 0; // 목록을 불러올 때마다 올려서, 낡은(늦게 도착한) 배경 조회 결과는 무시한다
@@ -12064,6 +12115,7 @@ auth.onAuthStateChanged(async (user) => {
     members = [];
     currentMemberId = null;
     isViewingAsTrainer = false;
+    trainerJournalWasOpen = false;
     trainerBackToListBtn.style.display = 'none';
     clearAllCalCache(); // 로그아웃하면 이 기기에 저장해둔 달력 미리보기 캐시를 전부 지운다 (다음 사용자에게 안 보이도록)
     showLandingView();
