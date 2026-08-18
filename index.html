@@ -3194,7 +3194,6 @@
     border-radius: var(--radius-m);
     padding: 14px;
     box-shadow: var(--shadow-sm);
-    cursor: pointer;
   }
   .employer-trainer-card.has-activity-today{
     border-left-color: var(--brass);
@@ -3213,16 +3212,75 @@
   }
   .employer-trainer-edit-btn{
     flex-shrink: 0;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     border-radius: var(--radius-s);
     border: 1px solid var(--line);
     background: var(--surface-raised);
     color: var(--muted);
     font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
     cursor: pointer;
   }
   .employer-trainer-edit-btn:hover{ border-color: var(--brass); color: var(--brass-bright); }
+  .employer-trainer-actions{
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .employer-trainer-action-btn{
+    flex: 1;
+    height: 38px;
+    border-radius: var(--radius-s);
+    border: 1px solid var(--line);
+    background: var(--surface-raised);
+    color: var(--chalk);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .employer-trainer-action-btn:hover{ border-color: var(--brass); color: var(--brass-bright); }
+  .employer-member-list{
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 380px;
+    overflow-y: auto;
+    padding: 2px;
+    margin: 4px 0 2px;
+  }
+  .employer-member-row{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    padding: 14px 16px;
+  }
+  .employer-member-row-name{
+    font-size: 15px;
+    color: var(--chalk);
+    font-weight: 500;
+  }
+  .employer-member-disconnect-btn{
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    border-radius: var(--radius-s);
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 40px;
+    cursor: pointer;
+  }
+  .employer-member-disconnect-btn:hover{ background: var(--danger); color: var(--chalk); }
   .employer-trainer-name{
     font-size: 15px;
     font-weight: 600;
@@ -3447,10 +3505,10 @@
     gap: 6px;
     margin-bottom: 4px;
   }
-  #settingsModal .modal-title, #trainerSettingsModal .modal-title{ margin-bottom: 18px; }
-  #settingsModal .theme-option-label, #trainerSettingsModal .theme-option-label{ margin: 0 0 8px; }
-  #settingsModal .theme-option-row, #trainerSettingsModal .theme-option-row{ margin-bottom: 18px; }
-  #settingsModal .modal-actions, #trainerSettingsModal .modal-actions{ margin-top: 0; }
+  #settingsModal .modal-title, #trainerSettingsModal .modal-title, #employerSettingsModal .modal-title{ margin-bottom: 18px; }
+  #settingsModal .theme-option-label, #trainerSettingsModal .theme-option-label, #employerSettingsModal .theme-option-label{ margin: 0 0 8px; }
+  #settingsModal .theme-option-row, #trainerSettingsModal .theme-option-row, #employerSettingsModal .theme-option-row{ margin-bottom: 18px; }
+  #settingsModal .modal-actions, #trainerSettingsModal .modal-actions, #employerSettingsModal .modal-actions{ margin-top: 0; }
   .theme-option-btn{
     flex: 1 1 0;
     min-width: 0;
@@ -4368,7 +4426,7 @@
     <div class="modal-box">
       <div class="modal-title" id="employerTrainerMembersTitle">연결된 회원</div>
       <div class="modal-sub">연결을 해제하면 새 트레이너가 이 회원을 연결할 수 있게 돼요. 그동안의 운동 기록은 그대로 남아요.</div>
-      <div class="pt-history-list" id="employerTrainerMembersList" style="max-height:320px; overflow-y:auto;"></div>
+      <div class="employer-member-list" id="employerTrainerMembersList"></div>
       <button class="modal-cancel" id="employerTrainerMembersCloseBtn">닫기</button>
     </div>
   </div>
@@ -4950,7 +5008,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.55.2';
+const APP_VERSION = '2.55.4';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -10880,7 +10938,6 @@ async function loadEmployerDashboard(){
           <div class="employer-trainer-name-group">
             <span class="employer-trainer-name">${escapeHtml(r.name)}</span>
             <button type="button" class="employer-trainer-edit-btn" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}" title="이름 수정">✎</button>
-            <button type="button" class="employer-trainer-edit-btn" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}" data-action="manage-members" title="연결된 회원 관리">👥</button>
           </div>
           <span class="employer-trainer-member-count">회원 ${r.memberCount}명</span>
         </div>
@@ -10898,25 +10955,16 @@ async function loadEmployerDashboard(){
             <div class="employer-stat-value">${r.monthCount}</div>
           </div>
         </div>
+        <div class="employer-trainer-actions">
+          <button type="button" class="employer-trainer-action-btn" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}" data-action="earnings">💰 수업료 달력</button>
+          <button type="button" class="employer-trainer-action-btn" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}" data-action="manage-members">👥 회원 관리</button>
+        </div>
       </div>
     `).join('');
-    employerTrainerList.querySelectorAll('.employer-trainer-card').forEach(card => {
-      card.addEventListener('click', () => {
-        showTrainerEarningsView(card.getAttribute('data-trainer-uid'), {
-          trainerName: card.getAttribute('data-trainer-name'),
-          returnTo: 'employer',
-        });
-      });
-    });
     employerTrainerList.querySelectorAll('.employer-trainer-edit-btn').forEach(btn => {
-      btn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
+      btn.addEventListener('click', () => {
         const trainerUid = btn.getAttribute('data-trainer-uid');
         const currentName = btn.getAttribute('data-trainer-name');
-        if(btn.getAttribute('data-action') === 'manage-members'){
-          openEmployerTrainerMembersModal(trainerUid, currentName);
-          return;
-        }
         openPromptModal({
           title: '트레이너 이름 수정',
           fields: [{ placeholder: '이름', value: currentName }],
@@ -10938,6 +10986,17 @@ async function loadEmployerDashboard(){
             loadEmployerDashboard();
           },
         });
+      });
+    });
+    employerTrainerList.querySelectorAll('.employer-trainer-action-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const trainerUid = btn.getAttribute('data-trainer-uid');
+        const trainerName = btn.getAttribute('data-trainer-name');
+        if(btn.getAttribute('data-action') === 'manage-members'){
+          openEmployerTrainerMembersModal(trainerUid, trainerName);
+        } else {
+          showTrainerEarningsView(trainerUid, { trainerName, returnTo: 'employer' });
+        }
       });
     });
   }catch(err){
@@ -10980,9 +11039,9 @@ async function renderEmployerTrainerMembersList(trainerUid){
     return;
   }
   employerTrainerMembersList.innerHTML = rows.map(r => `
-    <div class="pt-history-item" style="display:flex; align-items:center; justify-content:space-between; white-space:normal; cursor:default;">
-      <span>${escapeHtml(r.name)}</span>
-      <button type="button" class="modal-btn modal-btn-danger" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}" style="width:auto; padding:6px 12px; font-size:12px;">연결 해제</button>
+    <div class="employer-member-row">
+      <span class="employer-member-row-name">${escapeHtml(r.name)}</span>
+      <button type="button" class="employer-member-disconnect-btn" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}">연결 해제</button>
     </div>
   `).join('');
   employerTrainerMembersList.querySelectorAll('button[data-uid]').forEach(btn => {
