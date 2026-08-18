@@ -4364,6 +4364,15 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="employerTrainerMembersModal">
+    <div class="modal-box">
+      <div class="modal-title" id="employerTrainerMembersTitle">연결된 회원</div>
+      <div class="modal-sub">연결을 해제하면 새 트레이너가 이 회원을 연결할 수 있게 돼요. 그동안의 운동 기록은 그대로 남아요.</div>
+      <div class="pt-history-list" id="employerTrainerMembersList" style="max-height:320px; overflow-y:auto;"></div>
+      <button class="modal-cancel" id="employerTrainerMembersCloseBtn">닫기</button>
+    </div>
+  </div>
+
   <div class="view" id="view-trainer-members">
     <div class="log-header">
       <h1 class="admin-title">회원 목록</h1>
@@ -4453,7 +4462,7 @@
       <div class="modal-actions">
         <button class="modal-btn" id="trainerMemberEditChangeIdBtn">아이디 변경</button>
         <button class="modal-btn modal-btn-primary" id="trainerMemberEditSaveBtn">저장</button>
-        <button class="modal-btn modal-btn-danger" id="trainerMemberEditDeleteBtn">회원 삭제</button>
+        <button class="modal-btn modal-btn-danger" id="trainerMemberEditDeleteBtn">연결 끊기</button>
       </div>
       <button class="modal-cancel" id="trainerMemberEditCancelBtn">취소</button>
     </div>
@@ -4941,7 +4950,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.55.0';
+const APP_VERSION = '2.55.2';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -10871,6 +10880,7 @@ async function loadEmployerDashboard(){
           <div class="employer-trainer-name-group">
             <span class="employer-trainer-name">${escapeHtml(r.name)}</span>
             <button type="button" class="employer-trainer-edit-btn" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}" title="이름 수정">✎</button>
+            <button type="button" class="employer-trainer-edit-btn" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}" data-action="manage-members" title="연결된 회원 관리">👥</button>
           </div>
           <span class="employer-trainer-member-count">회원 ${r.memberCount}명</span>
         </div>
@@ -10903,6 +10913,10 @@ async function loadEmployerDashboard(){
         ev.stopPropagation();
         const trainerUid = btn.getAttribute('data-trainer-uid');
         const currentName = btn.getAttribute('data-trainer-name');
+        if(btn.getAttribute('data-action') === 'manage-members'){
+          openEmployerTrainerMembersModal(trainerUid, currentName);
+          return;
+        }
         openPromptModal({
           title: '트레이너 이름 수정',
           fields: [{ placeholder: '이름', value: currentName }],
@@ -10930,6 +10944,71 @@ async function loadEmployerDashboard(){
     console.error('센터장 대시보드 조회 오류:', err);
     employerTrainerList.innerHTML = '<div class="admin-empty">불러오지 못했어요.</div>';
   }
+}
+
+const employerTrainerMembersModal = document.getElementById('employerTrainerMembersModal');
+const employerTrainerMembersTitle = document.getElementById('employerTrainerMembersTitle');
+const employerTrainerMembersList = document.getElementById('employerTrainerMembersList');
+const employerTrainerMembersCloseBtn = document.getElementById('employerTrainerMembersCloseBtn');
+employerTrainerMembersCloseBtn.addEventListener('click', () => employerTrainerMembersModal.classList.remove('open'));
+employerTrainerMembersModal.addEventListener('click', (ev) => {
+  if(ev.target === employerTrainerMembersModal) employerTrainerMembersModal.classList.remove('open');
+});
+
+async function openEmployerTrainerMembersModal(trainerUid, trainerName){
+  employerTrainerMembersTitle.textContent = `${trainerName} — 연결된 회원`;
+  employerTrainerMembersList.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
+  employerTrainerMembersModal.classList.add('open');
+  try{
+    await renderEmployerTrainerMembersList(trainerUid);
+  }catch(err){
+    console.error('연결된 회원 조회 오류:', err);
+    employerTrainerMembersList.innerHTML = '<div class="admin-empty">불러오지 못했어요.</div>';
+  }
+}
+
+async function renderEmployerTrainerMembersList(trainerUid){
+  const membersSnap = await db.collection('users').where('trainerId', '==', trainerUid).get();
+  const rows = await Promise.all(membersSnap.docs.map(async (docSnap) => {
+    const name = await resolveProfileName(docSnap.id);
+    return { uid: docSnap.id, name };
+  }));
+  rows.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+
+  if(!rows.length){
+    employerTrainerMembersList.innerHTML = '<div class="admin-empty" style="padding:10px;">연결된 회원이 없어요.</div>';
+    return;
+  }
+  employerTrainerMembersList.innerHTML = rows.map(r => `
+    <div class="pt-history-item" style="display:flex; align-items:center; justify-content:space-between; white-space:normal; cursor:default;">
+      <span>${escapeHtml(r.name)}</span>
+      <button type="button" class="modal-btn modal-btn-danger" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}" style="width:auto; padding:6px 12px; font-size:12px;">연결 해제</button>
+    </div>
+  `).join('');
+  employerTrainerMembersList.querySelectorAll('button[data-uid]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const memberUid = btn.getAttribute('data-uid');
+      const memberName = btn.getAttribute('data-name');
+      showConfirmModal(
+        '연결 해제',
+        `${memberName}님의 연결을 해제할까요? 그동안의 운동 기록은 그대로 남고, 트레이너와의 연결만 해제돼요.`,
+        async () => {
+          try{
+            await db.collection('users').doc(memberUid).set({
+              trainerId: firebase.firestore.FieldValue.delete(),
+            }, { merge: true });
+            showCopyToast('연결을 해제했어요.');
+            await renderEmployerTrainerMembersList(trainerUid);
+            loadEmployerDashboard();
+          }catch(err){
+            console.error('연결 해제 오류:', err);
+            showCopyToast('해제 중 오류가 발생했어요.');
+          }
+        },
+        '해제'
+      );
+    });
+  });
 }
 
 employerRefreshBtn.addEventListener('click', loadEmployerDashboard);
@@ -11471,6 +11550,12 @@ function renderTrainerMemberList(data, myUid){
       const name = row.getAttribute('data-name');
       showConfirmModal(`${name}님`, '연결하실 건가요?', async () => {
         try{
+          const memberSnap = await db.collection('users').doc(uid).get();
+          const existingTrainerId = memberSnap.exists ? memberSnap.data().trainerId : null;
+          if(existingTrainerId && existingTrainerId !== myUid){
+            showCopyToast('이미 다른 트레이너와 연결된 회원이에요. 기존 트레이너나 센터장이 먼저 연결을 해제해야 해요.');
+            return;
+          }
           await db.collection('users').doc(uid).set({
             trainerId: myUid,
             trainerIdPending: firebase.firestore.FieldValue.delete(),
@@ -11854,6 +11939,15 @@ trainerDirectConnectBtn.addEventListener('click', async () => {
       trainerDirectConnectError.style.display = 'block';
       return;
     }
+    // 이미 다른 트레이너와 연결된 회원은 그냥 가져올 수 없다 — 기존 트레이너나 센터장이
+    // 먼저 연결을 해제해야 새 트레이너가 연결할 수 있다.
+    const memberSnap = await db.collection('users').doc(memberUid).get();
+    const existingTrainerId = memberSnap.exists ? memberSnap.data().trainerId : null;
+    if(existingTrainerId && existingTrainerId !== auth.currentUser.uid){
+      trainerDirectConnectError.textContent = '이미 다른 트레이너와 연결된 회원이에요. 기존 트레이너나 센터장이 먼저 연결을 해제해야 해요.';
+      trainerDirectConnectError.style.display = 'block';
+      return;
+    }
     // 트레이너가 먼저 거는 연결은 회원 동의 없이 바로 확정된다
     await db.collection('users').doc(memberUid).set({
       trainerId: auth.currentUser.uid,
@@ -12055,22 +12149,22 @@ trainerMemberEditDeleteBtn.addEventListener('click', () => {
   const name = trainerEditNameInput.value.trim() || '이 회원';
   closeTrainerMemberEditModal();
   showConfirmModal(
-    '회원 삭제',
-    `${name}님을 회원 목록에서 삭제할까요? (그동안의 운동 기록은 그대로 남고, 트레이너와의 연결만 해제돼요.)`,
+    '연결 끊기',
+    `${name}님과의 연결을 끊을까요? (그동안의 운동 기록은 그대로 남고, 연결만 해제돼요.)`,
     async () => {
       try{
         await db.collection('users').doc(uid).set({
           trainerId: firebase.firestore.FieldValue.delete(),
           trainerIdPending: firebase.firestore.FieldValue.delete(),
         }, { merge: true });
-        showCopyToast('회원을 목록에서 삭제했어요.');
+        showCopyToast('연결을 끊었어요.');
         loadTrainerMemberList();
       }catch(err){
-        console.error('회원 삭제(연결 해제) 오류:', err);
-        showCopyToast('삭제 중 오류가 발생했어요.');
+        console.error('연결 끊기 오류:', err);
+        showCopyToast('연결을 끊는 중 오류가 발생했어요.');
       }
     },
-    '삭제'
+    '연결 끊기'
   );
 });
 trainerMemberEditSaveBtn.addEventListener('click', async () => {
