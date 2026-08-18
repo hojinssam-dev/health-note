@@ -4582,6 +4582,7 @@
     <div class="modal-actions">
       <button class="modal-btn modal-btn-primary" id="promptModalSubmitBtn">확인</button>
     </div>
+    <button class="modal-btn modal-btn-danger" id="promptModalDeleteBtn" style="width:100%; margin-bottom:10px; display:none;">삭제하기</button>
     <button class="modal-cancel" id="promptModalCancelBtn">취소</button>
   </div>
 </div>
@@ -4940,7 +4941,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.54.25';
+const APP_VERSION = '2.55.0';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -7747,10 +7748,12 @@ async function openMember(memberId, isNewMember, jumpToDate){
   (async () => {
     await migrateBodyPhotosIfNeeded(memberId);
     const photos = await loadBodyPhotos(memberId);
-    if(currentMemberId !== memberId) return; // 그 사이 다른 회원으로 넘어갔으면 반영하지 않는다
+    // 캐시 저장은 화면을 벗어났어도 항상 해준다 — 그래야 다음에 이 회원을 다시 열 때 캐시가
+    // 있다. (화면 반영만 지금 보고 있는 회원일 때로 제한한다)
+    saveBodyPhotosCache(memberId, photos);
+    if(currentMemberId !== memberId) return; // 그 사이 다른 회원으로 넘어갔으면 화면엔 반영하지 않는다
     currentBodyPhotos = photos;
     renderBodyPhotos();
-    saveBodyPhotosCache(memberId, photos);
     pruneBrokenBodyPhotos(memberId, currentBodyPhotos); // 화면 막지 않고 뒤에서 깨진 사진만 조용히 정리
   })();
   storageGetWithRetry(dismissedNoteKey(memberId), false, memberId).then((dismissedResult) => {
@@ -9972,10 +9975,13 @@ const promptModalInput2 = document.getElementById('promptModalInput2');
 const promptModalInput3 = document.getElementById('promptModalInput3');
 const promptModalError = document.getElementById('promptModalError');
 const promptModalSubmitBtn = document.getElementById('promptModalSubmitBtn');
+const promptModalDeleteBtn = document.getElementById('promptModalDeleteBtn');
 const promptModalCancelBtn = document.getElementById('promptModalCancelBtn');
 let promptModalOnSubmit = null;
+let promptModalOnDelete = null;
+let promptModalOnCancel = null;
 
-function openPromptModal({ title, sub, fields, submitLabel, onSubmit }){
+function openPromptModal({ title, sub, fields, submitLabel, onSubmit, deleteLabel, onDelete, onCancel }){
   promptModalTitle.textContent = title;
   promptModalSub.textContent = sub || '';
   promptModalSub.style.display = sub ? 'block' : 'none';
@@ -9983,6 +9989,10 @@ function openPromptModal({ title, sub, fields, submitLabel, onSubmit }){
   promptModalError.textContent = '';
   promptModalSubmitBtn.textContent = submitLabel || '확인';
   promptModalSubmitBtn.disabled = false;
+  promptModalOnDelete = onDelete || null;
+  promptModalOnCancel = onCancel || null;
+  promptModalDeleteBtn.textContent = deleteLabel || '삭제하기';
+  promptModalDeleteBtn.style.display = onDelete ? 'block' : 'none';
 
   const inputs = [promptModalInput1, promptModalInput2, promptModalInput3];
   const wraps = [
@@ -10030,10 +10040,17 @@ function openPromptModal({ title, sub, fields, submitLabel, onSubmit }){
 function closePromptModal(){
   promptModal.classList.remove('open');
   promptModalOnSubmit = null;
+  promptModalOnDelete = null;
+  promptModalOnCancel = null;
 }
-promptModalCancelBtn.addEventListener('click', closePromptModal);
+function cancelPromptModal(){
+  const cancelCb = promptModalOnCancel;
+  closePromptModal();
+  if(cancelCb) cancelCb();
+}
+promptModalCancelBtn.addEventListener('click', cancelPromptModal);
 promptModal.addEventListener('click', (ev) => {
-  if(ev.target === promptModal) closePromptModal();
+  if(ev.target === promptModal) cancelPromptModal();
 });
 promptModalSubmitBtn.addEventListener('click', async () => {
   if(!promptModalOnSubmit) return;
@@ -10046,6 +10063,19 @@ promptModalSubmitBtn.addEventListener('click', async () => {
     promptModalError.style.display = 'block';
   }finally{
     promptModalSubmitBtn.disabled = false;
+  }
+});
+promptModalDeleteBtn.addEventListener('click', async () => {
+  if(!promptModalOnDelete) return;
+  promptModalError.style.display = 'none';
+  promptModalDeleteBtn.disabled = true;
+  try{
+    await promptModalOnDelete();
+  }catch(err){
+    promptModalError.textContent = (err && err.message) || '삭제 중 오류가 발생했어요. 다시 시도해주세요.';
+    promptModalError.style.display = 'block';
+  }finally{
+    promptModalDeleteBtn.disabled = false;
   }
 });
 
@@ -11584,6 +11614,10 @@ async function loadTrainerMemberList(){
    '일지' 한 건이 아니라 '회원+날짜' 조합 하나당 그날의 등록 단가를 한 번만 반영한다 — 하루에 여러
    종목을 기록해도 세션 번호(sessionNo)는 같은 값을 공유하기 때문에, 종목 개수만큼 중복으로 세면 안 된다.
    수업료 정산에서 제외로 표시해둔 회원은 계산 대상에서 완전히 빠진다(단가 미등록 카운트에도 안 잡힘). */
+/* 이 트레이너가 '지금 담당하는 회원'이 아니라 '실제로 자기가 작성한(authorId) PT인정 일지'를
+   기준으로 계산한다. 그래야 회원의 트레이너 연결이 중간에 바뀌어도, 이전 트레이너는 자기가
+   실제로 진행했던 회차만큼만 수당이 잡히고, 새 트레이너는 연결된 이후 회차부터만 잡힌다.
+   컬렉션 그룹 쿼리라서 Firestore 색인이 새로 필요할 수 있다(콘솔에 안내 링크가 뜬다). */
 async function computeTrainerEarnings(trainerUid){
   const today = todayStr();
   const now = new Date();
@@ -11596,54 +11630,64 @@ async function computeTrainerEarnings(trainerUid){
   const monthEnd = toDateStr(now.getFullYear(), now.getMonth() + 1, 0);
   const rangeStart = weekStart < monthStart ? weekStart : monthStart;
 
-  const membersSnap = await db.collection('users').where('trainerId', '==', trainerUid).get();
-  const memberIds = membersSnap.docs.map(d => d.id);
+  const logsSnap = await db.collectionGroup('logs')
+    .where('authorId', '==', trainerUid)
+    .where('ptRecognized', '==', true)
+    .where('date', '>=', rangeStart)
+    .get();
 
-  let todayTotal = 0, weekTotal = 0, monthTotal = 0, missingRateCount = 0;
-  const dailyTotals = {};
-  const dailyBreakdown = {};
+  // 회원+날짜별로 세션 번호를 하나만 모은다 (하루에 여러 종목을 기록해도 세션 번호는 같은 값을 공유)
+  const sessionsByKey = new Map();
+  logsSnap.docs.forEach(d => {
+    const data = d.data();
+    if(!data.sessionNo) return;
+    const memberId = d.ref.parent.parent.id;
+    const key = `${memberId}|${data.date}`;
+    if(!sessionsByKey.has(key)){
+      sessionsByKey.set(key, { memberId, date: data.date, sessionNo: data.sessionNo });
+    }
+  });
 
+  // 회원별 등록 이력(단가)은 한 번씩만 조회한다 — 연결이 끊긴 회원이어도 트레이너 계정은
+  // 회원 프로필을 읽을 수 있는 기존 권한이 있어서 그대로 조회된다.
+  const memberIds = [...new Set([...sessionsByKey.values()].map(v => v.memberId))];
+  const ptHistoryByMember = {};
+  const nameByMember = {};
   await Promise.all(memberIds.map(async (memberId) => {
     try{
       const result = await storageGetWithRetry(STORAGE_KEY, false, memberId);
       const list = result ? JSON.parse(result.value) : [];
       const profile = list.find(m => m.id === memberId) || {};
-      if(profile.settlementExempt) return; // 정산 제외 회원은 완전히 건너뛴다
-
-      const ptHistory = getPtHistory(profile);
-      if(!ptHistory.length) return; // 등록 이력 자체가 없으면 계산할 대상이 없다
-
-      const logsSnap = await logsCollection(memberId)
-        .where('ptRecognized', '==', true)
-        .where('date', '>=', rangeStart)
-        .get();
-
-      // 하루에 여러 종목이 있어도 세션 번호는 같은 값을 공유하니, 날짜별로 한 번만 모은다
-      const sessionNoByDate = {};
-      logsSnap.docs.forEach(d => {
-        const e = d.data();
-        if(!e.sessionNo) return;
-        if(!sessionNoByDate[e.date]) sessionNoByDate[e.date] = e.sessionNo;
-      });
-
-      Object.entries(sessionNoByDate).forEach(([date, sessionNo]) => {
-        const cycle = resolvePtCycle(ptHistory, sessionNo);
-        const rate = cycle ? (ptHistory[cycle.generation - 1].rate || 0) : 0;
-        if(rate <= 0) missingRateCount++;
-
-        if(date >= monthStart && date <= monthEnd){
-          monthTotal += rate;
-          dailyTotals[date] = (dailyTotals[date] || 0) + rate;
-          if(!dailyBreakdown[date]) dailyBreakdown[date] = [];
-          if(rate > 0) dailyBreakdown[date].push({ name: profile.name || '회원', amount: rate });
-        }
-        if(date >= weekStart) weekTotal += rate;
-        if(date === today) todayTotal += rate;
-      });
+      nameByMember[memberId] = profile.name || '회원';
+      ptHistoryByMember[memberId] = profile.settlementExempt ? [] : getPtHistory(profile); // 정산 제외 회원은 완전히 건너뛴다
     }catch(err){
-      console.error('수업료 계산 오류 (회원):', memberId, err);
+      console.error('회원 단가 조회 오류:', memberId, err);
+      ptHistoryByMember[memberId] = [];
+      nameByMember[memberId] = memberId;
     }
   }));
+
+  let todayTotal = 0, weekTotal = 0, monthTotal = 0, missingRateCount = 0;
+  const dailyTotals = {};
+  const dailyBreakdown = {};
+
+  sessionsByKey.forEach(({ memberId, date, sessionNo }) => {
+    const ptHistory = ptHistoryByMember[memberId] || [];
+    if(!ptHistory.length) return; // 등록 이력이 없거나(또는 정산 제외) 계산 대상 아님
+
+    const cycle = resolvePtCycle(ptHistory, sessionNo);
+    const rate = cycle ? (ptHistory[cycle.generation - 1].rate || 0) : 0;
+    if(rate <= 0) missingRateCount++;
+
+    if(date >= monthStart && date <= monthEnd){
+      monthTotal += rate;
+      dailyTotals[date] = (dailyTotals[date] || 0) + rate;
+      if(!dailyBreakdown[date]) dailyBreakdown[date] = [];
+      if(rate > 0) dailyBreakdown[date].push({ name: nameByMember[memberId] || '회원', amount: rate });
+    }
+    if(date >= weekStart) weekTotal += rate;
+    if(date === today) todayTotal += rate;
+  });
 
   return { todayTotal, weekTotal, monthTotal, missingRateCount, dailyTotals, dailyBreakdown, monthStart, monthEnd, year: now.getFullYear(), month: now.getMonth() };
 }
@@ -11881,6 +11925,22 @@ function renderTrainerEditPtHistory(){
           renderTrainerEditPtHistory();
           trainerMemberEditModal.classList.add('open');
         },
+        deleteLabel: '삭제하기',
+        onDelete: async () => {
+          closePromptModal();
+          showConfirmModal(
+            `${i + 1}차 등록 삭제`,
+            `${h.amount}회 등록을 삭제할까요? 이 등록은 되돌릴 수 없어요.`,
+            () => {
+              trainerEditingPtHistory.splice(i, 1);
+              renderTrainerEditPtHistory();
+              trainerMemberEditModal.classList.add('open');
+            },
+            '삭제',
+            () => { trainerMemberEditModal.classList.add('open'); }
+          );
+        },
+        onCancel: () => { trainerMemberEditModal.classList.add('open'); },
       });
     });
   });
@@ -11956,6 +12016,7 @@ trainerEditPtAddBtn.addEventListener('click', () => {
       renderTrainerEditPtHistory();
       trainerMemberEditModal.classList.add('open');
     },
+    onCancel: () => { trainerMemberEditModal.classList.add('open'); },
   });
 });
 
