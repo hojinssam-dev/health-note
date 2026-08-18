@@ -2307,6 +2307,20 @@
     font-size: 12px;
     padding: 14px 0;
   }
+  .body-photos-status{
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
+    padding: 9px 12px;
+    font-size: 13px;
+    color: var(--chalk);
+    text-align: center;
+    margin-bottom: 12px;
+    animation: bodyPhotosStatusFade .15s ease;
+  }
+  .body-photos-status.is-success{ border-color: var(--brass); color: var(--brass-bright); }
+  .body-photos-status.is-error{ border-color: var(--danger); color: var(--danger); }
+  @keyframes bodyPhotosStatusFade{ from{ opacity:0; } to{ opacity:1; } }
 
   /* 사진 크게 보기 (라이트박스) */
   .photo-lightbox-box{
@@ -4090,7 +4104,7 @@
     </div>
 
     <button class="body-photos-tab" id="bodyPhotosTab">
-      <span>📷 사진 앨범</span>
+      <span id="bodyPhotosTabLabel">📷 사진 앨범</span>
       <span class="body-photos-tab-arrow" id="bodyPhotosTabArrow">▾</span>
     </button>
     <div class="body-photos-panel" id="bodyPhotosPanel" style="display:none;">
@@ -4100,6 +4114,7 @@
           <input autocapitalize="off" type="file" accept="image/*" id="bodyPhotoFileInput" style="display:none;">
         </label>
       </div>
+      <div class="body-photos-status" id="bodyPhotosStatus" style="display:none;"></div>
       <div class="body-photos-grid" id="bodyPhotosGrid"></div>
     </div>
 
@@ -4925,7 +4940,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.54.19';
+const APP_VERSION = '2.54.22';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5442,8 +5457,10 @@ const clipboardCancelBtn = document.getElementById('clipboardCancelBtn');
 /* ---------- 인바디 · 눈바디 사진 (평소엔 접혀 있다가 탭하면 펼쳐짐) ---------- */
 
 const bodyPhotosTab = document.getElementById('bodyPhotosTab');
+const bodyPhotosTabLabel = document.getElementById('bodyPhotosTabLabel');
 const bodyPhotosTabArrow = document.getElementById('bodyPhotosTabArrow');
 const bodyPhotosPanel = document.getElementById('bodyPhotosPanel');
+const bodyPhotosStatus = document.getElementById('bodyPhotosStatus');
 const bodyPhotosGrid = document.getElementById('bodyPhotosGrid');
 const bodyPhotoFileInput = document.getElementById('bodyPhotoFileInput');
 const photoLightbox = document.getElementById('photoLightbox');
@@ -5454,6 +5471,22 @@ const photoLightboxCloseBtn = document.getElementById('photoLightboxCloseBtn');
 
 let currentBodyPhotos = [];
 let lightboxPhotoId = null;
+
+function updateBodyPhotosTabLabel(){
+  bodyPhotosTabLabel.textContent = `📷 사진 앨범 (${currentBodyPhotos.length}개)`;
+}
+
+let bodyPhotosStatusTimer = null;
+// 사진 등록 중/완료/실패 안내는 화면 하단 토스트가 아니라, 사진 앨범 박스 안에 바로 보여준다
+function showBodyPhotosStatus(message, kind, persistent){
+  bodyPhotosStatus.textContent = message;
+  bodyPhotosStatus.className = 'body-photos-status' + (kind ? ` is-${kind}` : '');
+  bodyPhotosStatus.style.display = 'block';
+  clearTimeout(bodyPhotosStatusTimer);
+  if(!persistent){
+    bodyPhotosStatusTimer = setTimeout(() => { bodyPhotosStatus.style.display = 'none'; }, 2400);
+  }
+}
 
 /* 예전엔 사진 '목록 전체'를 하나의 값으로 저장해서, 여러 기기가 거의 동시에 사진을
    올리면 나중에 쓴 쪽이 앞선 기기의 사진을 통째로 덮어써버리는 문제가 있었다.
@@ -5528,6 +5561,7 @@ bodyPhotosTab.addEventListener('click', () => {
 });
 
 function renderBodyPhotos(){
+  updateBodyPhotosTabLabel();
   if(!currentBodyPhotos.length){
     bodyPhotosGrid.innerHTML = `<div class="body-photos-empty">아직 등록된 사진이 없어요</div>`;
     return;
@@ -5607,13 +5641,13 @@ async function handlePhotoUpload(file){
   try{
     blob = await resizeImageFile(file);
   }catch(err){
-    showCopyToast('사진을 불러오지 못했어요. 다시 시도해주세요.');
+    showBodyPhotosStatus('사진을 불러오지 못했어요. 다시 시도해주세요.', 'error');
     return;
   }
 
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 
-  showCopyToast('사진을 등록중입니다...', true);
+  showBodyPhotosStatus('사진을 등록중입니다...', null, true);
   try{
     const url = await uploadToCloudinary(blob);
     const photo = { id, date: todayStr(), url };
@@ -5622,10 +5656,10 @@ async function handlePhotoUpload(file){
 
     currentBodyPhotos.push(photo);
     renderBodyPhotos();
-    showCopyToast('사진이 등록됐어요.');
+    showBodyPhotosStatus('사진이 등록됐어요.', 'success');
   }catch(err){
     console.error('사진 업로드 오류:', err);
-    showCopyToast('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
+    showBodyPhotosStatus('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.', 'error');
   }
 }
 
@@ -7685,6 +7719,7 @@ async function openMember(memberId, isNewMember, jumpToDate){
   // 사진·메모는 달력과 상관없는 정보라, 달력을 먼저 그린 뒤 뒤에서 따로(동시에) 불러온다
   bodyPhotosPanel.style.display = 'none';
   bodyPhotosTabArrow.classList.remove('open');
+  bodyPhotosStatus.style.display = 'none';
   (async () => {
     await migrateBodyPhotosIfNeeded(memberId);
     currentBodyPhotos = await loadBodyPhotos(memberId);
@@ -11451,8 +11486,11 @@ async function toggleTrainerJournalDetail(trainerUid, todayJournalMap){
   await renderJournalDetailForDate(trainerJournalDetail, trainerJournalDetailDate, fetchMapForDate, todayJournalMap, (d) => { trainerJournalDetailDate = d; }, onRowClick);
 }
 
+let trainerMemberListRequestId = 0; // 목록을 불러올 때마다 올려서, 낡은(늦게 도착한) 배경 조회 결과는 무시한다
+
 async function loadTrainerMemberList(){
   const myUid = auth.currentUser.uid;
+  const myRequestId = ++trainerMemberListRequestId;
   loadTrainerTodayJournalCard(myUid); // 회원 목록과 별개로 조용히 채워지게 기다리지 않는다
   const cached = loadJsonCache(TRAINER_MEMBER_LIST_CACHE_PREFIX, myUid);
 
@@ -11463,6 +11501,7 @@ async function loadTrainerMemberList(){
     (async () => {
       try{
         const fresh = await fetchTrainerMemberListData(myUid);
+        if(myRequestId !== trainerMemberListRequestId) return; // 그 사이 더 최신 요청이 시작됐으면 이 결과는 버린다
         saveJsonCache(TRAINER_MEMBER_LIST_CACHE_PREFIX, myUid, fresh);
         renderTrainerMemberList(fresh, myUid);
       }catch(err){
@@ -11478,10 +11517,12 @@ async function loadTrainerMemberList(){
   trainerListSummary.textContent = '';
   try{
     const fresh = await fetchTrainerMemberListData(myUid);
+    if(myRequestId !== trainerMemberListRequestId) return; // 그 사이 더 최신 요청이 시작됐으면 이 결과는 버린다
     saveJsonCache(TRAINER_MEMBER_LIST_CACHE_PREFIX, myUid, fresh);
     renderTrainerMemberList(fresh, myUid);
   }catch(err){
     console.error('트레이너 회원 목록 조회 오류:', err);
+    if(myRequestId !== trainerMemberListRequestId) return;
     trainerMemberListEl.innerHTML = `<div class="admin-empty">회원 목록을 불러오지 못했어요.<br>오류 내용: ${escapeHtml(err.code || '')} ${escapeHtml(err.message || '')}</div>`;
   }
 }
