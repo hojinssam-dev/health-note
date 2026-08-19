@@ -5008,7 +5008,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.55.4';
+const APP_VERSION = '2.55.5';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -7726,6 +7726,11 @@ async function openMember(memberId, isNewMember, jumpToDate){
   viewPrivacy.classList.remove('active');
   viewTerms.classList.remove('active');
   viewLogin.classList.remove('active');
+  // 사진 패널은 화면이 바뀌는 이 시점에 곧바로 숨겨야 한다. 나중에(달력을 다 그린 뒤에) 숨기면,
+  // 그 사이 화면은 이미 바뀌었는데 이전 회원의 펼쳐진 사진 패널이 잠깐 그대로 보이는 문제가 생긴다.
+  bodyPhotosPanel.style.display = 'none';
+  bodyPhotosTabArrow.classList.remove('open');
+  bodyPhotosStatus.style.display = 'none';
   viewLog.classList.add('active');
 
   // 0단계: 데이터를 하나도 못 받아온 상태라도, 달력 틀(요일별 숫자 칸)은 곧바로 그려서
@@ -7802,12 +7807,8 @@ async function openMember(memberId, isNewMember, jumpToDate){
     }
   })();
 
-  // 사진·메모는 달력과 상관없는 정보라, 달력을 먼저 그린 뒤 뒤에서 따로(동시에) 불러온다
-  bodyPhotosPanel.style.display = 'none';
-  bodyPhotosTabArrow.classList.remove('open');
-  bodyPhotosStatus.style.display = 'none';
-  // 패널을 숨기기만 하고 안의 내용을 안 지우면, 새 데이터가 도착하기 전에 패널을 펼쳤을 때
-  // 예전 회원의 사진이 잠깐 보였다가 사라지는 문제가 생긴다. 그래서 여기서 곧바로 비워둔 다음,
+  // 사진·메모는 달력과 상관없는 정보라, 달력을 먼저 그린 뒤 뒤에서 따로(동시에) 불러온다.
+  // 패널을 숨기는 건 이미 위(화면 전환 시점)에서 끝냈으니, 여기서는 내용만 채운다.
   // 이 기기에 저장해둔 지난번 내용이 있으면(캐시) 서버 응답을 기다리지 않고 먼저 그걸로 채운다.
   const cachedPhotos = loadBodyPhotosCache(memberId);
   currentBodyPhotos = cachedPhotos || [];
