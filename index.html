@@ -5008,7 +5008,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.55.5';
+const APP_VERSION = '2.55.6';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -7754,6 +7754,12 @@ async function openMember(memberId, isNewMember, jumpToDate){
     calLoadingOverlay.style.display = 'flex';
   }
 
+  // 사진 앨범도 같은 이유로, 첫 await(달력 데이터 조회)를 만나기 전에 여기서 곧바로 캐시로
+  // 채운다. 이 아래로 내려가면 달력 조회가 끝날 때까지 예전 회원의 개수가 화면에 남아있게 된다.
+  const cachedPhotos = loadBodyPhotosCache(memberId);
+  currentBodyPhotos = cachedPhotos || [];
+  renderBodyPhotos();
+
   try{
     // 신규 회원은 예전 방식 데이터 자체가 있을 수 없어서, 옮기고 정리하는 절차(서버 왕복 여러 번)를
     // 통째로 건너뛴다 — 그래야 가입 직후 첫 달력 화면이 스피너 없이 바로 뜬다.
@@ -7808,11 +7814,7 @@ async function openMember(memberId, isNewMember, jumpToDate){
   })();
 
   // 사진·메모는 달력과 상관없는 정보라, 달력을 먼저 그린 뒤 뒤에서 따로(동시에) 불러온다.
-  // 패널을 숨기는 건 이미 위(화면 전환 시점)에서 끝냈으니, 여기서는 내용만 채운다.
-  // 이 기기에 저장해둔 지난번 내용이 있으면(캐시) 서버 응답을 기다리지 않고 먼저 그걸로 채운다.
-  const cachedPhotos = loadBodyPhotosCache(memberId);
-  currentBodyPhotos = cachedPhotos || [];
-  renderBodyPhotos();
+  // 캐시로 미리 채우는 건 이미 위(첫 await 전)에서 끝냈으니, 여기서는 서버의 최신 값으로 갱신만 한다.
   (async () => {
     await migrateBodyPhotosIfNeeded(memberId);
     const photos = await loadBodyPhotos(memberId);
