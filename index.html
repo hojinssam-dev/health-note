@@ -4895,10 +4895,30 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').then((reg) => {
       swRegistration = reg;
 
-      // 이번 업데이트부터는 "새 버전이 나왔어요" 안내를 따로 띄우지 않는다.
-      // 서비스워커가 백그라운드에서 조용히 새 버전으로 바뀌어 있고, 사용자가 다음에 앱을
-      // 새로 열 때(자연스러운 재실행) 그 새 버전으로 자동으로 받게 된다 — 지금 쓰고 있는
-      // 화면을 억지로 새로고침하거나 팝업으로 방해하지 않는다.
+      // 서비스워커가 배경에서 새 버전으로 바뀌어 있어도, "지금 이 화면"은 이미 예전 버전으로
+      // 시작해버린 뒤라 그 자리에서 바로 반영이 안 된다. 그래서 앱을 열 때마다 조용히
+      // sw.js를 캐시 없이 직접 받아서 버전을 비교해보고, 다르면 그 자리에서 한 번 더
+      // 새로고침해서 "실행할 때부터 최신 버전"이 되도록 한다. (안내 문구는 안 띄운다)
+      (async () => {
+        try{
+          // 방금 이 이유로 새로고침한 직후라면 또 반복하지 않는다 (네트워크 이상 등으로
+          // 인한 무한 새로고침 방지)
+          if(sessionStorage.getItem('justReloadedForVersion') === '1'){
+            sessionStorage.removeItem('justReloadedForVersion');
+            return;
+          }
+          const res = await fetch('sw.js', { cache: 'no-store' });
+          const text = await res.text();
+          const match = text.match(/CACHE_VERSION\s*=\s*'([^']+)'/);
+          const serverVersion = match ? match[1] : null;
+          if(serverVersion && serverVersion !== APP_VERSION){
+            sessionStorage.setItem('justReloadedForVersion', '1');
+            window.location.reload();
+          }
+        }catch(err){
+          console.error('시작 시 버전 확인 오류:', err);
+        }
+      })();
 
       // 탭을 오래 켜두고 있다가 다시 돌아왔을 때, 새 버전이 있는지 조용히 한 번 확인해둔다
       // (여기서도 안내는 띄우지 않는다 — 다음에 새로 열 때 자연스럽게 반영되도록만 준비해둠)
@@ -5017,7 +5037,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.56.5';
+const APP_VERSION = '2.56.6';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
