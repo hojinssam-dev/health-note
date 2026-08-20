@@ -1769,7 +1769,6 @@
     padding: 4px 12px;
   }
   .block-summary .add-set-btn{
-    margin-left: auto;
     margin-bottom: 0;
     width: auto;
     flex-shrink: 0;
@@ -2442,24 +2441,34 @@
     font-family: 'IBM Plex Mono', monospace;
   }
   .set-row input:focus{ outline:none; border-color: var(--brass); }
-  .set-add-drop-btn{
-    flex-shrink:0;
-    background: var(--surface-raised);
-    border: 1px solid var(--line);
+  .add-drop-mode-btn{
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    background: none;
+    border: 1px solid var(--line-soft);
     color: var(--muted);
-    border-radius: var(--radius-s);
-    padding: 8px 7px;
+    border-radius: 20px;
+    padding: 4px 12px;
     font-size: 11px;
     font-family: 'Noto Sans KR', sans-serif;
-    cursor:pointer;
+    cursor: pointer;
     transition: all .15s var(--ease);
   }
-  .set-add-drop-btn:hover{ border-color: var(--brass); color: var(--brass-bright); }
+  .add-drop-mode-btn:hover{ border-color: var(--muted); }
+  .add-drop-mode-btn.active{
+    background: var(--brass);
+    border-color: var(--brass);
+    color: var(--bg);
+    font-weight: 600;
+  }
   .block-summary .add-set-btn{
-    margin-left: auto;
     border-color: var(--brass);
     color: var(--brass-bright);
     font-weight: 600;
+  }
+  .block-summary .add-drop-mode-btn{
+    margin-left: auto;
   }
   .remove-set-btn{
     flex-shrink:0;
@@ -5008,7 +5017,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.55.6';
+const APP_VERSION = '2.56.0';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -7149,6 +7158,7 @@ function makeBlock(){
       <span class="summary-max">최고 무게 -</span>
       <span class="summary-volume">총 볼륨 -</span>
       <span class="summary-reps" style="display:none;">총 횟수 -</span>
+      <button type="button" class="add-drop-mode-btn" title="다음에 추가할 세트를 드롭세트로 만들기">드롭</button>
       <button type="button" class="add-set-btn">+ 세트</button>
     </div>
     <div class="block-row row-memo">
@@ -7160,6 +7170,8 @@ function makeBlock(){
   const colorValueEl = block.querySelector('.color-value');
   const colorSwatches = [...block.querySelectorAll('.swatch')];
   const prevHintEl = block.querySelector('.prev-record-hint');
+  const addDropModeBtn = block.querySelector('.add-drop-mode-btn');
+  let dropModeActive = false;
   const findExerciseRow = block.querySelector('.find-exercise-row');
   const findExerciseLink = block.querySelector('.find-exercise-link');
 
@@ -7414,7 +7426,6 @@ function makeBlock(){
           <span class="set-label">세트</span>
           <input autocapitalize="off" type="number" inputmode="decimal" class="set-weight swipe-adjustable" min="0" step="0.5" placeholder="무게(kg)" value="${data.weight || ''}">
           <input autocapitalize="off" type="number" inputmode="numeric" class="set-reps swipe-adjustable" min="0" step="1" placeholder="횟수" value="${data.reps || ''}">
-          <button type="button" class="set-add-drop-btn" title="드롭세트 추가">+드롭</button>
           <button type="button" class="remove-set-btn" title="이 세트 삭제">×</button>
         </div>
         <div class="set-row-prev-hint" style="display:none;">이전 기록이에요</div>
@@ -7423,13 +7434,6 @@ function makeBlock(){
       if(insertAfterRow) setRowsEl.insertBefore(row, insertAfterRow.nextSibling); else setRowsEl.appendChild(row);
       makeSwipeAdjustable(row.querySelector('.set-weight'));
       makeSwipeAdjustable(row.querySelector('.set-reps'));
-      row.querySelector('.set-add-drop-btn').addEventListener('click', () => {
-        const parentWeight = parseFloat(row.querySelector('.set-weight').value);
-        const parentReps = row.querySelector('.set-reps').value;
-        const dropWeight = !isNaN(parentWeight) ? Math.max(0, Math.round((parentWeight - 5) * 10) / 10) : '';
-        addSetRow({ drop: true, weight: dropWeight, reps: parentReps }, row);
-        updatePrevRowHints();
-      });
     }
     row.querySelector('.remove-set-btn').addEventListener('click', () => {
       showConfirmModal('세트 삭제', '이 세트를 삭제할까요?', () => {
@@ -7539,6 +7543,10 @@ function makeBlock(){
     block.querySelectorAll('.mode-btn').forEach(btn => {
       btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
     });
+    // 드롭세트는 무게·횟수 모드에서만 의미가 있어서, 시간 모드에서는 버튼 자체를 숨긴다
+    addDropModeBtn.style.display = mode === 'time' ? 'none' : 'inline-flex';
+    dropModeActive = false;
+    addDropModeBtn.classList.remove('active');
     setRowsEl.innerHTML = '';
     if(prefillRows){
       // prefillRows가 빈 배열이면(세트를 다 지운 채로 저장한 경우) 그대로 세트 없이 둔다 —
@@ -7558,6 +7566,11 @@ function makeBlock(){
     });
   });
 
+  addDropModeBtn.addEventListener('click', () => {
+    dropModeActive = !dropModeActive;
+    addDropModeBtn.classList.toggle('active', dropModeActive);
+  });
+
   block.querySelector('.add-set-btn').addEventListener('click', () => {
     const rows = [...setRowsEl.querySelectorAll('.set-row')];
     const lastRow = rows[rows.length - 1];
@@ -7568,6 +7581,12 @@ function makeBlock(){
           minutes: lastRow.querySelector('.set-minutes').value,
           seconds: lastRow.querySelector('.set-seconds').value,
         };
+      } else if(dropModeActive){
+        // 드롭 버튼이 켜진 상태로 '+ 세트'를 누르면, 방금 세트보다 무게를 살짝 낮춘 드롭세트로 추가한다
+        const parentWeight = parseFloat(lastRow.querySelector('.set-weight').value);
+        const parentReps = lastRow.querySelector('.set-reps').value;
+        const dropWeight = !isNaN(parentWeight) ? Math.max(0, Math.round((parentWeight - 5) * 10) / 10) : '';
+        prefill = { drop: true, weight: dropWeight, reps: parentReps };
       } else {
         prefill = {
           weight: lastRow.querySelector('.set-weight').value,
@@ -7577,6 +7596,11 @@ function makeBlock(){
     }
     addSetRow(prefill);
     updatePrevRowHints();
+    // 드롭세트를 한 번 추가했으면 자동으로 꺼서, 계속 누를 때 실수로 드롭세트가 반복되지 않게 한다
+    if(dropModeActive){
+      dropModeActive = false;
+      addDropModeBtn.classList.remove('active');
+    }
   });
   addSetRow(); // 기본 1세트, 무게·횟수 모드로 시작
 
@@ -10655,6 +10679,7 @@ function buildJournalMapFromLogsSnap(logsSnap){
   const map = new Map();
   logsSnap.docs.forEach(d => {
     const data = d.data();
+    if(data.private) return; // 비공개 일지는 '오늘 작성된 일지' 집계에서 제외한다
     const memberId = d.ref.parent.parent.id;
     const key = `${memberId}:${data.date}:${!!data.locked}`;
     const entryId = data.id || d.id;
@@ -10679,6 +10704,7 @@ function fetchTrainerJournalMapForDate(trainerUid){
         const logsSnap = await logsCollection(memberId).where('date', '==', dateStr).get();
         logsSnap.docs.forEach(d => {
           const data = d.data();
+          if(data.private) return; // 비공개 일지는 '오늘 작성된 일지' 집계에서 제외한다
           const key = `${memberId}:${data.date}:${!!data.locked}`;
           const entryId = data.id || d.id;
           const existing = map.get(key);
