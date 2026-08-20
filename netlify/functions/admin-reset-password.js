@@ -1,8 +1,11 @@
 // netlify/functions/admin-reset-password.js
 //
-// 관리자가 회원의 비밀번호를 000000으로 강제 초기화해주는 함수.
+// 관리자 또는 트레이너가 회원의 비밀번호를 000000으로 강제 초기화해주는 함수.
 // 클라이언트 SDK로는 "본인" 비밀번호만 바꿀 수 있어서, 다른 사람 비밀번호를 강제로 바꾸려면
 // 서버에서 관리자 권한(Admin SDK)으로 처리해야 한다.
+//
+// 트레이너는 "지금 자기한테 연결되어 있는 회원"만 초기화할 수 있다 — 연결 안 된 회원까지
+// 마음대로 바꿀 수 있으면 안 되니, Firestore에서 그 회원의 trainerId를 직접 확인한다.
 
 const crypto = require('crypto');
 const admin = require('firebase-admin');
@@ -73,15 +76,27 @@ exports.handler = async (event) => {
     }
     const idToken = authHeader.slice(7);
     const payload = await verifyFirebaseIdToken(idToken);
-
-    if (payload.sub !== ADMIN_UID) {
-      return { statusCode: 403, headers, body: JSON.stringify({ error: '관리자만 사용할 수 있어요.' }) };
-    }
+    const callerUid = payload.sub;
 
     const body = JSON.parse(event.body || '{}');
     const targetUid = (body.targetUid || '').trim();
     if (!targetUid) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: '대상 회원 정보가 없어요.' }) };
+    }
+
+    if (callerUid !== ADMIN_UID) {
+      // 관리자가 아니면, 트레이너 계정이면서 지금 이 회원이 자기한테 연결되어 있어야만 허용한다
+      const db = admin.firestore();
+      const callerDoc = await db.collection('users').doc(callerUid).get();
+      const callerIsTrainer = callerDoc.exists && callerDoc.data().isTrainer === true;
+      if (!callerIsTrainer) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: '트레이너나 관리자만 사용할 수 있어요.' }) };
+      }
+      const targetDoc = await db.collection('users').doc(targetUid).get();
+      const targetBelongsToCaller = targetDoc.exists && targetDoc.data().trainerId === callerUid;
+      if (!targetBelongsToCaller) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: '지금 나한테 연결된 회원만 초기화할 수 있어요.' }) };
+      }
     }
 
     await admin.auth().updateUser(targetUid, { password: RESET_PASSWORD });
