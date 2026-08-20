@@ -4528,6 +4528,7 @@
       <div class="login-error" id="trainerMemberEditError" style="display:none;"></div>
       <div class="modal-actions">
         <button class="modal-btn" id="trainerMemberEditChangeIdBtn">아이디 변경</button>
+        <button class="modal-btn" id="trainerMemberEditResetPasswordBtn">비밀번호 초기화</button>
         <button class="modal-btn modal-btn-primary" id="trainerMemberEditSaveBtn">저장</button>
         <button class="modal-btn modal-btn-danger" id="trainerMemberEditDeleteBtn">연결 끊기</button>
       </div>
@@ -5037,7 +5038,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.56.6';
+const APP_VERSION = '2.56.7';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -12258,6 +12259,35 @@ trainerMemberEditChangeIdBtn.addEventListener('click', async () => {
     trainerMemberEditChangeIdBtn.disabled = false;
   }
 });
+const trainerMemberEditResetPasswordBtn = document.getElementById('trainerMemberEditResetPasswordBtn');
+trainerMemberEditResetPasswordBtn.addEventListener('click', () => {
+  if(!trainerEditingUid) return;
+  const uid = trainerEditingUid;
+  const name = trainerEditNameInput.value.trim() || '이 회원';
+  closeTrainerMemberEditModal();
+  showConfirmModal(
+    '비밀번호 초기화',
+    `${name}님의 비밀번호를 000000으로 바로 바꿀까요? 다음 로그인 시 이 비밀번호로 들어가실 수 있어요.`,
+    async () => {
+      try{
+        const idToken = await auth.currentUser.getIdToken();
+        const res = await fetch('/.netlify/functions/admin-reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+          body: JSON.stringify({ targetUid: uid }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if(!res.ok) throw new Error(data.error || '초기화에 실패했어요.');
+        showCopyToast('비밀번호를 000000으로 초기화했어요.');
+      }catch(err){
+        console.error('비밀번호 초기화 오류:', err);
+        showCopyToast(err.message || '초기화 중 오류가 발생했어요.');
+      }
+    },
+    '초기화'
+  );
+});
+
 trainerMemberEditDeleteBtn.addEventListener('click', () => {
   if(!trainerEditingUid) return;
   const uid = trainerEditingUid;
