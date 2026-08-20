@@ -1755,13 +1755,13 @@
   .block-summary{
     display:flex;
     align-items:center;
-    gap: 10px;
+    gap: 6px;
     margin-bottom: 12px;
     flex-wrap: wrap;
   }
   .block-summary span{
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: clamp(9px, 2.6vw, 11px);
     color: var(--brass-bright);
     background: rgba(201,162,39,0.1);
     border: 1px solid rgba(201,162,39,0.3);
@@ -1772,7 +1772,7 @@
     margin-bottom: 0;
     width: auto;
     flex-shrink: 0;
-    padding: 4px 14px;
+    padding: 4px 10px;
     border-radius: 20px;
     font-size: 11px;
     font-family: 'IBM Plex Mono', monospace;
@@ -2449,7 +2449,7 @@
     border: 1px solid var(--line-soft);
     color: var(--muted);
     border-radius: 20px;
-    padding: 4px 12px;
+    padding: 4px 9px;
     font-size: 11px;
     font-family: 'Noto Sans KR', sans-serif;
     cursor: pointer;
@@ -4424,7 +4424,7 @@
         <button type="button" class="theme-option-btn" data-theme="purple">화이트 · 퍼플</button>
       </div>
       <div class="modal-actions">
-        <button class="modal-btn" id="employerSettingsCheckUpdateBtn">새 버전 받기</button>
+        <button class="modal-btn" id="employerSettingsCheckUpdateBtn">새로고침</button>
         <button class="modal-btn" id="employerSettingsLogoutBtn">로그아웃</button>
       </div>
       <button class="modal-cancel" id="employerSettingsCloseBtn">닫기</button>
@@ -4505,7 +4505,7 @@
         <button type="button" class="theme-option-btn" data-theme="purple">화이트 · 퍼플</button>
       </div>
       <div class="modal-actions">
-        <button class="modal-btn" id="trainerSettingsCheckUpdateBtn">새 버전 받기</button>
+        <button class="modal-btn" id="trainerSettingsCheckUpdateBtn">새로고침</button>
         <button class="modal-btn" id="trainerSettingsTutorialBtn">사용법 튜토리얼 보기</button>
         <button class="modal-btn" id="trainerSettingsLogoutBtn">로그아웃</button>
       </div>
@@ -4676,7 +4676,7 @@
       <button class="modal-btn" id="settingsBodyPartColorBtn">부위별 글자 색상 설정</button>
       <button class="modal-btn" id="settingsMyAccountBtn">내 계정</button>
       <button class="modal-btn" id="settingsTrainerConnectBtn">트레이너와 연결</button>
-      <button class="modal-btn" id="settingsCheckUpdateBtn">새 버전 받기</button>
+      <button class="modal-btn" id="settingsRefreshDataBtn">새로고침</button>
       <button class="modal-btn" id="settingsTutorialBtn">사용법 튜토리얼 보기</button>
       <button class="modal-btn" id="settingsAdminBtn" style="display:none;">관리자 페이지</button>
       <button class="modal-btn" id="settingsLogoutBtn">로그아웃</button>
@@ -5017,7 +5017,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.56.0';
+const APP_VERSION = '2.56.5';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -10237,7 +10237,7 @@ settingsModal.addEventListener('click', (ev) => {
 const myAccountModal = document.getElementById('myAccountModal');
 const myAccountCancelBtn = document.getElementById('myAccountCancelBtn');
 const settingsMyAccountBtn = document.getElementById('settingsMyAccountBtn');
-const settingsCheckUpdateBtn = document.getElementById('settingsCheckUpdateBtn');
+const settingsRefreshDataBtn = document.getElementById('settingsRefreshDataBtn');
 const accountIdValue = document.getElementById('accountIdValue');
 const accountRecoveryEmailValue = document.getElementById('accountRecoveryEmailValue');
 const accountChangeIdBtn = document.getElementById('accountChangeIdBtn');
@@ -10245,8 +10245,14 @@ const accountChangePasswordBtn = document.getElementById('accountChangePasswordB
 const accountRecoveryEmailBtn = document.getElementById('accountRecoveryEmailBtn');
 const accountWithdrawBtn = document.getElementById('accountWithdrawBtn');
 
-settingsCheckUpdateBtn.addEventListener('click', () => {
+settingsRefreshDataBtn.addEventListener('click', () => {
   closeSettingsModal();
+  if(currentMemberId){
+    // 지금 보고 있는 일지 화면을 다시 불러온다 — 캐시로 이미 뭔가 보이고 있으면 그건 그대로 두고,
+    // 뒤에서 서버 최신 내용(트레이너가 새로 남긴 기록 등)으로 조용히 갱신한다.
+    openMember(currentMemberId, false);
+  }
+  // 회원 데이터 갱신과 동시에 앱 버전도 확인한다 (새 버전이면 반영하며 새로고침됨)
   checkForNewVersionManually();
 });
 
@@ -11107,6 +11113,7 @@ employerSettingsModal.addEventListener('click', (ev) => {
 });
 employerSettingsCheckUpdateBtn.addEventListener('click', () => {
   employerSettingsModal.classList.remove('open');
+  loadEmployerDashboard(); // 트레이너별 일지 건수·수업료를 최신으로 다시 불러온다
   checkForNewVersionManually();
 });
 employerSettingsLogoutBtn.addEventListener('click', () => {
@@ -12315,6 +12322,7 @@ trainerBackToListBtn.addEventListener('click', () => {
 const trainerMembersRefreshBtn = document.getElementById('trainerMembersRefreshBtn');
 trainerMembersRefreshBtn.addEventListener('click', () => {
   loadTrainerMemberList();
+  checkForNewVersionManually();
 });
 
 const trainerSettingsModal = document.getElementById('trainerSettingsModal');
@@ -12336,6 +12344,7 @@ trainerSettingsModal.addEventListener('click', (ev) => {
 });
 trainerSettingsCheckUpdateBtn.addEventListener('click', () => {
   closeTrainerSettingsModal();
+  loadTrainerMemberList(); // 회원별 진행 상황·오늘 작성된 일지를 최신으로 다시 불러온다
   checkForNewVersionManually();
 });
 trainerSettingsTutorialBtn.addEventListener('click', () => {
