@@ -2938,6 +2938,7 @@
     font-size: 12px;
     color: var(--muted);
     margin-top: 6px;
+    margin-bottom: 18px;
     line-height: 1.4;
   }
   .pt-history-list{
@@ -2960,6 +2961,14 @@
     text-overflow: ellipsis;
   }
   .pt-history-item.is-current{ border-color: var(--brass); color: var(--brass-bright); }
+  .employer-pt-history-item{
+    font-size: 14px;
+    padding: 12px 14px;
+    border: 1.5px solid var(--muted);
+    box-shadow: var(--shadow-sm);
+    transition: all .15s var(--ease);
+  }
+  .employer-pt-history-item:hover{ border-color: var(--brass); background: var(--surface); }
   .pt-add-btn{
     width:100%;
     background: none;
@@ -5073,7 +5082,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.57.4';
+const APP_VERSION = '2.57.6';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -11143,7 +11152,7 @@ async function renderEmployerTrainerMembersList(trainerUid){
     <div class="employer-member-row">
       <span class="employer-member-row-name">${escapeHtml(r.name)}</span>
       <div class="employer-member-row-actions">
-        <button type="button" class="employer-member-rate-btn" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}">단가 관리</button>
+        <button type="button" class="employer-member-rate-btn" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}">수업료 관리</button>
         <button type="button" class="employer-member-disconnect-btn" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}">연결 해제</button>
       </div>
     </div>
@@ -11215,9 +11224,9 @@ async function renderEmployerMemberPtList(memberUid, memberName){
     employerMemberPtList.innerHTML = '<div class="admin-empty" style="padding:10px;">아직 등록된 PT가 없어요.</div>';
   } else {
     employerMemberPtList.innerHTML = ptHistory.map((h, i) => {
-      const rateText = h.rate ? `${formatNum(h.rate)}원` : '단가 미등록';
+      const rateText = h.rate ? `${formatNum(h.rate)}원` : '수업료 미등록';
       const noteText = h.note ? ` · ${escapeHtml(h.note)}` : '';
-      return `<div class="pt-history-item" data-index="${i}">${i + 1}차 ${h.amount}회 · ${rateText}${noteText}</div>`;
+      return `<div class="pt-history-item employer-pt-history-item" data-index="${i}">${i + 1}차 ${h.amount}회 · ${rateText}${noteText}</div>`;
     }).join('');
   }
 
@@ -11986,9 +11995,9 @@ async function loadTrainerMemberList(){
 /* ---------- 수업료 달력 (트레이너 본인 확인용 + 센터장도 열람 가능) ---------- */
 
 /* 이 트레이너가 담당하는 회원들의 PT 일지를 훑어서 오늘/이번 주/이번 달 수업료와 날짜별 내역을 계산한다.
-   '일지' 한 건이 아니라 '회원+날짜' 조합 하나당 그날의 등록 단가를 한 번만 반영한다 — 하루에 여러
+   '일지' 한 건이 아니라 '회원+날짜' 조합 하나당 그날의 등록 수업료를 한 번만 반영한다 — 하루에 여러
    종목을 기록해도 세션 번호(sessionNo)는 같은 값을 공유하기 때문에, 종목 개수만큼 중복으로 세면 안 된다.
-   수업료 정산에서 제외로 표시해둔 회원은 계산 대상에서 완전히 빠진다(단가 미등록 카운트에도 안 잡힘). */
+   수업료 정산에서 제외로 표시해둔 회원은 계산 대상에서 완전히 빠진다(수업료 미등록 카운트에도 안 잡힘). */
 /* 이 트레이너가 '지금 담당하는 회원'이 아니라 '실제로 자기가 작성한(authorId) PT인정 일지'를
    기준으로 계산한다. 그래야 회원의 트레이너 연결이 중간에 바뀌어도, 이전 트레이너는 자기가
    실제로 진행했던 회차만큼만 수당이 잡히고, 새 트레이너는 연결된 이후 회차부터만 잡힌다.
@@ -12023,7 +12032,7 @@ async function computeTrainerEarnings(trainerUid){
     }
   });
 
-  // 회원별 등록 이력(단가)은 한 번씩만 조회한다 — 연결이 끊긴 회원이어도 트레이너 계정은
+  // 회원별 등록 이력(수업료)은 한 번씩만 조회한다 — 연결이 끊긴 회원이어도 트레이너 계정은
   // 회원 프로필을 읽을 수 있는 기존 권한이 있어서 그대로 조회된다.
   const memberIds = [...new Set([...sessionsByKey.values()].map(v => v.memberId))];
   const ptHistoryByMember = {};
@@ -12036,7 +12045,7 @@ async function computeTrainerEarnings(trainerUid){
       nameByMember[memberId] = profile.name || '회원';
       ptHistoryByMember[memberId] = profile.settlementExempt ? [] : getPtHistory(profile); // 정산 제외 회원은 완전히 건너뛴다
     }catch(err){
-      console.error('회원 단가 조회 오류:', memberId, err);
+      console.error('회원 수업료 조회 오류:', memberId, err);
       ptHistoryByMember[memberId] = [];
       nameByMember[memberId] = memberId;
     }
@@ -12106,7 +12115,7 @@ async function loadTrainerEarnings(){
     trainerEarningsMonthValue.innerHTML = `${formatNum(data.monthTotal)}<span class="earnings-stat-unit">원</span>`;
 
     if(data.missingRateCount > 0){
-      trainerEarningsMissingNotice.textContent = `단가 미등록 ${data.missingRateCount}회 — 0원으로 계산됐어요. 회원 정보 수정에서 단가를 채워주세요.`;
+      trainerEarningsMissingNotice.textContent = `수업료 미등록 ${data.missingRateCount}회 — 0원으로 계산됐어요. 회원 정보 수정에서 수업료를 채워주세요.`;
       trainerEarningsMissingNotice.style.display = 'block';
     } else {
       trainerEarningsMissingNotice.style.display = 'none';
@@ -12281,7 +12290,7 @@ function renderTrainerEditPtHistory(){
     if(!isCurrent) statusText = '완료';
     else if(inCycle <= 0) statusText = '진행 예정';
     else statusText = `진행중(${Math.min(inCycle, h.amount)}/${h.amount})`;
-    const rateText = h.rate ? `${formatNum(h.rate)}원` : '단가 미등록';
+    const rateText = h.rate ? `${formatNum(h.rate)}원` : '수업료 미등록';
     const noteText = h.note ? ` · ${escapeHtml(h.note)}` : '';
     return `<div class="pt-history-item ${isCurrent ? 'is-current' : ''}" data-index="${i}">
       ${i + 1}차 ${h.amount}회(회당 수업료 ${rateText}) ${statusText}${noteText}
