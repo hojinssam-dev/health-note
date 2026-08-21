@@ -2934,6 +2934,12 @@
     color: var(--muted);
     margin-bottom: 3px;
   }
+  .account-field-hint{
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+    line-height: 1.4;
+  }
   .pt-history-list{
     display:flex;
     flex-direction:column;
@@ -4551,6 +4557,7 @@
       <div class="pt-history-list" id="trainerEditPtHistoryList"></div>
       <button type="button" class="pt-add-btn" id="trainerEditPtAddBtn">+ 추가 등록</button>
       <button type="button" class="trainer-toggle-btn" id="trainerEditSettlementExemptBtn" style="width:100%; margin-top:10px;">💰 수업료 정산 제외</button>
+      <div class="account-field-hint" id="trainerEditSettlementExemptHint" style="display:none;">센터장에게 노출되지 않는 회원으로 분류돼요</div>
       <div class="account-field-label">휴대폰 번호</div>
       <input autocapitalize="off" id="trainerEditPhoneInput" type="tel" class="modal-input" placeholder="예) 010-1234-5678">
       <div class="login-error" id="trainerMemberEditError" style="display:none;"></div>
@@ -5066,7 +5073,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.57.1';
+const APP_VERSION = '2.57.4';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -10372,7 +10379,8 @@ async function refreshTrainerConnectModal(){
     const doc = await db.collection('users').doc(currentMemberId).get();
     const data = doc.exists ? doc.data() : {};
     if(data.trainerId){
-      trainerConnectStatus.textContent = '트레이너와 연결되어 있어요.';
+      const trainerName = await resolveProfileName(data.trainerId);
+      trainerConnectStatus.textContent = `${trainerName} 트레이너와 연결되어 있어요.`;
       trainerConnectRemoveBtn.style.display = 'block';
       trainerConnectSaveBtn.style.display = 'none';
     } else if(data.trainerIdPending){
@@ -11112,10 +11120,19 @@ async function openEmployerTrainerMembersModal(trainerUid, trainerName){
 
 async function renderEmployerTrainerMembersList(trainerUid){
   const membersSnap = await db.collection('users').where('trainerId', '==', trainerUid).get();
-  const rows = await Promise.all(membersSnap.docs.map(async (docSnap) => {
-    const name = await resolveProfileName(docSnap.id);
-    return { uid: docSnap.id, name };
-  }));
+  const rows = (await Promise.all(membersSnap.docs.map(async (docSnap) => {
+    try{
+      const result = await storageGetWithRetry(STORAGE_KEY, false, docSnap.id);
+      const list = result ? JSON.parse(result.value) : [];
+      const profile = list.find(m => m.id === docSnap.id) || {};
+      // 트레이너가 '수업료 정산 제외'로 설정해둔 회원은 센터장 회원 목록에 아예 안 보이게 한다
+      if(profile.settlementExempt) return null;
+      return { uid: docSnap.id, name: profile.name || '회원' };
+    }catch(err){
+      console.error('회원 프로필 조회 오류:', docSnap.id, err);
+      return { uid: docSnap.id, name: docSnap.id };
+    }
+  }))).filter(Boolean);
   rows.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 
   if(!rows.length){
@@ -11199,7 +11216,8 @@ async function renderEmployerMemberPtList(memberUid, memberName){
   } else {
     employerMemberPtList.innerHTML = ptHistory.map((h, i) => {
       const rateText = h.rate ? `${formatNum(h.rate)}원` : '단가 미등록';
-      return `<div class="pt-history-item" data-index="${i}">${i + 1}차 ${h.amount}회 · ${rateText}</div>`;
+      const noteText = h.note ? ` · ${escapeHtml(h.note)}` : '';
+      return `<div class="pt-history-item" data-index="${i}">${i + 1}차 ${h.amount}회 · ${rateText}${noteText}</div>`;
     }).join('');
   }
 
@@ -11210,13 +11228,14 @@ async function renderEmployerMemberPtList(memberUid, memberName){
       employerMemberPtModal.classList.remove('open');
       openPromptModal({
         title: `${i + 1}차 등록 수정`,
-        sub: '회차와 1회당 수업료를 고쳐주세요.',
+        sub: '회차, 1회당 수업료, 설명을 고쳐주세요.',
         fields: [
           { placeholder: '등록 횟수 (예: 10)', type: 'number', value: h.amount, unit: '회' },
           { placeholder: '1회당 수업료 (예: 50000)', type: 'number', value: h.rate || '', unit: '원' },
+          { placeholder: '설명 (선택, 예: 4주년 이벤트)', value: h.note || '' },
         ],
         submitLabel: '저장',
-        onSubmit: async (rawAmount, rawRate) => {
+        onSubmit: async (rawAmount, rawRate, note) => {
           const amount = parseInt(rawAmount, 10);
           if(!amount || amount <= 0) throw new Error('올바른 횟수를 입력해주세요.');
           const rate = rawRate ? parseInt(rawRate, 10) : 0;
@@ -11227,7 +11246,7 @@ async function renderEmployerMemberPtList(memberUid, memberName){
           if(!freshEntry || !Array.isArray(freshEntry.ptHistory) || !freshEntry.ptHistory[i]){
             throw new Error('회원 정보를 다시 불러오지 못했어요. 다시 시도해주세요.');
           }
-          freshEntry.ptHistory[i] = { amount, rate: rate || 0 };
+          freshEntry.ptHistory[i] = { amount, rate: rate || 0, note: note.trim() };
           await storageSetWithRetry(STORAGE_KEY, JSON.stringify(freshList), false, undefined, memberUid);
           closePromptModal();
           showCopyToast('저장했어요.');
@@ -11249,13 +11268,14 @@ employerMemberPtAddBtn.addEventListener('click', () => {
   employerMemberPtModal.classList.remove('open');
   openPromptModal({
     title: '추가 등록',
-    sub: '이번에 등록할 횟수와 1회당 수업료를 입력해주세요.',
+    sub: '이번에 등록할 횟수, 1회당 수업료, 필요하면 설명(예: 4주년 이벤트)을 입력해주세요.',
     fields: [
       { placeholder: '등록 횟수 (예: 10)', type: 'number', unit: '회' },
       { placeholder: '1회당 수업료 (예: 50000)', type: 'number', unit: '원' },
+      { placeholder: '설명 (선택, 예: 4주년 이벤트)' },
     ],
     submitLabel: '등록',
-    onSubmit: async (rawAmount, rawRate) => {
+    onSubmit: async (rawAmount, rawRate, note) => {
       const amount = parseInt(rawAmount, 10);
       if(!amount || amount <= 0) throw new Error('올바른 횟수를 입력해주세요.');
       const rate = rawRate ? parseInt(rawRate, 10) : 0;
@@ -11267,7 +11287,7 @@ employerMemberPtAddBtn.addEventListener('click', () => {
         throw new Error('회원 정보를 찾지 못했어요. 다시 시도해주세요.');
       }
       if(!Array.isArray(freshEntry.ptHistory)) freshEntry.ptHistory = [];
-      freshEntry.ptHistory.push({ amount, rate: rate || 0 });
+      freshEntry.ptHistory.push({ amount, rate: rate || 0, note: note.trim() });
       await storageSetWithRetry(STORAGE_KEY, JSON.stringify(freshList), false, undefined, memberUid);
       closePromptModal();
       showCopyToast('등록했어요.');
@@ -11277,7 +11297,10 @@ employerMemberPtAddBtn.addEventListener('click', () => {
   });
 });
 
-employerRefreshBtn.addEventListener('click', loadEmployerDashboard);
+employerRefreshBtn.addEventListener('click', () => {
+  loadEmployerDashboard();
+  checkForNewVersionManually();
+});
 employerSettingsBtn.addEventListener('click', () => employerSettingsModal.classList.add('open'));
 employerSettingsCloseBtn.addEventListener('click', () => employerSettingsModal.classList.remove('open'));
 employerSettingsModal.addEventListener('click', (ev) => {
@@ -12259,8 +12282,9 @@ function renderTrainerEditPtHistory(){
     else if(inCycle <= 0) statusText = '진행 예정';
     else statusText = `진행중(${Math.min(inCycle, h.amount)}/${h.amount})`;
     const rateText = h.rate ? `${formatNum(h.rate)}원` : '단가 미등록';
+    const noteText = h.note ? ` · ${escapeHtml(h.note)}` : '';
     return `<div class="pt-history-item ${isCurrent ? 'is-current' : ''}" data-index="${i}">
-      ${i + 1}차 ${h.amount}회(회당 수업료 ${rateText}) ${statusText}
+      ${i + 1}차 ${h.amount}회(회당 수업료 ${rateText}) ${statusText}${noteText}
     </div>`;
   }).join('');
   trainerEditPtHistoryList.querySelectorAll('.pt-history-item').forEach(row => {
@@ -12270,16 +12294,17 @@ function renderTrainerEditPtHistory(){
       trainerMemberEditModal.classList.remove('open');
       openPromptModal({
         title: `${i + 1}차 등록 수정`,
-        sub: '등록 횟수를 고쳐주세요. (1회당 수업료는 센터장이 입력해요)',
+        sub: '등록 횟수와 설명을 고쳐주세요. (1회당 수업료는 센터장이 입력해요)',
         fields: [
           { placeholder: '등록 횟수 (예: 10)', type: 'number', value: h.amount, unit: '회' },
+          { placeholder: '설명 (선택, 예: 4주년 이벤트)', value: h.note || '' },
         ],
         submitLabel: '수정하기',
-        onSubmit: async (rawAmount) => {
+        onSubmit: async (rawAmount, note) => {
           const amount = parseInt(rawAmount, 10);
           if(!amount || amount <= 0) throw new Error('올바른 횟수를 입력해주세요.');
           // 수업료(rate)는 센터장만 입력하는 값이라, 여기서는 손대지 않고 그대로 이어받는다
-          trainerEditingPtHistory[i] = { amount, rate: h.rate || 0 };
+          trainerEditingPtHistory[i] = { amount, rate: h.rate || 0, note: note.trim() };
           closePromptModal();
           renderTrainerEditPtHistory();
           trainerMemberEditModal.classList.add('open');
@@ -12307,9 +12332,14 @@ function renderTrainerEditPtHistory(){
 
 let trainerEditingSettlementExempt = false;
 const trainerEditSettlementExemptBtn = document.getElementById('trainerEditSettlementExemptBtn');
+const trainerEditSettlementExemptHint = document.getElementById('trainerEditSettlementExemptHint');
+function updateSettlementExemptUI(){
+  trainerEditSettlementExemptBtn.classList.toggle('active', trainerEditingSettlementExempt);
+  trainerEditSettlementExemptHint.style.display = trainerEditingSettlementExempt ? 'block' : 'none';
+}
 trainerEditSettlementExemptBtn.addEventListener('click', () => {
   trainerEditingSettlementExempt = !trainerEditingSettlementExempt;
-  trainerEditSettlementExemptBtn.classList.toggle('active', trainerEditingSettlementExempt);
+  updateSettlementExemptUI();
 });
 
 function openTrainerMemberEditModal(uid, name, ptHistory, recordCount, phone, settlementExempt){
@@ -12317,7 +12347,7 @@ function openTrainerMemberEditModal(uid, name, ptHistory, recordCount, phone, se
   trainerEditingPtHistory = Array.isArray(ptHistory) ? ptHistory.map(h => ({ amount: h.amount, rate: h.rate || 0 })) : [];
   trainerEditingRecordCount = recordCount || 0;
   trainerEditingSettlementExempt = !!settlementExempt;
-  trainerEditSettlementExemptBtn.classList.toggle('active', trainerEditingSettlementExempt);
+  updateSettlementExemptUI();
   trainerEditNameInput.value = name || '';
   trainerEditPhoneInput.value = phone || '';
   trainerMemberEditError.style.display = 'none';
@@ -12336,7 +12366,7 @@ function openTrainerMemberEditModal(uid, name, ptHistory, recordCount, phone, se
       if(!entry) return;
       trainerEditingPtHistory = Array.isArray(entry.ptHistory) ? entry.ptHistory.map(h => ({ amount: h.amount, rate: h.rate || 0 })) : [];
       trainerEditingSettlementExempt = !!entry.settlementExempt;
-      trainerEditSettlementExemptBtn.classList.toggle('active', trainerEditingSettlementExempt);
+      updateSettlementExemptUI();
       if(trainerEditNameInput.value === (name || '')) trainerEditNameInput.value = entry.name || '';
       if(trainerEditPhoneInput.value === (phone || '')) trainerEditPhoneInput.value = entry.phone || '';
       renderTrainerEditPtHistory();
@@ -12359,15 +12389,16 @@ trainerEditPtAddBtn.addEventListener('click', () => {
   trainerMemberEditModal.classList.remove('open');
   openPromptModal({
     title: '추가 등록',
-    sub: '이번에 등록할 횟수를 입력해주세요. (1회당 수업료는 센터장이 입력해요)',
+    sub: '이번에 등록할 횟수와, 필요하면 설명(예: 4주년 이벤트)을 입력해주세요. (1회당 수업료는 센터장이 입력해요)',
     fields: [
       { placeholder: '등록 횟수 (예: 10)', type: 'number', unit: '회' },
+      { placeholder: '설명 (선택, 예: 4주년 이벤트)' },
     ],
     submitLabel: '등록',
-    onSubmit: async (rawAmount) => {
+    onSubmit: async (rawAmount, note) => {
       const amount = parseInt(rawAmount, 10);
       if(!amount || amount <= 0) throw new Error('올바른 횟수를 입력해주세요.');
-      trainerEditingPtHistory.push({ amount, rate: 0 });
+      trainerEditingPtHistory.push({ amount, rate: 0, note: note.trim() });
       closePromptModal();
       renderTrainerEditPtHistory();
       trainerMemberEditModal.classList.add('open');
