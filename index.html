@@ -2952,23 +2952,34 @@
     border: 1px solid var(--line);
     border-radius: var(--radius-s);
     padding: 9px 10px;
-    font-size: 11px;
     color: var(--chalk);
     line-height: 1.5;
     cursor: pointer;
+  }
+  .pt-history-item.is-current{ border-color: var(--brass); color: var(--brass-bright); }
+  .pt-history-item-main{
+    font-size: 11px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .pt-history-item.is-current{ border-color: var(--brass); color: var(--brass-bright); }
+  .pt-history-item-note{
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+    white-space: normal;
+    word-break: break-word;
+  }
   .employer-pt-history-item{
-    font-size: 14px;
+    font-size: clamp(10px, 3.2vw, 14px);
     padding: 12px 14px;
     border: 1.5px solid var(--muted);
     box-shadow: var(--shadow-sm);
     transition: all .15s var(--ease);
   }
   .employer-pt-history-item:hover{ border-color: var(--brass); background: var(--surface); }
+  .employer-pt-history-item .pt-history-item-main{ font-size: inherit; }
+  .employer-pt-history-item .pt-history-item-note{ font-size: 0.85em; }
   .pt-add-btn{
     width:100%;
     background: none;
@@ -5082,7 +5093,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.57.6';
+const APP_VERSION = '2.57.8';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -11219,14 +11230,28 @@ async function renderEmployerMemberPtList(memberUid, memberName){
   // 배열의 인덱스와 어긋날 수 있다. 여기서는 저장할 때 그 인덱스를 그대로 쓰기 때문에,
   // 걸러지지 않은 원본 배열을 그대로 쓴다.
   const ptHistory = entry && Array.isArray(entry.ptHistory) ? entry.ptHistory : [];
+  // 지금까지 PT인정으로 진행된 총 회차 — 트레이너 화면과 같은 캐시 값을 그대로 쓴다
+  const recordCount = (entry && entry.ptProgress) || 0;
 
   if(!ptHistory.length){
     employerMemberPtList.innerHTML = '<div class="admin-empty" style="padding:10px;">아직 등록된 PT가 없어요.</div>';
   } else {
+    let priorTotal = 0;
     employerMemberPtList.innerHTML = ptHistory.map((h, i) => {
+      const isLast = i === ptHistory.length - 1;
+      const inCycle = recordCount - priorTotal;
+      const isCurrent = recordCount <= priorTotal + h.amount || isLast;
+      priorTotal += h.amount;
+      let statusText;
+      if(!isCurrent) statusText = '완료';
+      else if(inCycle <= 0) statusText = '진행 예정';
+      else statusText = `진행중(${Math.min(inCycle, h.amount)}/${h.amount})`;
       const rateText = h.rate ? `${formatNum(h.rate)}원` : '수업료 미등록';
-      const noteText = h.note ? ` · ${escapeHtml(h.note)}` : '';
-      return `<div class="pt-history-item employer-pt-history-item" data-index="${i}">${i + 1}차 ${h.amount}회 · ${rateText}${noteText}</div>`;
+      const noteHtml = h.note ? `<div class="pt-history-item-note">${escapeHtml(h.note)}</div>` : '';
+      return `<div class="pt-history-item employer-pt-history-item${isCurrent ? ' is-current' : ''}" data-index="${i}">
+        <div class="pt-history-item-main">${i + 1}차 ${h.amount}회 · ${rateText} · ${statusText}</div>
+        ${noteHtml}
+      </div>`;
     }).join('');
   }
 
@@ -11260,6 +11285,33 @@ async function renderEmployerMemberPtList(memberUid, memberName){
           closePromptModal();
           showCopyToast('저장했어요.');
           openEmployerMemberPtModal(memberUid, memberName);
+        },
+        deleteLabel: '삭제하기',
+        onDelete: async () => {
+          closePromptModal();
+          showConfirmModal(
+            `${i + 1}차 등록 삭제`,
+            `${h.amount}회 등록을 삭제할까요? 이 등록은 되돌릴 수 없어요.`,
+            async () => {
+              try{
+                const freshResult = await storageGetWithRetry(STORAGE_KEY, false, memberUid);
+                const freshList = freshResult ? JSON.parse(freshResult.value) : [];
+                const freshEntry = freshList.find(m => m.id === memberUid);
+                if(!freshEntry || !Array.isArray(freshEntry.ptHistory)){
+                  throw new Error('회원 정보를 다시 불러오지 못했어요.');
+                }
+                freshEntry.ptHistory.splice(i, 1);
+                await storageSetWithRetry(STORAGE_KEY, JSON.stringify(freshList), false, undefined, memberUid);
+                showCopyToast('삭제했어요.');
+              }catch(err){
+                console.error('PT 등록 삭제 오류:', err);
+                showCopyToast('삭제 중 오류가 발생했어요.');
+              }
+              openEmployerMemberPtModal(memberUid, memberName);
+            },
+            '삭제',
+            () => { openEmployerMemberPtModal(memberUid, memberName); }
+          );
         },
         onCancel: () => { employerMemberPtModal.classList.add('open'); },
       });
@@ -12291,9 +12343,10 @@ function renderTrainerEditPtHistory(){
     else if(inCycle <= 0) statusText = '진행 예정';
     else statusText = `진행중(${Math.min(inCycle, h.amount)}/${h.amount})`;
     const rateText = h.rate ? `${formatNum(h.rate)}원` : '수업료 미등록';
-    const noteText = h.note ? ` · ${escapeHtml(h.note)}` : '';
+    const noteHtml = h.note ? `<div class="pt-history-item-note">${escapeHtml(h.note)}</div>` : '';
     return `<div class="pt-history-item ${isCurrent ? 'is-current' : ''}" data-index="${i}">
-      ${i + 1}차 ${h.amount}회(회당 수업료 ${rateText}) ${statusText}${noteText}
+      <div class="pt-history-item-main">${i + 1}차 ${h.amount}회(회당 수업료 ${rateText}) ${statusText}</div>
+      ${noteHtml}
     </div>`;
   }).join('');
   trainerEditPtHistoryList.querySelectorAll('.pt-history-item').forEach(row => {
