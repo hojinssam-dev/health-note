@@ -2467,7 +2467,10 @@
     color: var(--brass-bright);
     font-weight: 600;
   }
-  .block-summary .add-drop-mode-btn{
+  .block-summary-buttons{
+    display: flex;
+    align-items: center;
+    gap: 6px;
     margin-left: auto;
   }
   .remove-set-btn{
@@ -5093,7 +5096,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.57.8';
+const APP_VERSION = '2.57.10';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -7234,8 +7237,10 @@ function makeBlock(){
       <span class="summary-max">최고 무게 -</span>
       <span class="summary-volume">총 볼륨 -</span>
       <span class="summary-reps" style="display:none;">총 횟수 -</span>
-      <button type="button" class="add-drop-mode-btn" title="다음에 추가할 세트를 드롭세트로 만들기">드롭</button>
-      <button type="button" class="add-set-btn">+ 세트</button>
+      <div class="block-summary-buttons">
+        <button type="button" class="add-drop-mode-btn" title="다음에 추가할 세트를 드롭세트로 만들기">드롭</button>
+        <button type="button" class="add-set-btn">+ 세트</button>
+      </div>
     </div>
     <div class="block-row row-memo">
       <textarea autocapitalize="off" class="stat-memo" placeholder="이 운동 종목을 다시 할 때 볼 수 있는 메모예요. 기억해야할 게 있다면 남겨보세요."></textarea>
@@ -12406,7 +12411,7 @@ trainerEditSettlementExemptBtn.addEventListener('click', () => {
 
 function openTrainerMemberEditModal(uid, name, ptHistory, recordCount, phone, settlementExempt){
   trainerEditingUid = uid;
-  trainerEditingPtHistory = Array.isArray(ptHistory) ? ptHistory.map(h => ({ amount: h.amount, rate: h.rate || 0 })) : [];
+  trainerEditingPtHistory = Array.isArray(ptHistory) ? ptHistory.map(h => ({ amount: h.amount, rate: h.rate || 0, note: h.note || '' })) : [];
   trainerEditingRecordCount = recordCount || 0;
   trainerEditingSettlementExempt = !!settlementExempt;
   updateSettlementExemptUI();
@@ -12426,7 +12431,7 @@ function openTrainerMemberEditModal(uid, name, ptHistory, recordCount, phone, se
       const list = result ? JSON.parse(result.value) : [];
       const entry = list.find(m => m.id === uid);
       if(!entry) return;
-      trainerEditingPtHistory = Array.isArray(entry.ptHistory) ? entry.ptHistory.map(h => ({ amount: h.amount, rate: h.rate || 0 })) : [];
+      trainerEditingPtHistory = Array.isArray(entry.ptHistory) ? entry.ptHistory.map(h => ({ amount: h.amount, rate: h.rate || 0, note: h.note || '' })) : [];
       trainerEditingSettlementExempt = !!entry.settlementExempt;
       updateSettlementExemptUI();
       if(trainerEditNameInput.value === (name || '')) trainerEditNameInput.value = entry.name || '';
