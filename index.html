@@ -5096,7 +5096,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.57.10';
+const APP_VERSION = '2.58.3';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5993,10 +5993,10 @@ const BODY_PARTS = ['가슴', '등', '어깨', '팔', '복근', '하체', '유�
 /* 운동 종목 이름에 아래 글자가 포함되면 해당 부위로 자동 인식해서
    설정에서 지정한 부위 색을 이름 글자색에 자동 적용한다 */
 const BODY_PART_KEYWORDS = {
-  '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈', '핵프레스'],
+  '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈', '핵프레스', '런지'],
   '어깨': ['숄더', '밀리터리', '사레레', '슈러그', '레터럴레이즈', '프론트레이즈', '업라이트로우'],
   '가슴': ['벤치', '딥스', '푸시업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이'],
-  '복근': ['레그레이즈', '크런치', '리버스', '플랭크', '데드버그', '싯업', '윗몸일으키기', '트위스트', '롤아웃'],
+  '복근': ['레그레이즈', '크런치', '리버스', '플랭크', '데드버그', '싯업', '윗몸일으키기', '트위스트', '롤아웃', '버드독'],
   '팔': ['바이셉스', '트라이셉스', '케이블푸시다운', '덤벨컬', '바벨컬', '오버헤드익스텐션'],
   '등': ['랫풀다운', '풀다운', '풀업', '롱풀', '데드리프트', '레터럴로우', '로우로우', '어시스트풀업', '친업', '시티드로우'],
   '유산소': ['유산소', '러닝', '자전거', '싸이클', '워킹', '천국', '계단', '트레드밀', '트래드밀', '로잉'],
@@ -6912,12 +6912,17 @@ let timePickerTargetInput = null;
 
 const WHEEL_ITEM_HEIGHT = 36;
 
-/* items: [{value, label}]. 위아래 여백(padding)을 넣어서 첫/마지막 항목도 가운데로 스크롤될 수 있게 함 */
-function buildWheelColumn(col, items){
+/* items: [{value, label}]. 위아래 여백(padding)을 넣어서 첫/마지막 항목도 가운데로 스크롤될 수 있게 함.
+   loop이 true면 시(1~12)·분(0~59)처럼 끝까지 가면 다시 처음으로 이어지는 느낌을 내야 하는 항목이라,
+   같은 목록을 3벌 이어붙여서 가운데 벌에서 시작하고, 그 앞뒤 벌로 넘어가면 티 안 나게 가운데로
+   되돌려주는 방식으로 무한 스크롤처럼 보이게 한다. */
+function buildWheelColumn(col, items, loop){
+  const repeated = loop ? [...items, ...items, ...items] : items;
   col.innerHTML =
     `<div class="wheel-pad"></div>` +
-    items.map(it => `<div class="wheel-item" data-value="${it.value}">${it.label}</div>`).join('') +
+    repeated.map(it => `<div class="wheel-item" data-value="${it.value}">${it.label}</div>`).join('') +
     `<div class="wheel-pad"></div>`;
+  col.dataset.loopLength = loop ? String(items.length) : '';
 }
 
 function setWheelIndex(col, index, smooth){
@@ -6943,7 +6948,16 @@ function wireWheelScroll(col, key){
     highlightWheelActive(col);
     clearTimeout(wheelScrollTimers[key]);
     wheelScrollTimers[key] = setTimeout(() => {
-      const idx = getWheelIndex(col);
+      let idx = getWheelIndex(col);
+      const loopLength = parseInt(col.dataset.loopLength, 10) || 0;
+      if(loopLength){
+        // 맨 앞 벌이나 맨 뒤 벌 쪽으로 너무 많이 갔으면, 화면엔 안 보이게(점프 없이 자연스럽게)
+        // 같은 위치의 가운데 벌로 미리 옮겨둔다 — 그래야 계속 같은 방향으로 돌려도 안 끊긴다
+        if(idx < loopLength * 0.5 || idx >= loopLength * 2.5){
+          idx = loopLength + (((idx % loopLength) + loopLength) % loopLength);
+          setWheelIndex(col, idx, false);
+        }
+      }
       setWheelIndex(col, idx, true); // 정확히 스냅 위치로 정렬
       const value = highlightWheelActive(col);
       if(key === 'ampm') wheelState.ampm = value;
@@ -6954,8 +6968,8 @@ function wireWheelScroll(col, key){
 }
 
 buildWheelColumn(wheelColAmPm, [{value:'AM', label:'오전'}, {value:'PM', label:'오후'}]);
-buildWheelColumn(wheelColHour, Array.from({length:12}, (_, i) => ({ value: String(i+1), label: String(i+1) })));
-buildWheelColumn(wheelColMinute, Array.from({length:60}, (_, i) => ({ value: String(i), label: String(i).padStart(2,'0') })));
+buildWheelColumn(wheelColHour, Array.from({length:12}, (_, i) => ({ value: String(i+1), label: String(i+1) })), true);
+buildWheelColumn(wheelColMinute, Array.from({length:60}, (_, i) => ({ value: String(i), label: String(i).padStart(2,'0') })), true);
 wireWheelScroll(wheelColAmPm, 'ampm');
 wireWheelScroll(wheelColHour, 'hour');
 wireWheelScroll(wheelColMinute, 'minute');
@@ -6978,8 +6992,8 @@ function openTimePickerModal(targetInput, title){
   // 모달이 열려서 실제 크기를 가진 후에 스크롤 위치를 맞춰야 정확히 정렬됨
   requestAnimationFrame(() => {
     setWheelIndex(wheelColAmPm, ampm === 'AM' ? 0 : 1, false);
-    setWheelIndex(wheelColHour, hour - 1, false);
-    setWheelIndex(wheelColMinute, minute, false);
+    setWheelIndex(wheelColHour, 12 + (hour - 1), false); // 시·분은 3벌 중 가운데 벌(12개짜리 한 벌 건너뛴 자리)에서 시작
+    setWheelIndex(wheelColMinute, 60 + minute, false);
     highlightWheelActive(wheelColAmPm);
     highlightWheelActive(wheelColHour);
     highlightWheelActive(wheelColMinute);
@@ -7271,6 +7285,7 @@ function makeBlock(){
      더 올라갔으면(= 그 뒤에 또 입력이 있었으면) 낡은 응답이니 화면에 반영하지 않고 버린다. */
   let nameInputGen = 0;
   let prevBestWeight = null; // 이 종목의 이전 세션 최고 무게 (세트 순번과 무관하게 신기록 판단용)
+  let prevBestWeightReps = null; // 그 최고 무게 세트에서 했던 횟수 (같은 무게에서 횟수가 늘어난 것도 신기록으로 잡기 위함)
   let prevBestReps = null; // 무게 없는 맨몸운동일 때, 이전 세션 한 세트 최다 횟수 (신기록 판단용)
   let prevBestSeconds = null; // 시간 기록 종목일 때, 이전 세션 최장 시간(초) (신기록 판단용)
   nameInputEl.addEventListener('input', () => { nameInputGen++; });
@@ -7288,6 +7303,7 @@ function makeBlock(){
       prevHintEl.style.display = 'none';
       prevHintEl.textContent = '';
       prevBestWeight = null;
+      prevBestWeightReps = null;
       prevBestReps = null;
       prevBestSeconds = null;
       return;
@@ -7299,6 +7315,7 @@ function makeBlock(){
       prevHintEl.style.display = 'none';
       prevHintEl.textContent = '';
       prevBestWeight = null;
+      prevBestWeightReps = null;
       prevBestReps = null;
       prevBestSeconds = null;
       return;
@@ -7307,6 +7324,7 @@ function makeBlock(){
     let text = '';
     if(prev.recordMode === 'time'){
       prevBestWeight = null;
+      prevBestWeightReps = null;
       prevBestReps = null;
       let maxSec = -1;
       prev.setRows.forEach(s => {
@@ -7329,25 +7347,29 @@ function makeBlock(){
         const r = parseFloat(s.reps) || 0;
         if(s.weight !== '' && s.weight !== undefined && !isNaN(w)){
           hasWeight = true;
-          if(topSet === null || w > topSet.weight) topSet = { weight: w, reps: r };
+          // 무게가 더 크거나, 무게가 같으면 횟수가 더 많은 쪽을 '최고 세트'로 삼는다
+          if(topSet === null || w > topSet.weight || (w === topSet.weight && r > topSet.reps)) topSet = { weight: w, reps: r };
         } else if(r > maxReps){
           maxReps = r;
         }
       });
       if(hasWeight && topSet){
         prevBestWeight = topSet.weight;
+        prevBestWeightReps = topSet.reps;
         prevBestReps = null;
         const metric = exerciseMetric(prev);
         const volumeText = metric && metric.type === 'volume' ? ` · 이전 총 볼륨 ${formatNum(metric.value)}kg` : '';
         text = `⏱ 이전 최고 기록: ${formatNum(topSet.weight)}kg × ${topSet.reps}회${volumeText} (${formatDateHintStyle(prev.date)})`;
       } else if(maxReps > 0){
         prevBestWeight = null;
+        prevBestWeightReps = null;
         prevBestReps = maxReps;
         const metric = exerciseMetric(prev);
         const totalRepsText = metric && metric.type === 'reps' ? ` · 이전 총 갯수 ${metric.value}회` : '';
         text = `⏱ 이전 맨몸 운동 기록: 한 세트 최대 ${maxReps}회${totalRepsText} (${formatDateHintStyle(prev.date)})`;
       } else {
         prevBestWeight = null;
+        prevBestWeightReps = null;
         prevBestReps = null;
       }
     }
@@ -7583,7 +7605,12 @@ function makeBlock(){
       });
     }
 
-    const isTodayWeightRecord = todayMaxWeight !== null && (prevBestWeight === null || todayMaxWeight > prevBestWeight);
+    const isTodayWeightRecord = todayMaxWeight !== null && (
+      prevBestWeight === null
+      || todayMaxWeight > prevBestWeight
+      // 무게가 이전과 같아도, 그 무게에서 횟수가 더 늘었으면 그것도 신기록으로 잡는다
+      || (todayMaxWeight === prevBestWeight && (prevBestWeightReps === null || todayMaxWeightReps > prevBestWeightReps))
+    );
     // 무게가 있는 세트가 하나라도 있으면 그 종목은 '무게 운동'으로 보고, 맨몸 세트의 횟수 신기록은 따로 따지지 않는다
     const isTodayRepsRecord = todayMaxWeight === null && todayMaxReps !== null && (prevBestReps === null || todayMaxReps > prevBestReps);
     const isTodaySecondsRecord = todayMaxSeconds !== null && (prevBestSeconds === null || todayMaxSeconds > prevBestSeconds);
@@ -12361,17 +12388,19 @@ function renderTrainerEditPtHistory(){
       trainerMemberEditModal.classList.remove('open');
       openPromptModal({
         title: `${i + 1}차 등록 수정`,
-        sub: '등록 횟수와 설명을 고쳐주세요. (1회당 수업료는 센터장이 입력해요)',
+        sub: '회차, 1회당 수업료, 설명을 고쳐주세요.',
         fields: [
           { placeholder: '등록 횟수 (예: 10)', type: 'number', value: h.amount, unit: '회' },
+          { placeholder: '1회당 수업료 (예: 50000)', type: 'number', value: h.rate || '', unit: '원' },
           { placeholder: '설명 (선택, 예: 4주년 이벤트)', value: h.note || '' },
         ],
         submitLabel: '수정하기',
-        onSubmit: async (rawAmount, note) => {
+        onSubmit: async (rawAmount, rawRate, note) => {
           const amount = parseInt(rawAmount, 10);
           if(!amount || amount <= 0) throw new Error('올바른 횟수를 입력해주세요.');
-          // 수업료(rate)는 센터장만 입력하는 값이라, 여기서는 손대지 않고 그대로 이어받는다
-          trainerEditingPtHistory[i] = { amount, rate: h.rate || 0, note: note.trim() };
+          const rate = rawRate ? parseInt(rawRate, 10) : 0;
+          if(rawRate && (isNaN(rate) || rate < 0)) throw new Error('올바른 수업료를 입력해주세요.');
+          trainerEditingPtHistory[i] = { amount, rate: rate || 0, note: note.trim() };
           closePromptModal();
           renderTrainerEditPtHistory();
           trainerMemberEditModal.classList.add('open');
@@ -12456,16 +12485,19 @@ trainerEditPtAddBtn.addEventListener('click', () => {
   trainerMemberEditModal.classList.remove('open');
   openPromptModal({
     title: '추가 등록',
-    sub: '이번에 등록할 횟수와, 필요하면 설명(예: 4주년 이벤트)을 입력해주세요. (1회당 수업료는 센터장이 입력해요)',
+    sub: '이번에 등록할 횟수, 1회당 수업료, 필요하면 설명(예: 4주년 이벤트)을 입력해주세요.',
     fields: [
       { placeholder: '등록 횟수 (예: 10)', type: 'number', unit: '회' },
+      { placeholder: '1회당 수업료 (예: 50000)', type: 'number', unit: '원' },
       { placeholder: '설명 (선택, 예: 4주년 이벤트)' },
     ],
     submitLabel: '등록',
-    onSubmit: async (rawAmount, note) => {
+    onSubmit: async (rawAmount, rawRate, note) => {
       const amount = parseInt(rawAmount, 10);
       if(!amount || amount <= 0) throw new Error('올바른 횟수를 입력해주세요.');
-      trainerEditingPtHistory.push({ amount, rate: 0, note: note.trim() });
+      const rate = rawRate ? parseInt(rawRate, 10) : 0;
+      if(rawRate && (isNaN(rate) || rate < 0)) throw new Error('올바른 수업료를 입력해주세요.');
+      trainerEditingPtHistory.push({ amount, rate: rate || 0, note: note.trim() });
       closePromptModal();
       renderTrainerEditPtHistory();
       trainerMemberEditModal.classList.add('open');
