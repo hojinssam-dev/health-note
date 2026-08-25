@@ -5096,7 +5096,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.58.3';
+const APP_VERSION = '2.58.5';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -10873,40 +10873,9 @@ async function toggleAdminJournalDetail(todayJournalMap){
 // '일지 작성자' 상세 목록을 날짜 이동(◀▶)과 함께 그리는 공용 함수.
 // 관리자 페이지(전체 회원)와 트레이너 회원 목록(연결된 회원만) 양쪽에서 재사용한다 —
 // 둘의 차이는 fetchMapForDate(그 날짜의 journalMap을 어떻게 가져올지)뿐이다.
-async function renderJournalDetailForDate(container, dateStr, fetchMapForDate, cachedMapForToday, onDateChange, onRowClick){
-  container.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
+const journalDetailCache = new WeakMap(); // container별로 { 날짜: rows } 캐시해서, 봤던 날짜는 로딩 없이 바로 보여준다
 
-  let journalMap;
-  if(dateStr === todayStr() && cachedMapForToday){
-    journalMap = cachedMapForToday;
-  } else {
-    try{
-      journalMap = await fetchMapForDate(dateStr);
-    }catch(err){
-      console.error('일지 작성자 조회 오류:', dateStr, err);
-      container.innerHTML = '<div class="admin-empty">불러오지 못했어요.</div>';
-      return;
-    }
-  }
-
-  const uniqueUids = new Set();
-  journalMap.forEach(v => { uniqueUids.add(v.memberId); uniqueUids.add(v.authorId); });
-  const nameMap = {};
-  await Promise.all([...uniqueUids].map(async uid => {
-    nameMap[uid] = await resolveProfileName(uid);
-  }));
-
-  const rows = [...journalMap.values()].map(v => ({
-    memberId: v.memberId,
-    memberName: nameMap[v.memberId] || v.memberId,
-    authorName: v.authorId === v.memberId ? '본인' : (nameMap[v.authorId] || v.authorId),
-    locked: v.locked,
-    id: v.id,
-  }));
-  // 일지가 생성된 시간 순서대로: id가 Date.now() 기반이라 문자열로 비교해도 시간순이 된다.
-  // 가장 최근에 만들어진 일지가 맨 아래로 오도록 오름차순(과거 → 최신) 정렬한다.
-  rows.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
-
+function renderJournalDetailRows(container, dateStr, rows, fetchMapForDate, onDateChange, onRowClick){
   const isToday = dateStr === todayStr();
   const dateLabel = formatDate(dateStr) + (isToday ? ' (오늘)' : '');
   const navId = 'journalNav-' + Math.random().toString(36).slice(2, 8);
@@ -10947,6 +10916,54 @@ async function renderJournalDetailForDate(container, dateStr, fetchMapForDate, c
       });
     });
   }
+}
+
+async function renderJournalDetailForDate(container, dateStr, fetchMapForDate, cachedMapForToday, onDateChange, onRowClick){
+  const cacheForContainer = journalDetailCache.get(container) || {};
+  const cachedRows = cacheForContainer[dateStr];
+
+  if(cachedRows){
+    // 예전에 이미 봤던 날짜면, 로딩 문구 없이 그 화면을 바로 보여주고 뒤에서 조용히 최신으로 맞춘다
+    renderJournalDetailRows(container, dateStr, cachedRows, fetchMapForDate, onDateChange, onRowClick);
+  } else {
+    container.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
+  }
+
+  let journalMap;
+  if(dateStr === todayStr() && cachedMapForToday){
+    journalMap = cachedMapForToday;
+  } else {
+    try{
+      journalMap = await fetchMapForDate(dateStr);
+    }catch(err){
+      console.error('일지 작성자 조회 오류:', dateStr, err);
+      if(!cachedRows) container.innerHTML = '<div class="admin-empty">불러오지 못했어요.</div>';
+      return;
+    }
+  }
+
+  const uniqueUids = new Set();
+  journalMap.forEach(v => { uniqueUids.add(v.memberId); uniqueUids.add(v.authorId); });
+  const nameMap = {};
+  await Promise.all([...uniqueUids].map(async uid => {
+    nameMap[uid] = await resolveProfileName(uid);
+  }));
+
+  const rows = [...journalMap.values()].map(v => ({
+    memberId: v.memberId,
+    memberName: nameMap[v.memberId] || v.memberId,
+    authorName: v.authorId === v.memberId ? '본인' : (nameMap[v.authorId] || v.authorId),
+    locked: v.locked,
+    id: v.id,
+  }));
+  // 일지가 생성된 시간 순서대로: id가 Date.now() 기반이라 문자열로 비교해도 시간순이 된다.
+  // 가장 최근에 만들어진 일지가 맨 아래로 오도록 오름차순(과거 → 최신) 정렬한다.
+  rows.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+
+  cacheForContainer[dateStr] = rows;
+  journalDetailCache.set(container, cacheForContainer);
+
+  renderJournalDetailRows(container, dateStr, rows, fetchMapForDate, onDateChange, onRowClick);
 }
 
 /* ---------- 센터장 대시보드 ---------- */
@@ -11053,7 +11070,9 @@ async function loadEmployerDashboard(){
             .where('date', '>=', monthStart)
             .get();
           logsSnap.docs.forEach(d => {
-            const date = d.data().date;
+            const data = d.data();
+            if(data.private) return; // 비공개 일지는 센터장 대시보드 집계에서 제외한다
+            const date = data.date;
             const key = `${memberId}:${date}`;
             if(date >= monthStart) monthKeys.add(key);
             if(date >= weekStart) weekKeys.add(key);
