@@ -1957,6 +1957,11 @@
   .cal-cell.has-entries{ cursor:pointer; }
   .cal-cell.has-entries:hover{ opacity: .82; }
   .cal-cell.empty-cell{ background:transparent; border:none; box-shadow:none; }
+  .cal-cell.has-session{
+    background: color-mix(in srgb, var(--brass) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--brass) 35%, transparent);
+    border-radius: var(--radius-s);
+  }
   .cal-date-num{
     font-family: 'IBM Plex Mono', monospace;
     font-size: clamp(11px, 1.5vw, 19px);
@@ -5097,7 +5102,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.59.0';
+const APP_VERSION = '2.59.1';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8309,7 +8314,7 @@ function renderCalendar(){
     }
 
     cellsHtml += `
-      <div class="cal-cell ${hasEntries ? 'has-entries' : ''} ${isToday ? 'is-today' : ''} ${dateStr === selectedDetailDate ? 'is-selected' : ''}" data-date="${dateStr}">
+      <div class="cal-cell ${hasEntries ? 'has-entries' : ''} ${sessionEntry ? 'has-session' : ''} ${isToday ? 'is-today' : ''} ${dateStr === selectedDetailDate ? 'is-selected' : ''}" data-date="${dateStr}">
         <div class="cal-date-row">
           <span class="cal-date-num ${weekendClass}">${day}</span>
         </div>
