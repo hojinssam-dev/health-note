@@ -1963,6 +1963,7 @@
     color: var(--muted);
   }
   .cal-date-num.cal-date-sun{ color: #E0574A; }
+  .cal-date-num.has-session{ color: var(--brass-bright); font-weight: 700; }
   .cal-date-num.cal-date-sat{ color: #4A90D0; }
   .cal-cell.is-selected .cal-date-num{
     color: #fff;
@@ -2090,6 +2091,9 @@
     border: 1px solid var(--line);
     color: var(--brass-bright);
     font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .cal-tag-text{
     max-width: 100%;
@@ -5097,7 +5101,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.59.2';
+const APP_VERSION = '2.59.7';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6016,6 +6020,13 @@ function defaultRecordModeForName(name){
 
 const CHEST_EXACT_NAMES = ['인클라인프레스', '인클라인벤치프레스', '디클라인프레스', '디클라인벤치프레스'].map(n => n.replace(/\s+/g, ''));
 
+// '어시스트/어시스티드' 계열 운동(어시스트 풀업, 어시스티드 친업 등)은 기계가 대신 들어주는
+// 무게라서, 무게가 가벼울수록(도움을 덜 받을수록) 더 잘한 것이다. 그래서 이 종목들은 신기록
+// 판단 방향이 다른 운동과 반대가 되어야 한다(무거워질수록X, 가벼워질수록 신기록).
+function isAssistedExercise(name){
+  return /어시스트|어시스티드/.test(name || '');
+}
+
 function detectBodyPartFromName(name){
   const trimmed = (name || '').trim();
   if(!trimmed) return null;
@@ -6079,11 +6090,12 @@ function colorForEntry(e){
   if(!e) return '#FFFFFF';
   const isOwnEntry = !!(auth.currentUser && e.authorId && e.authorId === auth.currentUser.uid);
   // 작성자 본인이 아닌 다른 사람이 보는 거면, 보는 사람 자신의 현재 부위별 색상
-  // 설정으로 다시 계산해서 보여준다. bodyPart가 저장 안 된 예전 기록(이 분류가
-  // 생기기 전에 만들어진 기록)은 종목 이름으로 그 자리에서 즉석 판별한다.
+  // 설정으로 다시 계산해서 보여준다. 종목 이름으로 최신 분류를 먼저 시도하고, 그게
+  // 실패할 때만(인식 안 되는 종목명일 때만) 저장된 bodyPart 값으로 대체한다 — 그래야
+  // 작성 당시에 저장된 옛 분류값이 보는 사람의 최신 색상 설정을 가로막지 않는다.
   // 어느 쪽이든 문서 자체는 전혀 건드리지 않고 화면에 보여줄 때만 계산한다.
   if(!isOwnEntry){
-    const part = e.bodyPart || detectBodyPartFromName(e.exercise);
+    const part = detectBodyPartFromName(e.exercise) || e.bodyPart;
     if(part) return colorForBodyPart(part);
   }
   return upgradeLegacyColor(e.color || '#FFFFFF');
@@ -7340,6 +7352,7 @@ function makeBlock(){
       }
     } else {
       prevBestSeconds = null;
+      const assisted = isAssistedExercise(name);
       let topSet = null;
       let maxReps = 0;
       let hasWeight = false;
@@ -7348,8 +7361,10 @@ function makeBlock(){
         const r = parseFloat(s.reps) || 0;
         if(s.weight !== '' && s.weight !== undefined && !isNaN(w)){
           hasWeight = true;
-          // 무게가 더 크거나, 무게가 같으면 횟수가 더 많은 쪽을 '최고 세트'로 삼는다
-          if(topSet === null || w > topSet.weight || (w === topSet.weight && r > topSet.reps)) topSet = { weight: w, reps: r };
+          // 무게가 더 크거나(어시스트 계열이면 반대로 더 작거나), 무게가 같으면 횟수가 더
+          // 많은 쪽을 '최고 세트'로 삼는다
+          const isBetterWeight = assisted ? w < topSet?.weight : w > topSet?.weight;
+          if(topSet === null || isBetterWeight || (w === topSet.weight && r > topSet.reps)) topSet = { weight: w, reps: r };
         } else if(r > maxReps){
           maxReps = r;
         }
@@ -7579,6 +7594,7 @@ function makeBlock(){
         }
       });
     } else {
+      const assisted = isAssistedExercise(nameInputEl.value);
       rows.forEach((row, i) => {
         const curWeight = (row.querySelector('.set-weight').value || '').trim();
         const curReps = (row.querySelector('.set-reps').value || '').trim();
@@ -7587,9 +7603,11 @@ function makeBlock(){
         if(curWeight !== ''){
           const curWeightNum = parseFloat(curWeight);
           if(isNaN(curWeightNum)) return;
+          // 어시스트 계열은 무게가 더 가벼운 쪽이 '오늘의 최고 세트'가 된다 (반대는 더 무거운 쪽)
+          const isBetterWeight = todayMaxWeight === null ? true : (assisted ? curWeightNum < todayMaxWeight : curWeightNum > todayMaxWeight);
           if(
             todayMaxWeight === null
-            || curWeightNum > todayMaxWeight
+            || isBetterWeight
             || (curWeightNum === todayMaxWeight && curRepsNum > todayMaxWeightReps)
           ){
             todayMaxWeight = curWeightNum;
@@ -7606,9 +7624,10 @@ function makeBlock(){
       });
     }
 
+    const assistedExercise = isAssistedExercise(nameInputEl.value);
     const isTodayWeightRecord = todayMaxWeight !== null && (
       prevBestWeight === null
-      || todayMaxWeight > prevBestWeight
+      || (assistedExercise ? todayMaxWeight < prevBestWeight : todayMaxWeight > prevBestWeight)
       // 무게가 이전과 같아도, 그 무게에서 횟수가 더 늘었으면 그것도 신기록으로 잡는다
       || (todayMaxWeight === prevBestWeight && (prevBestWeightReps === null || todayMaxWeightReps > prevBestWeightReps))
     );
@@ -8311,9 +8330,9 @@ function renderCalendar(){
     cellsHtml += `
       <div class="cal-cell ${hasEntries ? 'has-entries' : ''} ${isToday ? 'is-today' : ''} ${dateStr === selectedDetailDate ? 'is-selected' : ''}" data-date="${dateStr}">
         <div class="cal-date-row">
-          <span class="cal-date-num ${weekendClass}">${day}</span>
+          <span class="cal-date-num ${weekendClass} ${sessionEntry ? 'has-session' : ''}">${day}</span>
         </div>
-        ${sessionEntry ? `<div class="cal-tag cal-session-chip">${resolveSessionText(sessionEntry)}회차</div>` : ''}
+        ${sessionEntry ? `<div class="cal-tag cal-session-chip">${resolveSessionText(sessionEntry)}회</div>` : ''}
         ${isMixedDay
           ? ptEntries.map(tagHtml).join('') + `<div class="cal-personal-label">개인 운동</div>` + personalEntries.map(tagHtml).join('')
           : entries.map(tagHtml).join('')}
@@ -9674,6 +9693,13 @@ async function addLogEntry(opts){
     const editId = block.getAttribute('data-edit-id');
     const existingTarget = editId ? currentLogs.find(e => e.id === editId) : null;
 
+    // PT인정 토글은 트레이너 화면에서만 보이니, 트레이너가 저장할 때만 그 값을 반영하고
+    // 회원이 저장할 땐(토글 자체가 안 보이니) 원래 값을 그대로 유지한다. sessionNo·authorId
+    // 둘 다 이 값을 참조하니 미리 한 번만 계산해둔다.
+    const isPtRecognized = isViewingAsTrainer
+      ? entryPtRecognizedToggleBtn.classList.contains('active')
+      : (existingTarget ? !!existingTarget.ptRecognized : false);
+
     const entryData = {
       date: dateVal,
       exercise,
@@ -9685,9 +9711,6 @@ async function addLogEntry(opts){
       memo: block.querySelector('.stat-memo').value.trim(),
       ptTotal: sessionPtTotal,
       sessionNo: (() => {
-        const isPtRecognized = isViewingAsTrainer
-          ? entryPtRecognizedToggleBtn.classList.contains('active')
-          : (existingTarget ? !!existingTarget.ptRecognized : false);
         if(!isPtRecognized) return null;
         const inputVal = entrySessionNoInput.value.trim();
         if(inputVal) return parseInt(inputVal, 10) + entrySessionGenerationBase;
@@ -9697,18 +9720,18 @@ async function addLogEntry(opts){
       startTime: entryStartTimeInput.value,
       endTime: entryEndTimeInput.value,
       order: blockIndex,
-      // 새로 만드는 기록만 작성자를 지금 로그인한 사람으로 남기고, 수정할 땐 원래 작성자를 그대로 유지한다
-      authorId: existingTarget ? existingTarget.authorId : auth.currentUser.uid,
+      // 새로 만드는 기록은 작성자를 지금 로그인한 사람으로 남기고, 수정할 땐 원래 작성자를
+      // 그대로 유지한다 — 단, 회원이 쓴 일지를 트레이너가 PT인정으로 저장하는 순간에는
+      // 트레이너가 그 일지를 인정/책임지는 것이니 작성자도 그 트레이너로 바뀐다.
+      authorId: existingTarget
+        ? (isViewingAsTrainer && isPtRecognized ? auth.currentUser.uid : existingTarget.authorId)
+        : auth.currentUser.uid,
       // PT인정·비공개는 이제 일지 전체(하루치)에 한 번만 있는 토글이라, 그 값을 그날의 모든 종목에 똑같이 적용한다.
       // 트레이너 화면에서만 토글이 보이니, 트레이너가 저장할 때만 이 값들을 반영하고
       // 회원이 저장할 땐(토글 자체가 안 보이니) 원래 값을 그대로 유지한다.
       // '잠금'은 이제 따로 누르는 게 아니라, PT인정을 켜면 자동으로 같이 켜진다(회원이 못 고치게).
-      ptRecognized: isViewingAsTrainer
-        ? entryPtRecognizedToggleBtn.classList.contains('active')
-        : (existingTarget ? !!existingTarget.ptRecognized : false),
-      locked: isViewingAsTrainer
-        ? entryPtRecognizedToggleBtn.classList.contains('active')
-        : (existingTarget ? !!existingTarget.locked : false),
+      ptRecognized: isPtRecognized,
+      locked: isPtRecognized,
       private: isViewingAsTrainer
         ? entryPrivateToggleBtn.classList.contains('active')
         : (existingTarget ? !!existingTarget.private : false),
