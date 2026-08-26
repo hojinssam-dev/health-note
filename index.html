@@ -5109,7 +5109,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.59.10';
+const APP_VERSION = '2.59.11';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5420,11 +5420,11 @@ const prevNoteDeleteBtn = document.getElementById('prevNoteDeleteBtn');
 const prevNoteDismissBtn = document.getElementById('prevNoteDismissBtn');
 
 function dismissedNoteKey(memberId){ return 'dismissed-note:' + memberId; }
-let dismissedNoteId = null;
+let dismissedNoteDate = null; // ID 하나가 아니라 '날짜'로 기억한다 — 같은 날짜엔 메모 사본이 여럿일 수 있어서
 let activeNoteEntryId = null;
 
 /* 이 회원이 남겨둔 메모 중 가장 최근에 작성된 것을 찾아 반환.
-   '더 이상 보지 않기'로 닫아둔 메모라면 표시하지 않는다. */
+   '더 이상 보지 않기'로 닫아둔 날짜라면 표시하지 않는다. */
 function getActiveStandingNoteEntry(){
   const candidates = currentLogs.filter(e => e.nextNote && e.nextNote.trim());
   if(candidates.length === 0) return null;
@@ -5433,7 +5433,7 @@ function getActiveStandingNoteEntry(){
     return 0;
   });
   const latest = sorted[0];
-  if(dismissedNoteId && dismissedNoteId === latest.id) return null;
+  if(dismissedNoteDate && dismissedNoteDate === latest.date) return null;
   return latest;
 }
 
@@ -5501,9 +5501,10 @@ prevNoteDeleteBtn.addEventListener('click', () => {
 });
 
 prevNoteDismissBtn.addEventListener('click', async () => {
-  if(!activeNoteEntryId) return;
-  dismissedNoteId = activeNoteEntryId;
-  await storageSetWithRetry(dismissedNoteKey(currentMemberId), dismissedNoteId, false, undefined, currentMemberId);
+  const noteEntry = currentLogs.find(e => e.id === activeNoteEntryId);
+  if(!noteEntry) return;
+  dismissedNoteDate = noteEntry.date;
+  await storageSetWithRetry(dismissedNoteKey(currentMemberId), dismissedNoteDate, false, undefined, currentMemberId);
   refreshPrevNoteBanner();
 });
 
@@ -7997,7 +7998,7 @@ async function openMember(memberId, isNewMember, jumpToDate){
     pruneBrokenBodyPhotos(memberId, currentBodyPhotos); // 화면 막지 않고 뒤에서 깨진 사진만 조용히 정리
   })();
   storageGetWithRetry(dismissedNoteKey(memberId), false, memberId).then((dismissedResult) => {
-    dismissedNoteId = dismissedResult ? dismissedResult.value : null;
+    dismissedNoteDate = dismissedResult ? dismissedResult.value : null;
   });
 }
 
