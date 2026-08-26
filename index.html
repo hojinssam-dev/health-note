@@ -2085,6 +2085,12 @@
     border-radius: 5px;
     box-sizing: border-box;
   }
+  .cal-session-chip{
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    color: var(--brass-bright);
+    font-weight: 700;
+  }
   .cal-tag-text{
     max-width: 100%;
     overflow: hidden;
@@ -3976,11 +3982,6 @@
     align-items: baseline;
     gap: 4px;
   }
-  .cal-session-inline{
-    font-size: clamp(9px, 1.2vw, 13px);
-    font-weight: 800;
-    color: var(--brass);
-  }
   .cal-personal-label{
     width: 100%;
     font-size: clamp(8px, 1vw, 10px);
@@ -5096,7 +5097,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.58.5';
+const APP_VERSION = '2.59.0';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5995,7 +5996,7 @@ const BODY_PARTS = ['가슴', '등', '어깨', '팔', '복근', '하체', '유�
 const BODY_PART_KEYWORDS = {
   '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈', '핵프레스', '런지'],
   '어깨': ['숄더', '밀리터리', '사레레', '슈러그', '레터럴레이즈', '프론트레이즈', '업라이트로우'],
-  '가슴': ['벤치', '딥스', '푸시업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이'],
+  '가슴': ['벤치', '딥스', '푸시업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이', '체스트'],
   '복근': ['레그레이즈', '크런치', '리버스', '플랭크', '데드버그', '싯업', '윗몸일으키기', '트위스트', '롤아웃', '버드독'],
   '팔': ['바이셉스', '트라이셉스', '케이블푸시다운', '덤벨컬', '바벨컬', '오버헤드익스텐션'],
   '등': ['랫풀다운', '풀다운', '풀업', '롱풀', '데드리프트', '레터럴로우', '로우로우', '어시스트풀업', '친업', '시티드로우'],
@@ -8311,8 +8312,8 @@ function renderCalendar(){
       <div class="cal-cell ${hasEntries ? 'has-entries' : ''} ${isToday ? 'is-today' : ''} ${dateStr === selectedDetailDate ? 'is-selected' : ''}" data-date="${dateStr}">
         <div class="cal-date-row">
           <span class="cal-date-num ${weekendClass}">${day}</span>
-          ${sessionEntry ? `<span class="cal-session-inline">${resolveSessionText(sessionEntry)}</span>` : ''}
         </div>
+        ${sessionEntry ? `<div class="cal-tag cal-session-chip">${resolveSessionText(sessionEntry)}회차</div>` : ''}
         ${isMixedDay
           ? ptEntries.map(tagHtml).join('') + `<div class="cal-personal-label">개인 운동</div>` + personalEntries.map(tagHtml).join('')
           : entries.map(tagHtml).join('')}
