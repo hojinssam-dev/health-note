@@ -1592,6 +1592,10 @@
     gap: 8px;
   }
   .prev-note-icon{ flex-shrink:0; }
+  #prevNoteText{
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
   .exercise-memo-row{
     display: flex;
     align-items: flex-start;
@@ -3440,6 +3444,8 @@
     margin-bottom: 1px;
   }
   .earnings-calendar-cell.is-today .earnings-calendar-day-num{ color: var(--brass-bright); }
+  .earnings-calendar-day-num.is-sun{ color: #E0574A; }
+  .earnings-calendar-day-num.is-sat{ color: #4A90D0; }
   .earnings-calendar-row{
     display: flex;
     flex-direction: column;
@@ -3638,6 +3644,8 @@
   }
   .datepicker-day:hover{ border-color: var(--brass); }
   .datepicker-day.is-today{ border-color: var(--brass); color: var(--brass-bright); }
+  .datepicker-day.is-sun{ color: #E0574A; }
+  .datepicker-day.is-sat{ color: #4A90D0; }
   .datepicker-day.is-selected{
     background: var(--brass);
     border-color: var(--brass);
@@ -5101,7 +5109,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.59.7';
+const APP_VERSION = '2.59.10';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5470,8 +5478,12 @@ prevNoteEditCancelBtn.addEventListener('click', () => {
 prevNoteEditSaveBtn.addEventListener('click', async () => {
   const noteEntry = currentLogs.find(e => e.id === activeNoteEntryId);
   if(!noteEntry) return;
-  noteEntry.nextNote = prevNoteEditInput.value.trim();
-  await syncLogChanges([noteEntry], []);
+  const newText = prevNoteEditInput.value.trim();
+  // 하루치 메모는 그날 저장된 모든 종목 문서에 똑같이 복제되어 있을 수 있어서, 그날
+  // 날짜의 모든 일지를 같이 갱신해야 나중에 다른 사본이 예전 문구로 다시 뜨지 않는다.
+  const sameDayEntries = currentLogs.filter(e => e.date === noteEntry.date && e.nextNote && e.nextNote.trim());
+  sameDayEntries.forEach(e => { e.nextNote = newText; });
+  await syncLogChanges(sameDayEntries, []);
   refreshPrevNoteBanner();
 });
 
@@ -5479,8 +5491,11 @@ prevNoteDeleteBtn.addEventListener('click', () => {
   const noteEntry = currentLogs.find(e => e.id === activeNoteEntryId);
   if(!noteEntry) return;
   showConfirmModal('메모 삭제', '이 메모를 삭제할까요?', async () => {
-    noteEntry.nextNote = '';
-    await syncLogChanges([noteEntry], []);
+    // 같은 이유로, 그날 날짜의 메모가 있는 일지를 전부 한 번에 지운다 (하나만 지우면
+    // 나머지 사본이 '가장 최근 메모'로 다시 나타나서 안 지워진 것처럼 보이는 문제가 있었다)
+    const sameDayEntries = currentLogs.filter(e => e.date === noteEntry.date && e.nextNote && e.nextNote.trim());
+    sameDayEntries.forEach(e => { e.nextNote = ''; });
+    await syncLogChanges(sameDayEntries, []);
     refreshPrevNoteBanner();
   }, '삭제');
 });
@@ -6873,7 +6888,10 @@ function renderDatePickerGrid(){
   }
   for(let d = 1; d <= daysInMonth; d++){
     const dStr = toDateStr(y, m, d);
+    const weekday = (firstDay + d - 1) % 7;
     const classes = ['datepicker-day'];
+    if(weekday === 0) classes.push('is-sun');
+    if(weekday === 6) classes.push('is-sat');
     if(dStr === todayStrVal) classes.push('is-today');
     if(dStr === selectedStrVal) classes.push('is-selected');
     html += `<button type="button" class="${classes.join(' ')}" data-date="${dStr}">${d}</button>`;
@@ -12262,11 +12280,12 @@ function renderTrainerEarningsCalendar(data){
   const startWeekday = firstOfMonth.getDay(); // 0=일요일
   const today = todayStr();
 
-  function cellHtml(dateStr, day){
+  function cellHtml(dateStr, day, weekdayIdx){
     if(!dateStr) return '<div class="earnings-calendar-cell is-empty"></div>';
     const amount = data.dailyTotals[dateStr] || 0;
     const isToday = dateStr === today;
     const hasEarning = amount > 0;
+    const weekendClass = weekdayIdx === 0 ? 'is-sun' : (weekdayIdx === 6 ? 'is-sat' : '');
     const dayRows = data.dailyBreakdown[dateStr] || [];
     const rowsHtml = dayRows.map(r => `
       <div class="earnings-calendar-row">
@@ -12276,7 +12295,7 @@ function renderTrainerEarningsCalendar(data){
     `).join('');
     const totalHtml = dayRows.length > 1 ? `<div class="earnings-calendar-day-total">합계 ${formatNum(amount)}</div>` : '';
     return `<div class="earnings-calendar-cell${isToday ? ' is-today' : ''}${hasEarning ? ' has-earning' : ''}">
-      <div class="earnings-calendar-day-num">${day}</div>
+      <div class="earnings-calendar-day-num ${weekendClass}">${day}</div>
       ${rowsHtml}
       ${totalHtml}
     </div>`;
@@ -12290,7 +12309,7 @@ function renderTrainerEarningsCalendar(data){
 
   function flushWeek(){
     while(week.length < 7) week.push(null);
-    html += week.map(d => cellHtml(d ? d.dateStr : null, d ? d.day : '')).join('');
+    html += week.map((d, idx) => cellHtml(d ? d.dateStr : null, d ? d.day : '', idx)).join('');
     html += `<div class="earnings-calendar-week-total">이번 주 합계 ${formatNum(weekTotal)}원</div>`;
     week = [];
     weekTotal = 0;
