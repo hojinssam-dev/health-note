@@ -4576,7 +4576,10 @@
         <div class="earnings-stat-value" id="trainerEarningsMonthValue">0<span class="earnings-stat-unit">원</span></div>
       </div>
     </div>
-    <div class="login-error" id="trainerEarningsMissingNotice" style="display:none; margin-bottom:0; cursor:pointer;"></div>
+    <div class="login-error" id="trainerEarningsMissingNotice" style="display:none; margin-bottom:0; cursor:pointer; align-items:center; justify-content:space-between; gap:8px;">
+      <span id="trainerEarningsMissingText"></span>
+      <span id="trainerEarningsMissingChevron" style="flex-shrink:0; transition: transform .15s ease;">▾</span>
+    </div>
     <div class="admin-dash-detail" id="trainerEarningsMissingDetail" style="display:none; margin-bottom:14px;"></div>
     <div class="earnings-calendar-month-label" id="trainerEarningsMonthLabel"></div>
     <div class="earnings-calendar-weekdays">
@@ -5129,7 +5132,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.60.0';
+const APP_VERSION = '2.60.2';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -7468,6 +7471,7 @@ function makeBlock(){
   nameInputEl.addEventListener('input', updateExerciseMemoHint);
 
   let manualColorOverride = false;
+  let manualModeOverride = false;
 
   nameInputEl.addEventListener('input', () => {
     if(manualColorOverride) return;
@@ -7475,6 +7479,11 @@ function makeBlock(){
     // 부위가 감지 안 되면(이름을 지웠거나 미분류 종목이면) 이전에 감지됐던 색이 남아있지
     // 않도록 기본값(무색)으로 되돌린다.
     setColor(detectedPart ? colorForBodyPart(detectedPart) : '#FFFFFF');
+    // 유산소 종목(러닝머신, 로잉머신 등)이라고 감지되면, 사용자가 직접 모드를 고르지 않은
+    // 이상 자동으로 '시간' 기록 모드로 바꿔준다 (무게·횟수보다 시간으로 재는 게 자연스러워서)
+    if(!manualModeOverride && detectedPart === '유산소' && recordMode !== 'time'){
+      setMode('time');
+    }
   });
 
   function setColor(val){
@@ -7569,11 +7578,11 @@ function makeBlock(){
         <div class="set-row-main">
           <span class="set-label">세트</span>
           <div class="set-input-wrap">
-            <input autocapitalize="off" type="number" inputmode="numeric" class="set-minutes swipe-adjustable" min="0" step="1" placeholder="분" value="${data.minutes || ''}">
+            <input autocapitalize="off" type="number" inputmode="numeric" class="set-minutes swipe-adjustable" min="0" step="1" placeholder="" value="${data.minutes || ''}">
             <span class="set-input-suffix">분</span>
           </div>
           <div class="set-input-wrap">
-            <input autocapitalize="off" type="number" inputmode="numeric" class="set-seconds swipe-adjustable" min="0" max="59" step="1" placeholder="초" value="${data.seconds || ''}">
+            <input autocapitalize="off" type="number" inputmode="numeric" class="set-seconds swipe-adjustable" min="0" max="59" step="1" placeholder="" value="${data.seconds || ''}">
             <span class="set-input-suffix">초</span>
           </div>
           <button type="button" class="remove-set-btn" title="이 세트 삭제">×</button>
@@ -7589,11 +7598,11 @@ function makeBlock(){
         <div class="set-row-main">
           <span class="set-label">세트</span>
           <div class="set-input-wrap">
-            <input autocapitalize="off" type="number" inputmode="decimal" class="set-weight swipe-adjustable" min="0" step="0.5" placeholder="무게" value="${data.weight || ''}">
+            <input autocapitalize="off" type="number" inputmode="decimal" class="set-weight swipe-adjustable" min="0" step="0.5" placeholder="" value="${data.weight || ''}">
             <span class="set-input-suffix">kg</span>
           </div>
           <div class="set-input-wrap">
-            <input autocapitalize="off" type="number" inputmode="numeric" class="set-reps swipe-adjustable" min="0" step="1" placeholder="횟수" value="${data.reps || ''}">
+            <input autocapitalize="off" type="number" inputmode="numeric" class="set-reps swipe-adjustable" min="0" step="1" placeholder="" value="${data.reps || ''}">
             <span class="set-input-suffix">회</span>
           </div>
           <button type="button" class="remove-set-btn" title="이 세트 삭제">×</button>
@@ -7739,6 +7748,7 @@ function makeBlock(){
 
   block.querySelectorAll('.mode-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      manualModeOverride = true;
       if(btn.getAttribute('data-mode') !== recordMode){
         setMode(btn.getAttribute('data-mode'));
       }
@@ -9398,6 +9408,10 @@ function buildDayText(dateStr, groupEntries){
     const startText = startTimeVal ? formatTimeAMPM(startTimeVal) : '--:--';
     const endText = endTimeVal ? formatTimeAMPM(endTimeVal) : '--:--';
     lines.push(`🕐 ${startText} ~ ${endText}`);
+  }
+  const standingNoteEntry = dayEntries.find(e => e.nextNote && e.nextNote.trim());
+  if(standingNoteEntry){
+    lines.push(`📌 ${standingNoteEntry.nextNote}`);
   }
 
   lines.push('');
@@ -12273,6 +12287,8 @@ const trainerEarningsWeekValue = document.getElementById('trainerEarningsWeekVal
 const trainerEarningsMonthValue = document.getElementById('trainerEarningsMonthValue');
 const trainerEarningsMissingNotice = document.getElementById('trainerEarningsMissingNotice');
 const trainerEarningsMissingDetail = document.getElementById('trainerEarningsMissingDetail');
+const trainerEarningsMissingText = document.getElementById('trainerEarningsMissingText');
+const trainerEarningsMissingChevron = document.getElementById('trainerEarningsMissingChevron');
 const trainerEarningsMonthLabel = document.getElementById('trainerEarningsMonthLabel');
 const trainerEarningsCalendarGrid = document.getElementById('trainerEarningsCalendarGrid');
 const viewTrainerEarnings = document.getElementById('view-trainer-earnings');
@@ -12304,8 +12320,8 @@ async function loadTrainerEarnings(){
     trainerEarningsMonthValue.innerHTML = `${formatWon(data.monthTotal)}<span class="earnings-stat-unit">원</span>`;
 
     if(data.missingRateCount > 0){
-      trainerEarningsMissingNotice.textContent = `수업료 미등록 ${data.missingRateCount}회 — 0원으로 계산됐어요. (눌러서 회원 확인)`;
-      trainerEarningsMissingNotice.style.display = 'block';
+      trainerEarningsMissingText.textContent = `수업료 미등록 ${data.missingRateCount}회 — 0원으로 계산됐어요.`;
+      trainerEarningsMissingNotice.style.display = 'flex';
       trainerEarningsMissingDetail.innerHTML = data.missingRateMemberNames.map(name => `
         <div class="admin-dash-detail-row">
           <span class="admin-dash-detail-member">${escapeHtml(name)}</span>
@@ -12315,10 +12331,12 @@ async function loadTrainerEarnings(){
       trainerEarningsMissingNotice.onclick = () => {
         const isOpen = trainerEarningsMissingDetail.style.display !== 'none';
         trainerEarningsMissingDetail.style.display = isOpen ? 'none' : 'flex';
+        trainerEarningsMissingChevron.style.transform = isOpen ? '' : 'rotate(180deg)';
       };
     } else {
       trainerEarningsMissingNotice.style.display = 'none';
       trainerEarningsMissingDetail.style.display = 'none';
+      trainerEarningsMissingChevron.style.transform = '';
       trainerEarningsMissingNotice.onclick = null;
     }
 
