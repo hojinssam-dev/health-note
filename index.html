@@ -2455,6 +2455,25 @@
     font-family: 'IBM Plex Mono', monospace;
   }
   .set-row input:focus{ outline:none; border-color: var(--brass); }
+  .set-input-wrap{
+    position: relative;
+    flex: 1;
+    min-width: 0;
+  }
+  .set-input-wrap input{
+    width: 100%;
+    padding-right: 26px;
+  }
+  .set-input-suffix{
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    pointer-events: none;
+  }
   .add-drop-mode-btn{
     flex-shrink: 0;
     display: inline-flex;
@@ -4557,7 +4576,8 @@
         <div class="earnings-stat-value" id="trainerEarningsMonthValue">0<span class="earnings-stat-unit">원</span></div>
       </div>
     </div>
-    <div class="login-error" id="trainerEarningsMissingNotice" style="display:none; margin-bottom:14px;"></div>
+    <div class="login-error" id="trainerEarningsMissingNotice" style="display:none; margin-bottom:0; cursor:pointer;"></div>
+    <div class="admin-dash-detail" id="trainerEarningsMissingDetail" style="display:none; margin-bottom:14px;"></div>
     <div class="earnings-calendar-month-label" id="trainerEarningsMonthLabel"></div>
     <div class="earnings-calendar-weekdays">
       <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
@@ -5109,7 +5129,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.59.11';
+const APP_VERSION = '2.60.0';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6020,7 +6040,7 @@ const BODY_PART_KEYWORDS = {
   '복근': ['레그레이즈', '크런치', '리버스', '플랭크', '데드버그', '싯업', '윗몸일으키기', '트위스트', '롤아웃', '버드독'],
   '팔': ['바이셉스', '트라이셉스', '케이블푸시다운', '덤벨컬', '바벨컬', '오버헤드익스텐션'],
   '등': ['랫풀다운', '풀다운', '풀업', '롱풀', '데드리프트', '레터럴로우', '로우로우', '어시스트풀업', '친업', '시티드로우'],
-  '유산소': ['유산소', '러닝', '자전거', '싸이클', '워킹', '천국', '계단', '트레드밀', '트래드밀', '로잉'],
+  '유산소': ['유산소', '러닝', '런닝', '자전거', '싸이클', '워킹', '천국', '계단', '트레드밀', '트래드밀', '로잉'],
 };
 
 /* '인클라인', '디클라인'은 다른 부위 운동에도 흔히 붙는 말이라 일반 키워드로 넣지 않고,
@@ -7548,8 +7568,14 @@ function makeBlock(){
       row.innerHTML = `
         <div class="set-row-main">
           <span class="set-label">세트</span>
-          <input autocapitalize="off" type="number" inputmode="numeric" class="set-minutes swipe-adjustable" min="0" step="1" placeholder="분" value="${data.minutes || ''}">
-          <input autocapitalize="off" type="number" inputmode="numeric" class="set-seconds swipe-adjustable" min="0" max="59" step="1" placeholder="초" value="${data.seconds || ''}">
+          <div class="set-input-wrap">
+            <input autocapitalize="off" type="number" inputmode="numeric" class="set-minutes swipe-adjustable" min="0" step="1" placeholder="분" value="${data.minutes || ''}">
+            <span class="set-input-suffix">분</span>
+          </div>
+          <div class="set-input-wrap">
+            <input autocapitalize="off" type="number" inputmode="numeric" class="set-seconds swipe-adjustable" min="0" max="59" step="1" placeholder="초" value="${data.seconds || ''}">
+            <span class="set-input-suffix">초</span>
+          </div>
           <button type="button" class="remove-set-btn" title="이 세트 삭제">×</button>
         </div>
         <div class="set-row-prev-hint" style="display:none;">이전 기록이에요</div>
@@ -7562,8 +7588,14 @@ function makeBlock(){
       row.innerHTML = `
         <div class="set-row-main">
           <span class="set-label">세트</span>
-          <input autocapitalize="off" type="number" inputmode="decimal" class="set-weight swipe-adjustable" min="0" step="0.5" placeholder="무게(kg)" value="${data.weight || ''}">
-          <input autocapitalize="off" type="number" inputmode="numeric" class="set-reps swipe-adjustable" min="0" step="1" placeholder="횟수" value="${data.reps || ''}">
+          <div class="set-input-wrap">
+            <input autocapitalize="off" type="number" inputmode="decimal" class="set-weight swipe-adjustable" min="0" step="0.5" placeholder="무게" value="${data.weight || ''}">
+            <span class="set-input-suffix">kg</span>
+          </div>
+          <div class="set-input-wrap">
+            <input autocapitalize="off" type="number" inputmode="numeric" class="set-reps swipe-adjustable" min="0" step="1" placeholder="횟수" value="${data.reps || ''}">
+            <span class="set-input-suffix">회</span>
+          </div>
           <button type="button" class="remove-set-btn" title="이 세트 삭제">×</button>
         </div>
         <div class="set-row-prev-hint" style="display:none;">이전 기록이에요</div>
@@ -9221,6 +9253,12 @@ function formatNum(n){
   if(n === null || n === undefined || isNaN(n)) return '0';
   const rounded = Math.round(n * 10) / 10;
   return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+}
+
+// 수업료 금액 표시 전용: 천 단위마다 쉼표를 넣는다 (1000000 → "1,000,000")
+function formatWon(n){
+  if(n === null || n === undefined || isNaN(n)) return '0';
+  return Math.round(n).toLocaleString('ko-KR');
 }
 
 function formatSeconds(totalSeconds){
@@ -12200,6 +12238,7 @@ async function computeTrainerEarnings(trainerUid){
   let todayTotal = 0, weekTotal = 0, monthTotal = 0, missingRateCount = 0;
   const dailyTotals = {};
   const dailyBreakdown = {};
+  const missingRateMemberNames = new Set();
 
   sessionsByKey.forEach(({ memberId, date, sessionNo }) => {
     const ptHistory = ptHistoryByMember[memberId] || [];
@@ -12207,7 +12246,10 @@ async function computeTrainerEarnings(trainerUid){
 
     const cycle = resolvePtCycle(ptHistory, sessionNo);
     const rate = cycle ? (ptHistory[cycle.generation - 1].rate || 0) : 0;
-    if(rate <= 0) missingRateCount++;
+    if(rate <= 0){
+      missingRateCount++;
+      missingRateMemberNames.add(nameByMember[memberId] || '회원');
+    }
 
     if(date >= monthStart && date <= monthEnd){
       monthTotal += rate;
@@ -12219,7 +12261,7 @@ async function computeTrainerEarnings(trainerUid){
     if(date === today) todayTotal += rate;
   });
 
-  return { todayTotal, weekTotal, monthTotal, missingRateCount, dailyTotals, dailyBreakdown, monthStart, monthEnd, year: now.getFullYear(), month: now.getMonth() };
+  return { todayTotal, weekTotal, monthTotal, missingRateCount, missingRateMemberNames: [...missingRateMemberNames], dailyTotals, dailyBreakdown, monthStart, monthEnd, year: now.getFullYear(), month: now.getMonth() };
 }
 
 const trainerEarningsTitle = document.getElementById('trainerEarningsTitle');
@@ -12230,6 +12272,7 @@ const trainerEarningsTodayValue = document.getElementById('trainerEarningsTodayV
 const trainerEarningsWeekValue = document.getElementById('trainerEarningsWeekValue');
 const trainerEarningsMonthValue = document.getElementById('trainerEarningsMonthValue');
 const trainerEarningsMissingNotice = document.getElementById('trainerEarningsMissingNotice');
+const trainerEarningsMissingDetail = document.getElementById('trainerEarningsMissingDetail');
 const trainerEarningsMonthLabel = document.getElementById('trainerEarningsMonthLabel');
 const trainerEarningsCalendarGrid = document.getElementById('trainerEarningsCalendarGrid');
 const viewTrainerEarnings = document.getElementById('view-trainer-earnings');
@@ -12256,15 +12299,27 @@ async function loadTrainerEarnings(){
   if(!trainerEarningsCurrentUid) return;
   try{
     const data = await computeTrainerEarnings(trainerEarningsCurrentUid);
-    trainerEarningsTodayValue.innerHTML = `${formatNum(data.todayTotal)}<span class="earnings-stat-unit">원</span>`;
-    trainerEarningsWeekValue.innerHTML = `${formatNum(data.weekTotal)}<span class="earnings-stat-unit">원</span>`;
-    trainerEarningsMonthValue.innerHTML = `${formatNum(data.monthTotal)}<span class="earnings-stat-unit">원</span>`;
+    trainerEarningsTodayValue.innerHTML = `${formatWon(data.todayTotal)}<span class="earnings-stat-unit">원</span>`;
+    trainerEarningsWeekValue.innerHTML = `${formatWon(data.weekTotal)}<span class="earnings-stat-unit">원</span>`;
+    trainerEarningsMonthValue.innerHTML = `${formatWon(data.monthTotal)}<span class="earnings-stat-unit">원</span>`;
 
     if(data.missingRateCount > 0){
-      trainerEarningsMissingNotice.textContent = `수업료 미등록 ${data.missingRateCount}회 — 0원으로 계산됐어요. 회원 정보 수정에서 수업료를 채워주세요.`;
+      trainerEarningsMissingNotice.textContent = `수업료 미등록 ${data.missingRateCount}회 — 0원으로 계산됐어요. (눌러서 회원 확인)`;
       trainerEarningsMissingNotice.style.display = 'block';
+      trainerEarningsMissingDetail.innerHTML = data.missingRateMemberNames.map(name => `
+        <div class="admin-dash-detail-row">
+          <span class="admin-dash-detail-member">${escapeHtml(name)}</span>
+          <span class="admin-dash-detail-author">수업료 미등록</span>
+        </div>
+      `).join('');
+      trainerEarningsMissingNotice.onclick = () => {
+        const isOpen = trainerEarningsMissingDetail.style.display !== 'none';
+        trainerEarningsMissingDetail.style.display = isOpen ? 'none' : 'flex';
+      };
     } else {
       trainerEarningsMissingNotice.style.display = 'none';
+      trainerEarningsMissingDetail.style.display = 'none';
+      trainerEarningsMissingNotice.onclick = null;
     }
 
     trainerEarningsMonthLabel.textContent = `${data.year}년 ${data.month + 1}월`;
@@ -12291,10 +12346,10 @@ function renderTrainerEarningsCalendar(data){
     const rowsHtml = dayRows.map(r => `
       <div class="earnings-calendar-row">
         <span class="earnings-calendar-name">${escapeHtml(r.name)}</span>
-        <span class="earnings-calendar-amount">${formatNum(r.amount)}</span>
+        <span class="earnings-calendar-amount">${formatWon(r.amount)}</span>
       </div>
     `).join('');
-    const totalHtml = dayRows.length > 1 ? `<div class="earnings-calendar-day-total">합계 ${formatNum(amount)}</div>` : '';
+    const totalHtml = dayRows.length > 1 ? `<div class="earnings-calendar-day-total">합계 ${formatWon(amount)}</div>` : '';
     return `<div class="earnings-calendar-cell${isToday ? ' is-today' : ''}${hasEarning ? ' has-earning' : ''}">
       <div class="earnings-calendar-day-num ${weekendClass}">${day}</div>
       ${rowsHtml}
@@ -12311,7 +12366,7 @@ function renderTrainerEarningsCalendar(data){
   function flushWeek(){
     while(week.length < 7) week.push(null);
     html += week.map((d, idx) => cellHtml(d ? d.dateStr : null, d ? d.day : '', idx)).join('');
-    html += `<div class="earnings-calendar-week-total">이번 주 합계 ${formatNum(weekTotal)}원</div>`;
+    html += `<div class="earnings-calendar-week-total">이번 주 합계 ${formatWon(weekTotal)}원</div>`;
     week = [];
     weekTotal = 0;
   }
