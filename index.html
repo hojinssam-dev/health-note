@@ -4576,7 +4576,7 @@
         <div class="earnings-stat-value" id="trainerEarningsMonthValue">0<span class="earnings-stat-unit">원</span></div>
       </div>
     </div>
-    <div class="login-error" id="trainerEarningsMissingNotice" style="display:none; margin-bottom:0; cursor:pointer; align-items:center; justify-content:space-between; gap:8px;">
+    <div class="login-error" id="trainerEarningsMissingNotice" style="display:none; margin-bottom:0; cursor:pointer; align-items:center; justify-content:flex-start; gap:4px;">
       <span id="trainerEarningsMissingText"></span>
       <span id="trainerEarningsMissingChevron" style="flex-shrink:0; transition: transform .15s ease;">▾</span>
     </div>
@@ -5132,7 +5132,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.60.2';
+const APP_VERSION = '2.60.4';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6037,7 +6037,7 @@ const BODY_PARTS = ['가슴', '등', '어깨', '팔', '복근', '하체', '유�
 /* 운동 종목 이름에 아래 글자가 포함되면 해당 부위로 자동 인식해서
    설정에서 지정한 부위 색을 이름 글자색에 자동 적용한다 */
 const BODY_PART_KEYWORDS = {
-  '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈', '핵프레스', '런지'],
+  '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈', '핵프레스', '런지', '클램쉘'],
   '어깨': ['숄더', '밀리터리', '사레레', '슈러그', '레터럴레이즈', '프론트레이즈', '업라이트로우'],
   '가슴': ['벤치', '딥스', '푸시업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이', '체스트'],
   '복근': ['레그레이즈', '크런치', '리버스', '플랭크', '데드버그', '싯업', '윗몸일으키기', '트위스트', '롤아웃', '버드독'],
@@ -6573,7 +6573,7 @@ async function ensureTotalWorkoutDaysInitialized(memberId){
 }
 
 /* 종목 이름을 '이전 기록 찾기'용 키로 정규화한다.
-   대소문자 차이는 물론, 띄어쓰기 차이(예: '고블린스쿼트' vs '고블린 스쿼트')도
+   대소문자 차이는 물론, 띄어쓰기 차이(예: '고블릿스쿼트' vs '고블릿 스쿼트')도
    같은 종목으로 인식하도록 공백을 전부 제거한다. */
 function computeExerciseKey(name){
   return (name || '').trim().toLowerCase().replace(/\s+/g, '');
@@ -7334,8 +7334,8 @@ function makeBlock(){
 
   /* 이름을 빠르게 입력하면 글자마다 서버 조회가 하나씩 나가는데, 연결이 느리거나
      불안정한 기기에서는 그 응답들이 보낸 순서와 다르게 도착할 수 있다. 그러면 예전
-     글자 상태(예: "고블린스쿼")에 대한 낡은 응답이 뒤늦게 도착해서, 방금 완성된
-     이름("고블린스쿼트")에 대한 정확한 결과를 덮어써버리는 일이 생긴다.
+     글자 상태(예: "고블릿스쿼")에 대한 낡은 응답이 뒤늦게 도착해서, 방금 완성된
+     이름("고블릿스쿼트")에 대한 정확한 결과를 덮어써버리는 일이 생긴다.
      그래서 입력할 때마다 번호표를 하나씩 올려두고, 조회가 끝났을 때 그 사이에 번호표가
      더 올라갔으면(= 그 뒤에 또 입력이 있었으면) 낡은 응답이니 화면에 반영하지 않고 버린다. */
   let nameInputGen = 0;
@@ -8820,7 +8820,7 @@ const EXERCISE_LIBRARY = {
   ],
   하체: [
     { name: '스쿼트', photo: 'ex-photos/squat.jpg' },
-    { name: '고블린 스쿼트', photo: 'ex-photos/gobletsquat.jpg' },
+    { name: '고블릿 스쿼트', photo: 'ex-photos/gobletsquat.jpg' },
     { name: '런지', photo: 'ex-photos/lunge.jpg' },
     { name: '레그익스텐션', photo: 'ex-photos/legextension.jpg' },
     { name: '레그컬', photo: 'ex-photos/legcurl.jpg' },
