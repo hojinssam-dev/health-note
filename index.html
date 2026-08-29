@@ -1980,6 +1980,14 @@
   .cal-cycle-underline.cal-cycle-period{ background: #E0574A; }
   .cal-cycle-underline.cal-cycle-follicular{ background: #D9A441; }
   .cal-cycle-underline.cal-cycle-luteal{ background: #8B9FD9; }
+  .cal-cycle-underline.is-predicted{
+    background: none;
+    border-bottom: 2px dashed currentColor;
+    height: 0;
+  }
+  .cal-cycle-underline.is-predicted.cal-cycle-period{ color: #E0574A; }
+  .cal-cycle-underline.is-predicted.cal-cycle-follicular{ color: #D9A441; }
+  .cal-cycle-underline.is-predicted.cal-cycle-luteal{ color: #8B9FD9; }
   .cal-date-num.cal-date-sat{ color: #4A90D0; }
   .cal-cell.is-selected .cal-date-num{
     color: #fff;
@@ -5213,7 +5221,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.61.0';
+const APP_VERSION = '2.61.1';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8485,7 +8493,7 @@ function renderCalendar(){
         <div class="cal-date-row">
           <span class="cal-date-num ${weekendClass} ${sessionEntry ? 'has-session' : ''}">${day}</span>
         </div>
-        ${cyclePhase ? `<span class="cal-cycle-underline ${cyclePhaseClass}"></span>` : ''}
+        ${cyclePhase ? `<span class="cal-cycle-underline ${cyclePhaseClass}${cyclePhase.isPredicted ? ' is-predicted' : ''}"></span>` : ''}
         ${sessionEntry ? `<div class="cal-tag cal-session-chip">${resolveSessionText(sessionEntry)}회</div>` : ''}
         ${isMixedDay
           ? ptEntries.map(tagHtml).join('') + `<div class="cal-personal-label">개인 운동</div>` + personalEntries.map(tagHtml).join('')
@@ -8568,7 +8576,7 @@ async function renderDayDetail(){
       <div class="day-detail">
         <div class="day-detail-label">
           ${formatDate(selectedDetailDate)}
-          ${cyclePhase ? `<span class="cycle-phase-badge ${cyclePhaseColorClass}">${cyclePhase.phase}</span>` : ''}
+          ${cyclePhase ? `<span class="cycle-phase-badge ${cyclePhaseColorClass}">${cyclePhase.phase}${cyclePhase.isPredicted ? ' (예상)' : ''}</span>` : ''}
         </div>
         <div class="admin-empty" style="padding:14px 0;">이 날 작성된 일지가 없어요.</div>
         <button type="button" class="day-period-toggle-btn ${isPeriodStart ? 'active' : ''}" id="dayPeriodToggleBtn">${isPeriodStart ? '생리 시작일 해제' : '생리 시작일로 표시'}</button>
@@ -8631,7 +8639,7 @@ async function renderDayDetail(){
       <div class="day-detail-label">
         ${formatDate(selectedDetailDate)}
         ${sessionInfoEntry ? `<span class="pt-session-badge">PT ${resolveSessionText(sessionInfoEntry)}회</span>` : ''}
-        ${cyclePhase ? `<span class="cycle-phase-badge ${cyclePhaseColorClass}">${cyclePhase.phase}</span>` : ''}
+        ${cyclePhase ? `<span class="cycle-phase-badge ${cyclePhaseColorClass}">${cyclePhase.phase}${cyclePhase.isPredicted ? ' (예상)' : ''}</span>` : ''}
         ${dayTimeText ? `<span class="day-detail-time">${dayTimeText}</span>` : ''}
       </div>
       ${orderedEntries.map((e, i) => entryHtml(e, isMixedDay && e === personalEntries[0])).join('')}
@@ -9814,6 +9822,7 @@ function getCyclePhase(periodStartDates, dateStr){
   const anchor = sorted[anchorIndex];
 
   let cycleLength = 28;
+  let hasReliableAverage = false; // 시작일이 3개 이상 쌓여서 평균 주기를 믿을 만할 때만 true
   if(sorted.length >= 3){
     const intervals = [];
     for(let i = 1; i < sorted.length; i++){
@@ -9823,6 +9832,7 @@ function getCyclePhase(periodStartDates, dateStr){
     if(intervals.length){
       const recent = intervals.slice(-6); // 최근 것 위주로 반영
       cycleLength = Math.round(recent.reduce((a, b) => a + b, 0) / recent.length);
+      hasReliableAverage = true;
     }
   }
 
@@ -9830,12 +9840,28 @@ function getCyclePhase(periodStartDates, dateStr){
   const lutealLength = 14;
   const follicularLength = Math.max(1, cycleLength - periodLength - lutealLength);
 
-  const dayIndex = dateDiffDays(anchor, dateStr); // 시작일 자체가 0일차
+  const rawDayIndex = dateDiffDays(anchor, dateStr); // 시작일 자체가 0일차
+  // 지금 기준으로 삼은 시작일이 '가장 최근 기록'이고(=그 뒤로 아직 실제 시작일이 안 잡힘),
+  // 평균 주기를 믿을 수 있는 상태면, 한 주기를 넘어가도 계속 다음 달(그다음달...)까지
+  // 예측해서 보여준다. 실제 시작일이 새로 기록되면 그 날짜가 새 기준이 되어 자동으로
+  // 정확한 값으로 이어받는다 — 그래서 이 예측은 언제든 자연스럽게 수정된다.
+  const isFutureOfLastAnchor = anchorIndex === sorted.length - 1;
+  let dayIndex, isPredicted;
+  if(hasReliableAverage && isFutureOfLastAnchor){
+    dayIndex = rawDayIndex % cycleLength;
+    isPredicted = rawDayIndex >= cycleLength;
+  } else {
+    if(rawDayIndex >= cycleLength) return null; // 기록이 부족한 상태로 한 주기를 넘어서면 더는 추정하지 않는다
+    dayIndex = rawDayIndex;
+    isPredicted = false;
+  }
 
-  if(dayIndex < periodLength) return { phase: '생리기' };
-  if(dayIndex < periodLength + follicularLength) return { phase: '황금기' };
-  if(dayIndex < cycleLength) return { phase: '황체기' };
-  return null; // 예측 범위(한 주기)를 넘어섰는데 다음 시작일이 아직 기록 안 됐으면 표시하지 않는다
+  let phase;
+  if(dayIndex < periodLength) phase = '생리기';
+  else if(dayIndex < periodLength + follicularLength) phase = '황금기';
+  else phase = '황체기';
+
+  return { phase, isPredicted };
 }
 
 function resolveSessionText(entry){
