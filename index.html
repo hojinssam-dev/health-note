@@ -1976,6 +1976,15 @@
   .cal-date-num.cal-cycle-follicular{ color: #D9A441 !important; font-weight: 700; }
   .cal-date-num.cal-cycle-luteal{ color: #8B9FD9 !important; font-weight: 700; }
   .cal-date-num.is-predicted{ opacity: .6; }
+  /* 오늘/선택된 날짜는 원래 동그라미 배경에 대비색 글자를 쓰는데, 생리 주기 글자색이 그
+     대비를 깨서 안 보이게 만들 수 있다. 그래서 이 두 경우엔 글자색 대신 동그라미 배경
+     자체를 주기 색으로 바꾸고 글자는 흰색으로 고정해서 항상 잘 보이게 한다. */
+  .cal-cell.is-today .cal-date-num.cal-cycle-period,
+  .cal-cell.is-selected .cal-date-num.cal-cycle-period{ background: #E0574A !important; color: #fff !important; }
+  .cal-cell.is-today .cal-date-num.cal-cycle-follicular,
+  .cal-cell.is-selected .cal-date-num.cal-cycle-follicular{ background: #D9A441 !important; color: #fff !important; }
+  .cal-cell.is-today .cal-date-num.cal-cycle-luteal,
+  .cal-cell.is-selected .cal-date-num.cal-cycle-luteal{ background: #8B9FD9 !important; color: #fff !important; }
   .cal-cell.is-selected .cal-date-num{
     color: #fff;
     font-weight: 700;
@@ -5208,7 +5217,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.61.2';
+const APP_VERSION = '2.61.3';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
