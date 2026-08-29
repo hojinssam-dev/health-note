@@ -4898,12 +4898,10 @@
       </div>
       <button type="button" class="account-field-btn" id="accountRecoveryEmailBtn">설정</button>
     </div>
-    <div class="account-field-row">
-      <div class="account-field-text">
-        <div class="account-field-label">성별</div>
-        <div class="account-field-value" id="accountGenderValue">-</div>
-      </div>
-      <button type="button" class="account-field-btn" id="accountGenderBtn">변경</button>
+    <div class="account-field-label" style="margin-top:14px;">성별</div>
+    <div class="login-gender-row" id="accountGenderRow" style="margin-bottom:14px;">
+      <button type="button" class="login-gender-btn" data-gender="F">여성</button>
+      <button type="button" class="login-gender-btn" data-gender="M">남성</button>
     </div>
     <button type="button" class="modal-btn modal-btn-danger account-withdraw-btn" id="accountWithdrawBtn">회원 탈퇴</button>
     <button class="modal-cancel" id="myAccountCancelBtn">닫기</button>
@@ -5217,7 +5215,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.61.3';
+const APP_VERSION = '2.61.4';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -10690,8 +10688,7 @@ const settingsMyAccountBtn = document.getElementById('settingsMyAccountBtn');
 const settingsRefreshDataBtn = document.getElementById('settingsRefreshDataBtn');
 const accountIdValue = document.getElementById('accountIdValue');
 const accountRecoveryEmailValue = document.getElementById('accountRecoveryEmailValue');
-const accountGenderValue = document.getElementById('accountGenderValue');
-const accountGenderBtn = document.getElementById('accountGenderBtn');
+const accountGenderRow = document.getElementById('accountGenderRow');
 const accountChangeIdBtn = document.getElementById('accountChangeIdBtn');
 const accountChangePasswordBtn = document.getElementById('accountChangePasswordBtn');
 const accountRecoveryEmailBtn = document.getElementById('accountRecoveryEmailBtn');
@@ -10736,7 +10733,9 @@ function refreshMyAccountModal(){
   const currentEmail = auth.currentUser ? auth.currentUser.email : '';
   const hasRealEmail = currentEmail && !currentEmail.endsWith(SYNTHETIC_EMAIL_DOMAIN);
   accountRecoveryEmailValue.textContent = hasRealEmail ? currentEmail : '';
-  accountGenderValue.textContent = member && member.gender === 'F' ? '여성' : (member && member.gender === 'M' ? '남성' : '미설정');
+  accountGenderRow.querySelectorAll('.login-gender-btn').forEach(btn => {
+    btn.classList.toggle('active', member && member.gender === btn.getAttribute('data-gender'));
+  });
 }
 
 async function updateMyGender(gender){
@@ -10746,15 +10745,8 @@ async function updateMyGender(gender){
   refreshMyAccountModal();
   showCopyToast('성별을 저장했어요.');
 }
-accountGenderBtn.addEventListener('click', () => {
-  showConfirmModal(
-    '성별 설정',
-    '본인의 성별을 선택해주세요.',
-    () => updateMyGender('F'),
-    '여성',
-    () => updateMyGender('M'),
-    '남성'
-  );
+accountGenderRow.querySelectorAll('.login-gender-btn').forEach(btn => {
+  btn.addEventListener('click', () => updateMyGender(btn.getAttribute('data-gender')));
 });
 
 function closeMyAccountModal(){
