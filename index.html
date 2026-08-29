@@ -1970,25 +1970,12 @@
   }
   .cal-date-num.cal-date-sun{ color: #E0574A; }
   .cal-date-num.has-session{ color: var(--brass-bright); font-weight: 700; }
-  .cal-cycle-underline{
-    display: block;
-    width: 16px;
-    height: 2px;
-    border-radius: 1px;
-    margin-top: -4px;
-  }
-  .cal-cycle-underline.cal-cycle-period{ background: #E0574A; }
-  .cal-cycle-underline.cal-cycle-follicular{ background: #D9A441; }
-  .cal-cycle-underline.cal-cycle-luteal{ background: #8B9FD9; }
-  .cal-cycle-underline.is-predicted{
-    background: none;
-    border-bottom: 2px dashed currentColor;
-    height: 0;
-  }
-  .cal-cycle-underline.is-predicted.cal-cycle-period{ color: #E0574A; }
-  .cal-cycle-underline.is-predicted.cal-cycle-follicular{ color: #D9A441; }
-  .cal-cycle-underline.is-predicted.cal-cycle-luteal{ color: #8B9FD9; }
   .cal-date-num.cal-date-sat{ color: #4A90D0; }
+  /* 생리 주기 색상은 토요일·일요일 색, PT 표시 색보다 항상 우선한다 */
+  .cal-date-num.cal-cycle-period{ color: #E0574A !important; font-weight: 700; }
+  .cal-date-num.cal-cycle-follicular{ color: #D9A441 !important; font-weight: 700; }
+  .cal-date-num.cal-cycle-luteal{ color: #8B9FD9 !important; font-weight: 700; }
+  .cal-date-num.is-predicted{ opacity: .6; }
   .cal-cell.is-selected .cal-date-num{
     color: #fff;
     font-weight: 700;
@@ -5221,7 +5208,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.61.1';
+const APP_VERSION = '2.61.2';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8491,9 +8478,8 @@ function renderCalendar(){
     cellsHtml += `
       <div class="cal-cell ${hasEntries ? 'has-entries' : ''} ${isToday ? 'is-today' : ''} ${dateStr === selectedDetailDate ? 'is-selected' : ''}" data-date="${dateStr}">
         <div class="cal-date-row">
-          <span class="cal-date-num ${weekendClass} ${sessionEntry ? 'has-session' : ''}">${day}</span>
+          <span class="cal-date-num ${weekendClass} ${sessionEntry ? 'has-session' : ''} ${cyclePhaseClass}${cyclePhase && cyclePhase.isPredicted ? ' is-predicted' : ''}">${day}</span>
         </div>
-        ${cyclePhase ? `<span class="cal-cycle-underline ${cyclePhaseClass}${cyclePhase.isPredicted ? ' is-predicted' : ''}"></span>` : ''}
         ${sessionEntry ? `<div class="cal-tag cal-session-chip">${resolveSessionText(sessionEntry)}회</div>` : ''}
         ${isMixedDay
           ? ptEntries.map(tagHtml).join('') + `<div class="cal-personal-label">개인 운동</div>` + personalEntries.map(tagHtml).join('')
