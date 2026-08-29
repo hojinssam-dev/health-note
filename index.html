@@ -1958,8 +1958,10 @@
     gap: clamp(2px, 0.5vw, 7px);
     transition: opacity .15s var(--ease);
   }
-  .cal-cell.has-entries{ cursor:pointer; }
-  .cal-cell.has-entries:hover{ opacity: .82; }
+  .cal-cell{ cursor:pointer; }
+  .cal-cell:hover{ opacity: .82; }
+  .cal-cell.empty-cell{ cursor:default; }
+  .cal-cell.empty-cell:hover{ opacity:1; }
   .cal-cell.empty-cell{ background:transparent; border:none; box-shadow:none; }
   .cal-date-num{
     font-family: 'IBM Plex Mono', monospace;
@@ -1968,6 +1970,16 @@
   }
   .cal-date-num.cal-date-sun{ color: #E0574A; }
   .cal-date-num.has-session{ color: var(--brass-bright); font-weight: 700; }
+  .cal-cycle-underline{
+    display: block;
+    width: 16px;
+    height: 2px;
+    border-radius: 1px;
+    margin-top: -4px;
+  }
+  .cal-cycle-underline.cal-cycle-period{ background: #E0574A; }
+  .cal-cycle-underline.cal-cycle-follicular{ background: #D9A441; }
+  .cal-cycle-underline.cal-cycle-luteal{ background: #8B9FD9; }
   .cal-date-num.cal-date-sat{ color: #4A90D0; }
   .cal-cell.is-selected .cal-date-num{
     color: #fff;
@@ -2164,6 +2176,35 @@
     border: 1px solid rgba(201,162,39,0.35);
     border-radius: 20px;
     padding: 3px 10px;
+  }
+  .cycle-phase-badge{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    border-radius: 20px;
+    padding: 3px 10px;
+  }
+  .cycle-phase-badge.is-period{ color: #E0574A; background: rgba(224,87,74,0.12); border: 1px solid rgba(224,87,74,0.35); }
+  .cycle-phase-badge.is-follicular{ color: #D9A441; background: rgba(217,164,65,0.12); border: 1px solid rgba(217,164,65,0.35); }
+  .cycle-phase-badge.is-luteal{ color: #8B9FD9; background: rgba(139,159,217,0.12); border: 1px solid rgba(139,159,217,0.35); }
+  .day-period-toggle-btn{
+    width: 100%;
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    border-radius: var(--radius-s);
+    padding: 10px;
+    font-size: 13px;
+    font-family: 'Noto Sans KR', sans-serif;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: all .15s var(--ease);
+  }
+  .day-period-toggle-btn:hover{ border-color: #E0574A; color: #E0574A; }
+  .day-period-toggle-btn.active{
+    background: rgba(224,87,74,0.14);
+    border-color: #E0574A;
+    color: #E0574A;
+    font-weight: 600;
   }
   .day-detail-time{
     margin-left: auto;
@@ -3623,6 +3664,30 @@
     color: #201A0D;
     font-weight: 600;
   }
+  .login-gender-row{
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .login-gender-btn{
+    flex: 1;
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    border-radius: var(--radius-s);
+    padding: 11px 4px;
+    font-size: 13px;
+    font-family: 'Noto Sans KR', sans-serif;
+    cursor: pointer;
+    transition: all .15s var(--ease);
+  }
+  .login-gender-btn:hover{ border-color: var(--brass); }
+  .login-gender-btn.active{
+    background: var(--brass);
+    border-color: var(--brass);
+    color: #201A0D;
+    font-weight: 600;
+  }
 
   /* 커스텀 날짜 선택 모달 */
   .datepicker-box{ max-width: 320px; }
@@ -4207,6 +4272,10 @@
           </button>
         </div>
         <input autocapitalize="off" id="loginCenterNameInput" type="text" placeholder="소속 센터명" autocomplete="off" style="display:none;">
+        <div class="login-gender-row" id="loginGenderRow" style="display:none;">
+          <button type="button" class="login-gender-btn" data-gender="F">여성</button>
+          <button type="button" class="login-gender-btn" data-gender="M">남성</button>
+        </div>
         <div class="login-error" id="loginError" style="display:none;"></div>
         <button class="login-btn" id="loginSubmitBtn">로그인</button>
         <input autocapitalize="off" id="loginRecoveryEmailInput" type="email" placeholder="복구 이메일" autocomplete="email" style="display:none;">
@@ -4619,6 +4688,11 @@
       <div class="account-field-hint" id="trainerEditSettlementExemptHint" style="display:none;">센터장에게 노출되지 않는 회원으로 분류돼요</div>
       <div class="account-field-label">휴대폰 번호</div>
       <input autocapitalize="off" id="trainerEditPhoneInput" type="tel" class="modal-input" placeholder="예) 010-1234-5678">
+      <div class="account-field-label">성별</div>
+      <div class="login-gender-row" id="trainerEditGenderRow" style="margin-bottom:14px;">
+        <button type="button" class="login-gender-btn" data-gender="F">여성</button>
+        <button type="button" class="login-gender-btn" data-gender="M">남성</button>
+      </div>
       <div class="login-error" id="trainerMemberEditError" style="display:none;"></div>
       <div class="modal-actions">
         <button class="modal-btn" id="trainerMemberEditChangeIdBtn">아이디 변경</button>
@@ -4819,6 +4893,13 @@
         <div class="account-field-value" id="accountRecoveryEmailValue"></div>
       </div>
       <button type="button" class="account-field-btn" id="accountRecoveryEmailBtn">설정</button>
+    </div>
+    <div class="account-field-row">
+      <div class="account-field-text">
+        <div class="account-field-label">성별</div>
+        <div class="account-field-value" id="accountGenderValue">-</div>
+      </div>
+      <button type="button" class="account-field-btn" id="accountGenderBtn">변경</button>
     </div>
     <button type="button" class="modal-btn modal-btn-danger account-withdraw-btn" id="accountWithdrawBtn">회원 탈퇴</button>
     <button class="modal-cancel" id="myAccountCancelBtn">닫기</button>
@@ -5132,7 +5213,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.60.4';
+const APP_VERSION = '2.61.0';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6042,7 +6123,7 @@ const BODY_PART_KEYWORDS = {
   '가슴': ['벤치', '딥스', '푸시업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이', '체스트'],
   '복근': ['레그레이즈', '크런치', '리버스', '플랭크', '데드버그', '싯업', '윗몸일으키기', '트위스트', '롤아웃', '버드독'],
   '팔': ['바이셉스', '트라이셉스', '케이블푸시다운', '덤벨컬', '바벨컬', '오버헤드익스텐션'],
-  '등': ['랫풀다운', '풀다운', '풀업', '롱풀', '데드리프트', '레터럴로우', '로우로우', '어시스트풀업', '친업', '시티드로우'],
+  '등': ['랫풀다운', '풀다운', '풀업', '롱풀', '레터럴로우', '로우로우', '어시스트풀업', '친업', '시티드로우'],
   '유산소': ['유산소', '러닝', '런닝', '자전거', '싸이클', '워킹', '천국', '계단', '트레드밀', '트래드밀', '로잉'],
 };
 
@@ -7184,8 +7265,12 @@ function makeSwipeAdjustable(inputEl){
 
   function endDrag(){
     dragging = false;
-    // 무게 입력란은 0kg으로 내리면 아예 손을 안 댄 것처럼 비워서 '무게(kg)' 안내문구로 돌아가게 한다
-    if(inputEl.classList.contains('set-weight') && parseFloat(inputEl.value) === 0){
+    // 무게·횟수·분·초 입력란은 0으로 내리면 아예 손을 안 댄 것처럼 비워서 원래 안내 자리로 돌아가게 한다
+    const isZeroable = inputEl.classList.contains('set-weight')
+      || inputEl.classList.contains('set-reps')
+      || inputEl.classList.contains('set-minutes')
+      || inputEl.classList.contains('set-seconds');
+    if(isZeroable && parseFloat(inputEl.value) === 0){
       inputEl.value = '';
       inputEl.dispatchEvent(new Event('input', { bubbles: true }));
     }
@@ -8363,6 +8448,11 @@ function renderCalendar(){
   const daysInMonth = new Date(y, m+1, 0).getDate();
   const todayD = todayStr();
 
+  // 여성 회원이고 생리 시작일을 한 번이라도 기록해뒀을 때만 주기를 계산한다 —
+  // 안 그러면(대부분) 지금처럼 아무 표시도 안 하고 그대로 둔다.
+  const calMember = members.find(mm => mm.id === currentMemberId);
+  const calShowCycle = calMember && calMember.gender === 'F' && Array.isArray(calMember.periodStartDates) && calMember.periodStartDates.length > 0;
+
   let cellsHtml = '';
   for(let i=0; i<firstWeekday; i++){
     cellsHtml += `<div class="cal-cell empty-cell"></div>`;
@@ -8376,6 +8466,8 @@ function renderCalendar(){
     const sessionEntry = entries.find(e => e.sessionNo);
     const weekday = (firstWeekday + day - 1) % 7;
     const weekendClass = weekday === 0 ? 'cal-date-sun' : (weekday === 6 ? 'cal-date-sat' : '');
+    const cyclePhase = calShowCycle ? getCyclePhase(calMember.periodStartDates, dateStr) : null;
+    const cyclePhaseClass = cyclePhase ? (cyclePhase.phase === '생리기' ? 'cal-cycle-period' : cyclePhase.phase === '황금기' ? 'cal-cycle-follicular' : 'cal-cycle-luteal') : '';
 
     // PT(잠긴) 기록과 회원 개인 운동이 같은 날 섞여 있을 때만, 개인 운동 쪽에 작은 라벨을 붙여 구분한다
     const ptEntries = entries.filter(e => e.locked);
@@ -8393,6 +8485,7 @@ function renderCalendar(){
         <div class="cal-date-row">
           <span class="cal-date-num ${weekendClass} ${sessionEntry ? 'has-session' : ''}">${day}</span>
         </div>
+        ${cyclePhase ? `<span class="cal-cycle-underline ${cyclePhaseClass}"></span>` : ''}
         ${sessionEntry ? `<div class="cal-tag cal-session-chip">${resolveSessionText(sessionEntry)}회</div>` : ''}
         ${isMixedDay
           ? ptEntries.map(tagHtml).join('') + `<div class="cal-personal-label">개인 운동</div>` + personalEntries.map(tagHtml).join('')
@@ -8407,7 +8500,9 @@ function renderCalendar(){
     const dateStr = cell.getAttribute('data-date');
     if(dayClipboard){
       cell.addEventListener('click', () => pasteDayClipboard(dateStr));
-    } else if(cell.classList.contains('has-entries')){
+    } else {
+      // 기록이 없는 날도 눌러서 상세보기를 열 수 있다 (생리 시작일 표시 등, 운동 기록과
+      // 상관없는 걸 남길 수 있어야 해서 — 예전엔 기록 있는 날만 클릭이 됐었다)
       cell.addEventListener('click', () => {
         calGrid.querySelectorAll('.cal-cell.is-selected').forEach(c => c.classList.remove('is-selected'));
         cell.classList.add('is-selected');
@@ -8418,15 +8513,67 @@ function renderCalendar(){
   });
 }
 
+async function togglePeriodStart(dateStr){
+  const member = members.find(m => m.id === currentMemberId);
+  if(!member) return;
+  const list = Array.isArray(member.periodStartDates) ? [...member.periodStartDates] : [];
+  const idx = list.indexOf(dateStr);
+  if(idx >= 0) list.splice(idx, 1); else list.push(dateStr);
+  member.periodStartDates = list;
+  await saveMemberProfileField(currentMemberId, 'periodStartDates', list);
+  showCopyToast(idx >= 0 ? '생리 시작일 표시를 해제했어요.' : '생리 시작일로 표시했어요.');
+  renderCalendar();
+  renderDayDetail();
+}
+
+// 회원 프로필(members-list 블롭) 안의 필드 하나만 갱신해서 저장한다 — 다른 트레이너/센터장이
+// 동시에 고친 다른 필드를 덮어쓰지 않도록, 저장 직전에 그 회원 문서를 다시 읽어서 병합한다.
+async function saveMemberProfileField(memberId, fieldName, value){
+  try{
+    const result = await storageGetWithRetry(STORAGE_KEY, false, memberId);
+    const list = result ? JSON.parse(result.value) : [];
+    let entry = list.find(m => m.id === memberId);
+    if(!entry){
+      entry = { id: memberId, name: '', phone: '', ptHistory: [], memo: '' };
+      list.push(entry);
+    }
+    entry[fieldName] = value;
+    await storageSetWithRetry(STORAGE_KEY, JSON.stringify(list), false, undefined, memberId);
+  }catch(err){
+    console.error('회원 프로필 저장 오류:', memberId, fieldName, err);
+  }
+}
+
 async function renderDayDetail(){
   if(!selectedDetailDate){
     dayDetail.innerHTML = '';
     return;
   }
   const entries = sortEntriesByOrder(currentLogs.filter(e => e.date === selectedDetailDate));
+
+  const member = members.find(m => m.id === currentMemberId);
+  const isFemale = member && member.gender === 'F';
+  const cyclePhase = isFemale ? getCyclePhase(member.periodStartDates, selectedDetailDate) : null;
+  const isPeriodStart = isFemale && Array.isArray(member.periodStartDates) && member.periodStartDates.includes(selectedDetailDate);
+  const cyclePhaseColorClass = cyclePhase ? (cyclePhase.phase === '생리기' ? 'is-period' : cyclePhase.phase === '황금기' ? 'is-follicular' : 'is-luteal') : '';
+
   if(entries.length === 0){
-    selectedDetailDate = null;
-    dayDetail.innerHTML = '';
+    // 운동 기록이 없는 날이라도, 생리 주기 표시(여성 회원)를 위해 화면 자체는 그대로 열어둔다.
+    if(!isFemale){
+      selectedDetailDate = null;
+      dayDetail.innerHTML = '';
+      return;
+    }
+    dayDetail.innerHTML = `
+      <div class="day-detail">
+        <div class="day-detail-label">
+          ${formatDate(selectedDetailDate)}
+          ${cyclePhase ? `<span class="cycle-phase-badge ${cyclePhaseColorClass}">${cyclePhase.phase}</span>` : ''}
+        </div>
+        <div class="admin-empty" style="padding:14px 0;">이 날 작성된 일지가 없어요.</div>
+        <button type="button" class="day-period-toggle-btn ${isPeriodStart ? 'active' : ''}" id="dayPeriodToggleBtn">${isPeriodStart ? '생리 시작일 해제' : '생리 시작일로 표시'}</button>
+      </div>`;
+    document.getElementById('dayPeriodToggleBtn').addEventListener('click', () => togglePeriodStart(selectedDetailDate));
     return;
   }
 
@@ -8484,6 +8631,7 @@ async function renderDayDetail(){
       <div class="day-detail-label">
         ${formatDate(selectedDetailDate)}
         ${sessionInfoEntry ? `<span class="pt-session-badge">PT ${resolveSessionText(sessionInfoEntry)}회</span>` : ''}
+        ${cyclePhase ? `<span class="cycle-phase-badge ${cyclePhaseColorClass}">${cyclePhase.phase}</span>` : ''}
         ${dayTimeText ? `<span class="day-detail-time">${dayTimeText}</span>` : ''}
       </div>
       ${orderedEntries.map((e, i) => entryHtml(e, isMixedDay && e === personalEntries[0])).join('')}
@@ -8492,12 +8640,17 @@ async function renderDayDetail(){
         <span class="day-detail-note-label">📌 메모</span>
         <div class="day-detail-note-text">${formatMemoForDisplay(dayNoteEntry.nextNote)}</div>
       </div>` : ''}
+      ${isFemale ? `<button type="button" class="day-period-toggle-btn ${isPeriodStart ? 'active' : ''}" id="dayPeriodToggleBtn">${isPeriodStart ? '생리 시작일 해제' : '생리 시작일로 표시'}</button>` : ''}
       ${canManageWholeDay ? `
       <div class="day-detail-actions">
         <button class="day-copy-btn" id="dayCopyBtn">${isMixedDay && !(isViewingAsTrainer || isAdmin()) ? '개인 운동만 다른 날짜로 복사' : '다른 날짜로 일지 복사'}</button>
         <button class="day-delete-all-btn" id="dayDeleteAllBtn">${isMixedDay && !(isViewingAsTrainer || isAdmin()) ? '개인 운동만 삭제' : '이 날짜 일지 전체 삭제'}</button>
       </div>` : ''}
     </div>`;
+
+  if(isFemale){
+    document.getElementById('dayPeriodToggleBtn').addEventListener('click', () => togglePeriodStart(selectedDetailDate));
+  }
 
   if(canManageWholeDay){
     const canEditLocked = isViewingAsTrainer || isAdmin();
@@ -9634,6 +9787,57 @@ function getPtHistory(member){
    마지막 차수를 넘어서더라도(아직 추가 등록을 안 했다면) 마지막 차수 기준으로 계속 보여준다. */
 /* 종목에 저장된 sessionNo는 '누적' 횟수다. 화면에 보여줄 땐 그 회원의 지금 PT 등록 이력에
    대입해서 "몇 차 등록분의 몇 회차/총 몇 회"인지로 바꿔서 보여준다. */
+function dateDiffDays(a, b){
+  // a, b: "YYYY-MM-DD" 문자열. b가 a보다 며칠 뒤인지.
+  const da = new Date(a + 'T00:00:00');
+  const db = new Date(b + 'T00:00:00');
+  return Math.round((db - da) / 86400000);
+}
+
+/* 생리 시작일 기록을 바탕으로, 특정 날짜가 생리기/황금기/황체기 중 어디에 해당하는지 계산한다.
+   - 기록된 시작일이 3개 미만이면 표준 28일 주기(생리기 7일 + 황금기 7일 + 황체기 14일)를 쓴다.
+   - 3개 이상 쌓이면, 최근 시작일 간격들(최대 6개)의 평균으로 이 사람만의 주기 길이를 추정해서
+     보정한다. 너무 짧거나 긴(21~35일 벗어난) 간격은 컨디션 난조 등으로 인한 이상치로 보고
+     평균 계산에서 뺀다.
+   - 황체기(배란 이후~다음 생리 전)는 사람마다 비교적 일정한 편이라 14일로 고정해두고,
+     전체 주기가 늘거나 줄면 그 차이는 생리기 이후~배란 전인 황금기 쪽에서 흡수한다. */
+function getCyclePhase(periodStartDates, dateStr){
+  if(!periodStartDates || !periodStartDates.length) return null;
+  const sorted = [...periodStartDates].sort();
+
+  // dateStr보다 이전이거나 같은 날짜 중 가장 최근 시작일을 이번 주기의 기준으로 삼는다
+  let anchorIndex = -1;
+  for(let i = sorted.length - 1; i >= 0; i--){
+    if(sorted[i] <= dateStr){ anchorIndex = i; break; }
+  }
+  if(anchorIndex === -1) return null; // 기록된 첫 시작일보다 이전 날짜는 계산할 근거가 없다
+  const anchor = sorted[anchorIndex];
+
+  let cycleLength = 28;
+  if(sorted.length >= 3){
+    const intervals = [];
+    for(let i = 1; i < sorted.length; i++){
+      const days = dateDiffDays(sorted[i - 1], sorted[i]);
+      if(days >= 21 && days <= 35) intervals.push(days); // 이상치 제외
+    }
+    if(intervals.length){
+      const recent = intervals.slice(-6); // 최근 것 위주로 반영
+      cycleLength = Math.round(recent.reduce((a, b) => a + b, 0) / recent.length);
+    }
+  }
+
+  const periodLength = 7;
+  const lutealLength = 14;
+  const follicularLength = Math.max(1, cycleLength - periodLength - lutealLength);
+
+  const dayIndex = dateDiffDays(anchor, dateStr); // 시작일 자체가 0일차
+
+  if(dayIndex < periodLength) return { phase: '생리기' };
+  if(dayIndex < periodLength + follicularLength) return { phase: '황금기' };
+  if(dayIndex < cycleLength) return { phase: '황체기' };
+  return null; // 예측 범위(한 주기)를 넘어섰는데 다음 시작일이 아직 기록 안 됐으면 표시하지 않는다
+}
+
 function resolveSessionText(entry){
   if(!entry || !entry.sessionNo) return null;
   const member = members.find(m => m.id === currentMemberId);
@@ -9960,6 +10164,14 @@ const viewLogin = document.getElementById('view-login');
 const loginEmailInput = document.getElementById('loginEmailInput');
 const loginRecoveryEmailInput = document.getElementById('loginRecoveryEmailInput');
 const loginCenterNameInput = document.getElementById('loginCenterNameInput');
+const loginGenderRow = document.getElementById('loginGenderRow');
+let selectedSignupGender = null;
+loginGenderRow.querySelectorAll('.login-gender-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectedSignupGender = btn.getAttribute('data-gender');
+    loginGenderRow.querySelectorAll('.login-gender-btn').forEach(b => b.classList.toggle('active', b === btn));
+  });
+});
 const loginRecoveryHint = document.getElementById('loginRecoveryHint');
 const loginPasswordInput = document.getElementById('loginPasswordInput');
 const loginError = document.getElementById('loginError');
@@ -9983,6 +10195,7 @@ function updateLoginModeUI(){
     loginRecoveryEmailInput.style.display = 'block';
     loginRecoveryHint.style.display = 'block';
     loginCenterNameInput.style.display = isTrainerSignup ? 'block' : 'none';
+    loginGenderRow.style.display = isTrainerSignup ? 'none' : 'flex';
     loginFindRow.style.display = 'none';
   } else {
     loginSub.textContent = '아이디와 비밀번호로 로그인해주세요.';
@@ -9991,6 +10204,7 @@ function updateLoginModeUI(){
     loginRecoveryEmailInput.style.display = 'none';
     loginRecoveryHint.style.display = 'none';
     loginCenterNameInput.style.display = 'none';
+    loginGenderRow.style.display = 'none';
     loginFindRow.style.display = 'flex';
   }
   // 트레이너 가입 화면일 땐 '뒤로'만, 평소엔 '트레이너이신가요?'만 보이게 (서로 안 겹치게)
@@ -10012,6 +10226,8 @@ function showLoginView(){
   loginPasswordInput.value = '';
   loginRecoveryEmailInput.value = '';
   loginCenterNameInput.value = '';
+  selectedSignupGender = null;
+  loginGenderRow.querySelectorAll('.login-gender-btn').forEach(b => b.classList.remove('active'));
   loginError.style.display = 'none';
   updateLoginModeUI();
 }
@@ -10028,6 +10244,7 @@ loginBackBtn.addEventListener('click', () => {
 });
 
 let pendingSignupUsername = null; // 방금 가입할 때 입력한 아이디 (신규 회원 프로필 이름에 쓰기 위함)
+let pendingSignupGender = null; // 방금 가입할 때 고른 성별 (신규 회원 프로필에 쓰기 위함)
 
 async function enterMemberHome(){
   const uid = auth.currentUser.uid;
@@ -10041,11 +10258,13 @@ async function enterMemberHome(){
       phone: '',
       ptTotal: null,
       memo: '',
+      gender: pendingSignupGender || null,
     };
     members.unshift(member);
     await saveMembers();
   }
   pendingSignupUsername = null;
+  pendingSignupGender = null;
   isTrainerSignup = false;
 
   let userDoc;
@@ -10222,6 +10441,12 @@ async function submitLogin(){
         loginSubmitBtn.disabled = false;
         return;
       }
+      if(!isTrainerSignup && !selectedSignupGender){
+        loginError.textContent = '성별을 선택해주세요.';
+        loginError.style.display = 'block';
+        loginSubmitBtn.disabled = false;
+        return;
+      }
       const existing = await lookupEmailByUsername(rawId);
       if(existing){
         loginError.textContent = '이미 사용 중인 아이디예요. 로그인해주세요.';
@@ -10236,6 +10461,7 @@ async function submitLogin(){
         await db.collection('users').doc(cred.user.uid).set({ isTrainer: true, centerName }, { merge: true });
       }
       pendingSignupUsername = rawId.trim();
+      pendingSignupGender = isTrainerSignup ? null : selectedSignupGender;
     } else {
       const email = await lookupEmailByUsername(rawId);
       if(!email){
@@ -10443,6 +10669,8 @@ const settingsMyAccountBtn = document.getElementById('settingsMyAccountBtn');
 const settingsRefreshDataBtn = document.getElementById('settingsRefreshDataBtn');
 const accountIdValue = document.getElementById('accountIdValue');
 const accountRecoveryEmailValue = document.getElementById('accountRecoveryEmailValue');
+const accountGenderValue = document.getElementById('accountGenderValue');
+const accountGenderBtn = document.getElementById('accountGenderBtn');
 const accountChangeIdBtn = document.getElementById('accountChangeIdBtn');
 const accountChangePasswordBtn = document.getElementById('accountChangePasswordBtn');
 const accountRecoveryEmailBtn = document.getElementById('accountRecoveryEmailBtn');
@@ -10487,7 +10715,26 @@ function refreshMyAccountModal(){
   const currentEmail = auth.currentUser ? auth.currentUser.email : '';
   const hasRealEmail = currentEmail && !currentEmail.endsWith(SYNTHETIC_EMAIL_DOMAIN);
   accountRecoveryEmailValue.textContent = hasRealEmail ? currentEmail : '';
+  accountGenderValue.textContent = member && member.gender === 'F' ? '여성' : (member && member.gender === 'M' ? '남성' : '미설정');
 }
+
+async function updateMyGender(gender){
+  const member = members.find(m => m.id === currentMemberId);
+  if(member) member.gender = gender;
+  await saveMembers();
+  refreshMyAccountModal();
+  showCopyToast('성별을 저장했어요.');
+}
+accountGenderBtn.addEventListener('click', () => {
+  showConfirmModal(
+    '성별 설정',
+    '본인의 성별을 선택해주세요.',
+    () => updateMyGender('F'),
+    '여성',
+    () => updateMyGender('M'),
+    '남성'
+  );
+});
 
 function closeMyAccountModal(){
   myAccountModal.classList.remove('open');
@@ -12574,12 +12821,28 @@ trainerEditSettlementExemptBtn.addEventListener('click', () => {
   updateSettlementExemptUI();
 });
 
+let trainerEditingGender = null;
+const trainerEditGenderRow = document.getElementById('trainerEditGenderRow');
+function updateTrainerEditGenderUI(){
+  trainerEditGenderRow.querySelectorAll('.login-gender-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-gender') === trainerEditingGender);
+  });
+}
+trainerEditGenderRow.querySelectorAll('.login-gender-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    trainerEditingGender = btn.getAttribute('data-gender');
+    updateTrainerEditGenderUI();
+  });
+});
+
 function openTrainerMemberEditModal(uid, name, ptHistory, recordCount, phone, settlementExempt){
   trainerEditingUid = uid;
   trainerEditingPtHistory = Array.isArray(ptHistory) ? ptHistory.map(h => ({ amount: h.amount, rate: h.rate || 0, note: h.note || '' })) : [];
   trainerEditingRecordCount = recordCount || 0;
   trainerEditingSettlementExempt = !!settlementExempt;
   updateSettlementExemptUI();
+  trainerEditingGender = null;
+  updateTrainerEditGenderUI();
   trainerEditNameInput.value = name || '';
   trainerEditPhoneInput.value = phone || '';
   trainerMemberEditError.style.display = 'none';
@@ -12599,6 +12862,8 @@ function openTrainerMemberEditModal(uid, name, ptHistory, recordCount, phone, se
       trainerEditingPtHistory = Array.isArray(entry.ptHistory) ? entry.ptHistory.map(h => ({ amount: h.amount, rate: h.rate || 0, note: h.note || '' })) : [];
       trainerEditingSettlementExempt = !!entry.settlementExempt;
       updateSettlementExemptUI();
+      trainerEditingGender = entry.gender || null;
+      updateTrainerEditGenderUI();
       if(trainerEditNameInput.value === (name || '')) trainerEditNameInput.value = entry.name || '';
       if(trainerEditPhoneInput.value === (phone || '')) trainerEditPhoneInput.value = entry.phone || '';
       renderTrainerEditPtHistory();
@@ -12749,6 +13014,9 @@ trainerMemberEditSaveBtn.addEventListener('click', async () => {
     entry.ptTotal = null; // 예전 방식 필드는 이제 안 쓰니 비워서, 다음부턴 항상 ptHistory 기준으로 계산되게 한다
     entry.settlementExempt = trainerEditingSettlementExempt;
     entry.phone = newPhone;
+    // 성별은 선택된 값이 있을 때만 반영한다 — 아직 최신값 확인이 안 끝난 채로 저장하면
+    // 기존에 저장돼 있던 값을 빈 값으로 덮어써버릴 수 있어서, 그 경우엔 손대지 않고 둔다.
+    if(trainerEditingGender) entry.gender = trainerEditingGender;
     const ok = await storageSetWithRetry(STORAGE_KEY, JSON.stringify(list), false, undefined, trainerEditingUid);
     if(!ok){
       trainerMemberEditError.textContent = '저장에 실패했어요. 다시 시도해주세요.';
