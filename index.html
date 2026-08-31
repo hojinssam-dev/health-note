@@ -4677,6 +4677,7 @@
         <button class="modal-btn" id="trainerSettingsCheckUpdateBtn">새로고침</button>
         <button class="modal-btn" id="trainerSettingsTutorialBtn">사용법 튜토리얼 보기</button>
         <button class="modal-btn" id="trainerSettingsLogoutBtn">로그아웃</button>
+        <button class="modal-btn modal-btn-danger" id="trainerSettingsDisconnectEmployerBtn" style="display:none;">센터장과 연결 해제</button>
       </div>
       <div class="app-version-label" id="trainerAppVersionLabel"></div>
       <button class="modal-cancel" id="trainerSettingsCancelBtn">취소</button>
@@ -5041,24 +5042,37 @@ function showUpdateBanner(){
    등록 상태만 보지 않고, 서버에 있는 sw.js 파일을 캐시 없이 직접 받아서 그 안에 적힌 버전과 지금 화면의
    APP_VERSION을 실제로 비교한다 — 이게 "새 버전이 있는지"를 가장 정확하게 판단하는 방법이다. */
 async function checkForNewVersionManually(){
-  showCopyToast('새 버전을 확인하고 있어요...');
+  showCopyToast('최신 정보를 불러오는 중이에요');
   let foundUpdate = false;
+  let timedOut = false;
   try{
-    const res = await fetch('sw.js', { cache: 'no-store' });
-    const text = await res.text();
-    const match = text.match(/CACHE_VERSION\s*=\s*'([^']+)'/);
-    const serverVersion = match ? match[1] : null;
-    if(serverVersion && serverVersion !== APP_VERSION){
-      foundUpdate = true;
-    }
-    if(swRegistration){
-      await swRegistration.update(); // 서비스워커 쪽도 같이 최신으로 받아둔다
+    // sw.js는 용량이 아주 작은 파일이라 정상적인 상황이면 1초 안팎이면 끝난다. 네트워크가
+    // 불안정해서 요청이 끝없이 응답을 못 받는 경우를 대비해, 8초 안에 안 끝나면 포기하고
+    // 사용자에게 안내한다 (원래는 시간제한이 없어서 화면이 그대로 멈춰있는 것처럼 보였다).
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    try{
+      const res = await fetch('sw.js', { cache: 'no-store', signal: controller.signal });
+      const text = await res.text();
+      const match = text.match(/CACHE_VERSION\s*=\s*'([^']+)'/);
+      const serverVersion = match ? match[1] : null;
+      if(serverVersion && serverVersion !== APP_VERSION){
+        foundUpdate = true;
+      }
+      if(swRegistration){
+        await swRegistration.update(); // 서비스워커 쪽도 같이 최신으로 받아둔다
+      }
+    } finally {
+      clearTimeout(timeoutId);
     }
   }catch(err){
     console.error('업데이트 확인 오류:', err);
+    if(err && err.name === 'AbortError') timedOut = true;
   }
   if(foundUpdate){
     setTimeout(() => { window.location.reload(); }, 400);
+  } else if(timedOut){
+    showCopyToast('앱을 재시작해주세요.');
   } else {
     showCopyToast('이미 최신 버전이에요.');
   }
@@ -5218,7 +5232,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.61.12';
+const APP_VERSION = '2.62.0';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -11519,6 +11533,27 @@ async function loadEmployerDashboard(){
             showCopyToast('이름을 수정했어요.');
             loadEmployerDashboard();
           },
+          deleteLabel: '연결 끊기',
+          onDelete: async () => {
+            closePromptModal();
+            showConfirmModal(
+              '트레이너 연결 끊기',
+              `"${currentName}" 트레이너와의 연결을 끊을까요? 대시보드에서 더는 보이지 않게 돼요.`,
+              async () => {
+                try{
+                  await db.collection('users').doc(trainerUid).set({
+                    employerId: firebase.firestore.FieldValue.delete(),
+                  }, { merge: true });
+                  showCopyToast('연결을 끊었어요.');
+                  loadEmployerDashboard();
+                }catch(err){
+                  console.error('트레이너 연결 끊기 오류:', err);
+                  showCopyToast('연결을 끊는 중 오류가 발생했어요.');
+                }
+              },
+              '연결 끊기'
+            );
+          },
         });
       });
     });
@@ -13104,12 +13139,42 @@ const trainerSettingsCancelBtn = document.getElementById('trainerSettingsCancelB
 const trainerSettingsCheckUpdateBtn = document.getElementById('trainerSettingsCheckUpdateBtn');
 const trainerSettingsTutorialBtn = document.getElementById('trainerSettingsTutorialBtn');
 const trainerSettingsLogoutBtn = document.getElementById('trainerSettingsLogoutBtn');
+const trainerSettingsDisconnectEmployerBtn = document.getElementById('trainerSettingsDisconnectEmployerBtn');
 
 function closeTrainerSettingsModal(){
   trainerSettingsModal.classList.remove('open');
 }
-trainerMembersSettingsBtn.addEventListener('click', () => {
+trainerMembersSettingsBtn.addEventListener('click', async () => {
   trainerSettingsModal.classList.add('open');
+  // 센터장과 연결되어 있을 때만 '연결 해제' 버튼을 보여준다
+  trainerSettingsDisconnectEmployerBtn.style.display = 'none';
+  try{
+    const myDoc = await db.collection('users').doc(auth.currentUser.uid).get();
+    if(myDoc.exists && myDoc.data().employerId){
+      trainerSettingsDisconnectEmployerBtn.style.display = 'block';
+    }
+  }catch(err){
+    console.error('센터장 연결 상태 확인 오류:', err);
+  }
+});
+trainerSettingsDisconnectEmployerBtn.addEventListener('click', () => {
+  showConfirmModal(
+    '센터장과 연결 해제',
+    '센터장과의 연결을 해제할까요? 센터장의 대시보드에서 더는 보이지 않게 돼요.',
+    async () => {
+      try{
+        await db.collection('users').doc(auth.currentUser.uid).set({
+          employerId: firebase.firestore.FieldValue.delete(),
+        }, { merge: true });
+        showCopyToast('센터장과의 연결을 해제했어요.');
+        closeTrainerSettingsModal();
+      }catch(err){
+        console.error('센터장 연결 해제 오류:', err);
+        showCopyToast('연결 해제 중 오류가 발생했어요.');
+      }
+    },
+    '연결 해제'
+  );
 });
 trainerSettingsCancelBtn.addEventListener('click', closeTrainerSettingsModal);
 trainerSettingsModal.addEventListener('click', (ev) => {
