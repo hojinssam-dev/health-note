@@ -5218,7 +5218,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.61.11';
+const APP_VERSION = '2.61.12';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -12679,7 +12679,10 @@ function renderTrainerEarningsCalendar(data){
 trainerEarningsOpenBtn.addEventListener('click', () => {
   showTrainerEarningsView(auth.currentUser.uid, { returnTo: 'trainer' });
 });
-trainerEarningsRefreshBtn.addEventListener('click', loadTrainerEarnings);
+trainerEarningsRefreshBtn.addEventListener('click', async () => {
+  await loadTrainerEarnings();
+  showCopyToast('최신 정보로 새로고침했어요.');
+});
 trainerEarningsBackBtn.addEventListener('click', () => {
   viewTrainerEarnings.classList.remove('active');
   trainerEarningsCurrentUid = null;
