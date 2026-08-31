@@ -2190,16 +2190,8 @@
   .cycle-phase-badge.is-period{ color: #E0574A; background: rgba(224,87,74,0.12); border: 1px solid rgba(224,87,74,0.35); }
   .cycle-phase-badge.is-follicular{ color: #D9A441; background: rgba(217,164,65,0.12); border: 1px solid rgba(217,164,65,0.35); }
   .cycle-phase-badge.is-luteal{ color: #8B9FD9; background: rgba(139,159,217,0.12); border: 1px solid rgba(139,159,217,0.35); }
-  .day-period-toggle-row{
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 10px;
-    flex-wrap: nowrap;
-  }
   .day-period-toggle-btn{
-    flex: 1;
-    min-width: 0;
+    width: 100%;
     background: var(--surface-raised);
     border: 1px solid var(--line);
     color: var(--muted);
@@ -2208,6 +2200,7 @@
     font-size: clamp(11px, 3.2vw, 13px);
     font-family: 'Noto Sans KR', sans-serif;
     cursor: pointer;
+    margin-top: 10px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2219,13 +2212,6 @@
     border-color: #E0574A;
     color: #E0574A;
     font-weight: 600;
-  }
-  .day-period-avg-text{
-    flex-shrink: 0;
-    font-size: clamp(10px, 2.8vw, 12px);
-    color: var(--muted);
-    font-family: 'IBM Plex Mono', monospace;
-    white-space: nowrap;
   }
   .day-detail-time{
     margin-left: auto;
@@ -2868,8 +2854,8 @@
     gap: 14px;
   }
   .ep-zoom-overlay img{
-    max-width: 100%;
-    max-height: 65vh;
+    width: min(90vw, 480px);
+    height: 65vh;
     object-fit: contain;
     border-radius: var(--radius-m);
   }
@@ -5232,7 +5218,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.61.9';
+const APP_VERSION = '2.61.11';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8590,10 +8576,7 @@ async function renderDayDetail(){
           ${cyclePhase ? `<span class="cycle-phase-badge ${cyclePhaseColorClass}">${cyclePhase.phase}${cyclePhase.isPredicted ? ' (예상)' : ''}</span>` : ''}
         </div>
         <div class="admin-empty" style="padding:14px 0;">이 날 작성된 일지가 없어요.</div>
-        <div class="day-period-toggle-row">
-          <button type="button" class="day-period-toggle-btn ${isPeriodStart ? 'active' : ''}" id="dayPeriodToggleBtn">${isPeriodStart ? '생리 시작일 해제' : '생리 시작일로 표시'}</button>
-          ${averageCycleLength ? `<span class="day-period-avg-text">평균 주기 ${averageCycleLength}일</span>` : ''}
-        </div>
+        <button type="button" class="day-period-toggle-btn ${isPeriodStart ? 'active' : ''}" id="dayPeriodToggleBtn">${isPeriodStart ? '생리 시작일 해제' : '생리 시작일로 표시'}${averageCycleLength ? ` (평균 주기 ${averageCycleLength}일)` : ''}</button>
       </div>`;
     document.getElementById('dayPeriodToggleBtn').addEventListener('click', () => togglePeriodStart(selectedDetailDate));
     return;
@@ -8667,11 +8650,7 @@ async function renderDayDetail(){
         <button class="day-copy-btn" id="dayCopyBtn">${isMixedDay && !(isViewingAsTrainer || isAdmin()) ? '개인 운동만 다른 날짜로 복사' : '다른 날짜로 일지 복사'}</button>
         <button class="day-delete-all-btn" id="dayDeleteAllBtn">${isMixedDay && !(isViewingAsTrainer || isAdmin()) ? '개인 운동만 삭제' : '이 날짜 일지 전체 삭제'}</button>
       </div>` : ''}
-      ${isFemale ? `
-      <div class="day-period-toggle-row">
-        <button type="button" class="day-period-toggle-btn ${isPeriodStart ? 'active' : ''}" id="dayPeriodToggleBtn">${isPeriodStart ? '생리 시작일 해제' : '생리 시작일로 표시'}</button>
-        ${averageCycleLength ? `<span class="day-period-avg-text">평균 주기 ${averageCycleLength}일</span>` : ''}
-      </div>` : ''}
+      ${isFemale ? `<button type="button" class="day-period-toggle-btn ${isPeriodStart ? 'active' : ''}" id="dayPeriodToggleBtn">${isPeriodStart ? '생리 시작일 해제' : '생리 시작일로 표시'}${averageCycleLength ? ` (평균 주기 ${averageCycleLength}일)` : ''}</button>` : ''}
     </div>`;
 
   if(isFemale){
