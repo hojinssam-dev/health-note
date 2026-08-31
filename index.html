@@ -1801,6 +1801,7 @@
     z-index: 200;
     max-width: 88vw;
     text-align: center;
+    white-space: nowrap;
   }
   .copy-toast.show{
     opacity: 1;
@@ -4757,7 +4758,7 @@
     <div class="regular-employee-box" id="trainerEarningsRegularEmployeeBox" style="display:none;">
       <div class="account-field-label" style="margin-top:0;">이번 달 총 개인매출</div>
       <div class="regular-employee-revenue-row">
-        <input autocapitalize="off" id="regularEmployeeRevenueInput" type="number" inputmode="numeric" class="modal-input" placeholder="예) 7650000">
+        <input autocapitalize="off" id="regularEmployeeRevenueInput" type="text" inputmode="numeric" class="modal-input" placeholder="예) 7,650,000">
         <button type="button" class="modal-btn modal-btn-primary" id="regularEmployeeRevenueSaveBtn">저장</button>
       </div>
       <div class="account-field-hint" id="regularEmployeeConfigHint" style="display:none;">센터장이 아직 정산 체계를 설정하지 않았어요.</div>
@@ -5362,7 +5363,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.64.1';
+const APP_VERSION = '2.64.6';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -11683,7 +11684,7 @@ async function loadEmployerDashboard(){
           <button type="button" class="employer-trainer-action-btn" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}" data-action="earnings">💰 수업료 달력</button>
           <button type="button" class="employer-trainer-action-btn" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}" data-action="manage-members">👥 회원 관리</button>
         </div>
-        <button type="button" class="employer-trainer-employee-toggle-btn${r.isRegularEmployee ? ' active' : ''}" data-trainer-uid="${r.uid}" data-current="${r.isRegularEmployee ? '1' : '0'}">${r.isRegularEmployee ? '🏢 정직원 (해제하려면 누르세요)' : '🏢 정직원으로 지정'}</button>
+        <button type="button" class="employer-trainer-employee-toggle-btn${r.isRegularEmployee ? ' active' : ''}" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}" data-current="${r.isRegularEmployee ? '1' : '0'}">${r.isRegularEmployee ? '🏢 정직원 (해제하려면 누르세요)' : '🏢 정직원으로 지정'}</button>
       </div>
     `).join('');
     employerTrainerList.querySelectorAll('.employer-trainer-edit-btn').forEach(btn => {
@@ -11746,20 +11747,30 @@ async function loadEmployerDashboard(){
       });
     });
     employerTrainerList.querySelectorAll('.employer-trainer-employee-toggle-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', () => {
         const trainerUid = btn.getAttribute('data-trainer-uid');
+        const trainerName = btn.getAttribute('data-trainer-name') || '이 트레이너';
         const isCurrentlyRegular = btn.getAttribute('data-current') === '1';
         const nextValue = !isCurrentlyRegular;
-        btn.disabled = true;
-        try{
-          await db.collection('users').doc(trainerUid).set({ isRegularEmployee: nextValue }, { merge: true });
-          showCopyToast(nextValue ? '정직원으로 지정했어요.' : '정직원 지정을 해제했어요.');
-          loadEmployerDashboard();
-        }catch(err){
-          console.error('정직원 지정 오류:', err);
-          showCopyToast('저장 중 오류가 발생했어요.');
-          btn.disabled = false;
-        }
+        showConfirmModal(
+          nextValue ? '정직원으로 지정' : '정직원 지정 해제',
+          nextValue
+            ? `"${trainerName}"님을 정직원으로 지정할까요? 정직원 수업료 정산 체계가 적용돼요.`
+            : `"${trainerName}"님의 정직원 지정을 해제할까요? 기존 방식(PT 등록 단가)으로 돌아가요.`,
+          async () => {
+            btn.disabled = true;
+            try{
+              await db.collection('users').doc(trainerUid).set({ isRegularEmployee: nextValue }, { merge: true });
+              showCopyToast(nextValue ? '정직원으로 지정했어요.' : '정직원 지정을 해제했어요.');
+              loadEmployerDashboard();
+            }catch(err){
+              console.error('정직원 지정 오류:', err);
+              showCopyToast('저장 중 오류가 발생했어요.');
+              btn.disabled = false;
+            }
+          },
+          nextValue ? '지정' : '해제'
+        );
       });
     });
   }catch(err){
@@ -12027,6 +12038,17 @@ const settlementConfigSaveBtn = document.getElementById('settlementConfigSaveBtn
 const settlementConfigCloseBtn = document.getElementById('settlementConfigCloseBtn');
 let settlementTiers = []; // [{threshold, bonus}, ...] 화면에 편집 중인 상태
 
+// 다시 그리기 전에, 지금 화면(입력칸)에 타이핑돼 있는 값을 먼저 settlementTiers 배열에 반영해둔다.
+// 이걸 안 하면 '구간 추가'나 '삭제' 버튼을 눌렀을 때, 아직 배열에 반영 안 된(=입력만 하고
+// 저장은 안 한) 다른 행의 값이 예전 상태로 되돌아가며 사라져버린다.
+function syncSettlementTiersFromDOM(){
+  const rows = [...settlementTierList.querySelectorAll('.settlement-tier-row')];
+  settlementTiers = rows.map(row => ({
+    threshold: parseThousandsInput(row.querySelector('.settlement-tier-threshold').value),
+    bonus: parseThousandsInput(row.querySelector('.settlement-tier-bonus').value),
+  }));
+}
+
 function renderSettlementTiers(){
   if(!settlementTiers.length){
     settlementTierList.innerHTML = '<div class="admin-empty" style="padding:10px 0;">등록된 매출구간이 없어요.</div>';
@@ -12043,8 +12065,21 @@ function renderSettlementTiers(){
   settlementTierList.querySelectorAll('.settlement-tier-threshold, .settlement-tier-bonus').forEach(attachThousandsFormatting);
   settlementTierList.querySelectorAll('.settlement-tier-remove-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      settlementTiers.splice(parseInt(btn.getAttribute('data-index'), 10), 1);
-      renderSettlementTiers();
+      syncSettlementTiersFromDOM(); // 확인창을 띄우는 사이에도 다른 행에 입력해둔 값이 보존되게
+      const index = parseInt(btn.getAttribute('data-index'), 10);
+      employerSettlementConfigModal.classList.remove('open');
+      showConfirmModal(
+        '매출구간 삭제',
+        '이 매출구간을 삭제할까요?',
+        () => {
+          settlementTiers.splice(index, 1);
+          renderSettlementTiers();
+          employerSettlementConfigModal.classList.add('open');
+        },
+        '삭제',
+        () => { employerSettlementConfigModal.classList.add('open'); },
+        '취소'
+      );
     });
   });
 }
@@ -12076,6 +12111,7 @@ employerSettlementConfigModal.addEventListener('click', (ev) => {
   if(ev.target === employerSettlementConfigModal) employerSettlementConfigModal.classList.remove('open');
 });
 settlementTierAddBtn.addEventListener('click', () => {
+  syncSettlementTiersFromDOM();
   settlementTiers.push({ threshold: '', bonus: '' });
   renderSettlementTiers();
 });
@@ -13009,6 +13045,7 @@ const trainerEarningsNormalStatGrid = document.getElementById('trainerEarningsNo
 const trainerEarningsCalendarSection = document.getElementById('trainerEarningsCalendarSection');
 const trainerEarningsRegularEmployeeBox = document.getElementById('trainerEarningsRegularEmployeeBox');
 const regularEmployeeRevenueInput = document.getElementById('regularEmployeeRevenueInput');
+attachThousandsFormatting(regularEmployeeRevenueInput);
 const regularEmployeeRevenueSaveBtn = document.getElementById('regularEmployeeRevenueSaveBtn');
 const regularEmployeeConfigHint = document.getElementById('regularEmployeeConfigHint');
 const viewTrainerEarnings = document.getElementById('view-trainer-earnings');
@@ -13038,7 +13075,7 @@ function showTrainerEarningsView(trainerUid, { trainerName, returnTo } = {}){
 regularEmployeeRevenueSaveBtn.addEventListener('click', async () => {
   const uid = trainerEarningsCurrentUid;
   if(!uid) return;
-  const revenue = parseInt(regularEmployeeRevenueInput.value, 10);
+  const revenue = parseThousandsInput(regularEmployeeRevenueInput.value);
   if(isNaN(revenue) || revenue < 0){
     showCopyToast('매출 금액을 정확히 입력해주세요.');
     return;
@@ -13080,7 +13117,7 @@ async function loadTrainerEarnings(){
       && trainerEarningsViewDate.getMonth() === new Date().getMonth(); // 이번 달보다 미래는 볼 필요가 없으니 막는다
 
     if(isRegularEmployee){
-      regularEmployeeRevenueInput.value = data.monthlyRevenue || '';
+      regularEmployeeRevenueInput.value = data.monthlyRevenue ? formatThousandsValue(data.monthlyRevenue) : '';
       regularEmployeeConfigHint.style.display = data.config ? 'none' : 'block';
     }
 
