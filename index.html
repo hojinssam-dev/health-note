@@ -1915,6 +1915,7 @@
     transition: border-color .15s var(--ease), transform .12s var(--ease);
   }
   .cal-nav-btn:hover{ border-color: var(--brass); transform: translateY(-1px); }
+  .cal-nav-btn:disabled{ opacity: .35; cursor: default; transform: none; }
   .cal-month-label{
     font-family: 'Bebas Neue', sans-serif;
     font-size: 22px;
@@ -4688,7 +4689,7 @@
       <input autocapitalize="off" id="settlementBaseSessionCountInput" type="number" inputmode="numeric" class="modal-input" placeholder="예) 70">
       <div class="account-field-hint">이 횟수를 못 채우면 그달 수업료는 0원이 돼요.</div>
       <div class="account-field-label">기본 수업료</div>
-      <input autocapitalize="off" id="settlementBaseRateInput" type="number" inputmode="numeric" class="modal-input" placeholder="예) 15000">
+      <input autocapitalize="off" id="settlementBaseRateInput" type="text" inputmode="numeric" class="modal-input" placeholder="예) 15,000">
       <div class="account-field-label" style="margin-top:14px;">매출구간별 인센티브</div>
       <div class="account-field-hint" style="margin-bottom:8px;">그달 총매출이 기준 금액을 넘으면, 수업당 인센티브가 그만큼 붙어요.</div>
       <div class="settlement-tier-list" id="settlementTierList"></div>
@@ -4781,7 +4782,11 @@
         <span id="trainerEarningsMissingChevron" style="flex-shrink:0; transition: transform .15s ease;">▾</span>
       </div>
       <div class="admin-dash-detail" id="trainerEarningsMissingDetail" style="display:none; margin-bottom:14px;"></div>
-      <div class="earnings-calendar-month-label" id="trainerEarningsMonthLabel"></div>
+      <div class="cal-nav">
+        <button class="cal-nav-btn" id="trainerEarningsPrevMonthBtn">‹</button>
+        <div class="earnings-calendar-month-label" id="trainerEarningsMonthLabel"></div>
+        <button class="cal-nav-btn" id="trainerEarningsNextMonthBtn">›</button>
+      </div>
       <div class="earnings-calendar-weekdays">
         <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
       </div>
@@ -5357,7 +5362,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.63.2';
+const APP_VERSION = '2.64.1';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -9592,6 +9597,22 @@ function formatWon(n){
   return Math.round(n).toLocaleString('ko-KR');
 }
 
+// 금액 입력칸에서 입력하는 동안 실시간으로 쉼표를 넣어주는 헬퍼. 저장할 땐 parseThousandsInput으로
+// 쉼표를 떼고 숫자만 읽어야 한다 (parseInt는 쉼표에서 멈춰버려서 그대로 쓰면 안 된다).
+function attachThousandsFormatting(inputEl){
+  inputEl.addEventListener('input', () => {
+    const digits = inputEl.value.replace(/[^\d]/g, '');
+    inputEl.value = digits ? parseInt(digits, 10).toLocaleString('ko-KR') : '';
+  });
+}
+function parseThousandsInput(value){
+  const digits = String(value || '').replace(/[^\d]/g, '');
+  return digits ? parseInt(digits, 10) : NaN;
+}
+function formatThousandsValue(n){
+  return (n === null || n === undefined || n === '' || isNaN(n)) ? '' : Number(n).toLocaleString('ko-KR');
+}
+
 function formatSeconds(totalSeconds){
   totalSeconds = Math.round(totalSeconds);
   const m = Math.floor(totalSeconds / 60);
@@ -11630,7 +11651,11 @@ async function loadEmployerDashboard(){
       };
     }));
 
-    rows.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    // 정직원끼리, 프리랜서끼리 각각 모아서 정렬하고(정직원 그룹이 먼저), 같은 그룹 안에서는 이름순
+    rows.sort((a, b) => {
+      if(a.isRegularEmployee !== b.isRegularEmployee) return a.isRegularEmployee ? -1 : 1;
+      return a.name.localeCompare(b.name, 'ko');
+    });
     employerTrainerList.innerHTML = rows.map(r => `
       <div class="employer-trainer-card${r.todayCount > 0 ? ' has-activity-today' : ''}" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}">
         <div class="employer-trainer-header">
@@ -11994,6 +12019,7 @@ const employerSettlementConfigModal = document.getElementById('employerSettlemen
 const employerSettlementConfigBtn = document.getElementById('employerSettlementConfigBtn');
 const settlementBaseSessionCountInput = document.getElementById('settlementBaseSessionCountInput');
 const settlementBaseRateInput = document.getElementById('settlementBaseRateInput');
+attachThousandsFormatting(settlementBaseRateInput);
 const settlementTierList = document.getElementById('settlementTierList');
 const settlementTierAddBtn = document.getElementById('settlementTierAddBtn');
 const settlementConfigError = document.getElementById('settlementConfigError');
@@ -12008,12 +12034,13 @@ function renderSettlementTiers(){
   }
   settlementTierList.innerHTML = settlementTiers.map((t, i) => `
     <div class="settlement-tier-row" data-index="${i}">
-      <input type="number" inputmode="numeric" class="settlement-tier-threshold" value="${t.threshold != null ? t.threshold : ''}" placeholder="매출 기준(원)">
+      <input type="text" inputmode="numeric" class="settlement-tier-threshold" value="${formatThousandsValue(t.threshold)}" placeholder="매출 기준(원)">
       <span class="settlement-tier-arrow">→ +</span>
-      <input type="number" inputmode="numeric" class="settlement-tier-bonus" value="${t.bonus != null ? t.bonus : ''}" placeholder="인센티브(원)">
+      <input type="text" inputmode="numeric" class="settlement-tier-bonus" value="${formatThousandsValue(t.bonus)}" placeholder="인센티브(원)">
       <button type="button" class="settlement-tier-remove-btn" data-index="${i}">×</button>
     </div>
   `).join('');
+  settlementTierList.querySelectorAll('.settlement-tier-threshold, .settlement-tier-bonus').forEach(attachThousandsFormatting);
   settlementTierList.querySelectorAll('.settlement-tier-remove-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       settlementTiers.splice(parseInt(btn.getAttribute('data-index'), 10), 1);
@@ -12034,7 +12061,7 @@ async function openEmployerSettlementConfigModal(){
     const config = myDoc.exists ? myDoc.data().employeeSettlementConfig : null;
     if(config){
       settlementBaseSessionCountInput.value = config.baseSessionCount != null ? config.baseSessionCount : '';
-      settlementBaseRateInput.value = config.baseRate != null ? config.baseRate : '';
+      settlementBaseRateInput.value = formatThousandsValue(config.baseRate);
       settlementTiers = Array.isArray(config.tiers) ? config.tiers.map(t => ({ threshold: t.threshold, bonus: t.bonus })) : [];
       renderSettlementTiers();
     }
@@ -12055,7 +12082,7 @@ settlementTierAddBtn.addEventListener('click', () => {
 settlementConfigSaveBtn.addEventListener('click', async () => {
   settlementConfigError.style.display = 'none';
   const baseSessionCount = parseInt(settlementBaseSessionCountInput.value, 10);
-  const baseRate = parseInt(settlementBaseRateInput.value, 10);
+  const baseRate = parseThousandsInput(settlementBaseRateInput.value);
   if(!baseSessionCount || baseSessionCount <= 0){
     settlementConfigError.textContent = '기본 수업 횟수를 입력해주세요.';
     settlementConfigError.style.display = 'block';
@@ -12069,8 +12096,8 @@ settlementConfigSaveBtn.addEventListener('click', async () => {
   const rows = [...settlementTierList.querySelectorAll('.settlement-tier-row')];
   const tiers = [];
   for(const row of rows){
-    const threshold = parseInt(row.querySelector('.settlement-tier-threshold').value, 10);
-    const bonus = parseInt(row.querySelector('.settlement-tier-bonus').value, 10);
+    const threshold = parseThousandsInput(row.querySelector('.settlement-tier-threshold').value);
+    const bonus = parseThousandsInput(row.querySelector('.settlement-tier-bonus').value);
     if(isNaN(threshold) || threshold <= 0 || isNaN(bonus) || bonus < 0){
       settlementConfigError.textContent = '매출구간의 기준 금액과 인센티브를 모두 입력해주세요.';
       settlementConfigError.style.display = 'block';
@@ -12787,11 +12814,11 @@ async function loadTrainerMemberList(){
    기준으로 계산한다. 그래야 회원의 트레이너 연결이 중간에 바뀌어도, 이전 트레이너는 자기가
    실제로 진행했던 회차만큼만 수당이 잡히고, 새 트레이너는 연결된 이후 회차부터만 잡힌다.
    컬렉션 그룹 쿼리라서 Firestore 색인이 새로 필요할 수 있다(콘솔에 안내 링크가 뜬다). */
-async function computeTrainerEarnings(trainerUid){
+async function computeTrainerEarnings(trainerUid, viewDate){
   const today = todayStr();
-  const now = new Date();
+  const now = viewDate || new Date();
   const weekStart = (() => {
-    const d = new Date(now);
+    const d = new Date();
     d.setDate(d.getDate() - d.getDay());
     return toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
   })();
@@ -12872,11 +12899,11 @@ async function computeTrainerEarnings(trainerUid){
 //   - 총 세션 수가 기본 수업 횟수(기준)에 못 미치면 전부 0원
 //   - 기준을 채웠으면, 날짜순으로 앞의 '기본 수업 횟수'개는 매출구간 인센티브 금액만,
 //     그 이후(초과분)는 '기본 수업료+인센티브' 전액으로 각 세션에 매겨진다
-async function computeRegularEmployeeEarnings(trainerUid){
+async function computeRegularEmployeeEarnings(trainerUid, viewDate){
   const today = todayStr();
-  const now = new Date();
+  const now = viewDate || new Date();
   const weekStart = (() => {
-    const d = new Date(now);
+    const d = new Date();
     d.setDate(d.getDate() - d.getDay());
     return toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
   })();
@@ -12900,6 +12927,7 @@ async function computeRegularEmployeeEarnings(trainerUid){
     .where('authorId', '==', trainerUid)
     .where('ptRecognized', '==', true)
     .where('date', '>=', monthStart)
+    .where('date', '<=', monthEnd)
     .get();
 
   const sessionsByKey = new Map();
@@ -12984,13 +13012,17 @@ const regularEmployeeRevenueInput = document.getElementById('regularEmployeeReve
 const regularEmployeeRevenueSaveBtn = document.getElementById('regularEmployeeRevenueSaveBtn');
 const regularEmployeeConfigHint = document.getElementById('regularEmployeeConfigHint');
 const viewTrainerEarnings = document.getElementById('view-trainer-earnings');
+const trainerEarningsPrevMonthBtn = document.getElementById('trainerEarningsPrevMonthBtn');
+const trainerEarningsNextMonthBtn = document.getElementById('trainerEarningsNextMonthBtn');
 
 let trainerEarningsCurrentUid = null;
 let trainerEarningsReturnTo = 'trainer'; // 'trainer' | 'employer' — 닫기 버튼을 눌렀을 때 어디로 돌아갈지
+let trainerEarningsViewDate = new Date(); // 지금 보고 있는 달 (달력 이전/다음 버튼으로 바뀐다)
 
 function showTrainerEarningsView(trainerUid, { trainerName, returnTo } = {}){
   trainerEarningsCurrentUid = trainerUid;
   trainerEarningsReturnTo = returnTo || 'trainer';
+  trainerEarningsViewDate = new Date(); // 매번 열 때는 항상 이번 달부터 보여준다
   trainerEarningsTitle.textContent = trainerName ? `${trainerName} 수업료 달력` : '수업료 달력';
   viewLanding.classList.remove('active');
   viewLogin.classList.remove('active');
@@ -13041,8 +13073,11 @@ async function loadTrainerEarnings(){
     trainerEarningsRegularEmployeeBox.style.display = isRegularEmployee ? 'block' : 'none';
 
     const data = isRegularEmployee
-      ? await computeRegularEmployeeEarnings(trainerEarningsCurrentUid)
-      : await computeTrainerEarnings(trainerEarningsCurrentUid);
+      ? await computeRegularEmployeeEarnings(trainerEarningsCurrentUid, trainerEarningsViewDate)
+      : await computeTrainerEarnings(trainerEarningsCurrentUid, trainerEarningsViewDate);
+
+    trainerEarningsNextMonthBtn.disabled = trainerEarningsViewDate.getFullYear() === new Date().getFullYear()
+      && trainerEarningsViewDate.getMonth() === new Date().getMonth(); // 이번 달보다 미래는 볼 필요가 없으니 막는다
 
     if(isRegularEmployee){
       regularEmployeeRevenueInput.value = data.monthlyRevenue || '';
@@ -13140,6 +13175,15 @@ trainerEarningsOpenBtn.addEventListener('click', () => {
 trainerEarningsRefreshBtn.addEventListener('click', async () => {
   await loadTrainerEarnings();
   showCopyToast('최신 정보로 새로고침했어요.');
+});
+trainerEarningsPrevMonthBtn.addEventListener('click', () => {
+  trainerEarningsViewDate = new Date(trainerEarningsViewDate.getFullYear(), trainerEarningsViewDate.getMonth() - 1, 1);
+  loadTrainerEarnings();
+});
+trainerEarningsNextMonthBtn.addEventListener('click', () => {
+  if(trainerEarningsNextMonthBtn.disabled) return;
+  trainerEarningsViewDate = new Date(trainerEarningsViewDate.getFullYear(), trainerEarningsViewDate.getMonth() + 1, 1);
+  loadTrainerEarnings();
 });
 trainerEarningsBackBtn.addEventListener('click', () => {
   viewTrainerEarnings.classList.remove('active');
