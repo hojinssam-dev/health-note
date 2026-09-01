@@ -5376,7 +5376,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.65.3';
+const APP_VERSION = '2.65.7';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -11631,14 +11631,18 @@ async function loadEmployerDashboard(){
       const trainerUid = trainerDoc.id;
       const isRegularEmployee = !!trainerDoc.data().isRegularEmployee;
       let trainerName = '트레이너';
+      let exemptMemberIds = new Set();
       try{
         const result = await storageGetWithRetry(STORAGE_KEY, false, trainerUid);
         const list = result ? JSON.parse(result.value) : [];
         const self = list.find(m => m.id === trainerUid);
         if(self && self.name) trainerName = self.name;
+        // 정산 제외로 지정된 회원은 이 트레이너가 작성한 일지 개수 집계에서도 뺀다
+        // (수업료 달력에서 이미 빼고 있는 것과 같은 기준)
+        exemptMemberIds = new Set(list.filter(m => m.settlementExempt).map(m => m.id));
       }catch(err){ /* 이름을 못 가져와도 기본값으로 계속 진행 */ }
       const membersSnap = await db.collection('users').where('trainerId', '==', trainerUid).get();
-      const memberIds = membersSnap.docs.map(d => d.id);
+      const memberIds = membersSnap.docs.map(d => d.id).filter(id => !exemptMemberIds.has(id));
 
       // '일지' 하나 = 어떤 회원의 그 날짜 PT 기록 묶음 하나. 종목(운동) 개수가 아니라 이 묶음 단위로 센다.
       const todayKeys = new Set();
@@ -12892,15 +12896,16 @@ async function computeTrainerEarnings(trainerUid, viewDate){
     .where('date', '>=', rangeStart)
     .get();
 
-  // 회원+날짜별로 세션 번호를 하나만 모은다 (하루에 여러 종목을 기록해도 세션 번호는 같은 값을 공유)
+  // 회원+날짜별로 세션 번호를 하나만 모은다 (하루에 여러 종목을 기록해도 세션 번호는 같은 값을 공유).
+  // 회차 번호가 없어도 일단 세션으로는 잡아둔다 — 아래에서 수업료를 확정 못 하면 '미등록'으로
+  // 처리되어 안내에는 잡히지만, 달력 칸에는 안 보인다(프리랜서는 단가를 모르면 표시 안 함).
   const sessionsByKey = new Map();
   logsSnap.docs.forEach(d => {
     const data = d.data();
-    if(!data.sessionNo) return;
     const memberId = d.ref.parent.parent.id;
     const key = `${memberId}|${data.date}`;
     if(!sessionsByKey.has(key)){
-      sessionsByKey.set(key, { memberId, date: data.date, sessionNo: data.sessionNo });
+      sessionsByKey.set(key, { memberId, date: data.date, sessionNo: data.sessionNo || null });
     }
   });
 
@@ -12943,6 +12948,8 @@ async function computeTrainerEarnings(trainerUid, viewDate){
       monthTotal += rate;
       dailyTotals[date] = (dailyTotals[date] || 0) + rate;
       if(!dailyBreakdown[date]) dailyBreakdown[date] = [];
+      // 프리랜서는 수업료(단가)를 확정할 수 없는 세션(미등록·회차 번호 누락 등)은 달력 칸에는
+      // 안 보이고, 위쪽 '수업료 미등록 N회' 안내에만 잡히게 한다.
       if(rate > 0) dailyBreakdown[date].push({ name: nameByMember[memberId] || '회원', amount: rate });
     }
     if(date >= weekStart) weekTotal += rate;
@@ -12993,10 +13000,11 @@ async function computeRegularEmployeeEarnings(trainerUid, viewDate){
     .where('date', '<=', monthEnd)
     .get();
 
+  // 회차 번호를 실수로 안 넣었거나 비워둔 채로 PT인정만 켠 경우도 세션으로 잡는다 — 정직원
+  // 계산은 회차 번호 자체를 안 쓰고 날짜 순서만 보기 때문에, 없어도 계산에는 문제가 없다.
   const sessionsByKey = new Map();
   logsSnap.docs.forEach(d => {
     const data = d.data();
-    if(!data.sessionNo || data.date > monthEnd) return;
     const memberId = d.ref.parent.parent.id;
     const key = `${memberId}|${data.date}`;
     if(!sessionsByKey.has(key)){
@@ -13007,17 +13015,20 @@ async function computeRegularEmployeeEarnings(trainerUid, viewDate){
 
   const memberIds = [...new Set(sessions.map(s => s.memberId))];
   const nameByMember = {};
+  const exemptMemberIds = new Set(); // 정산 제외로 지정된 회원 — 이 회원의 세션은 개수·금액 계산에서 뺀다
   await Promise.all(memberIds.map(async (memberId) => {
     try{
       const result = await storageGetWithRetry(STORAGE_KEY, false, memberId);
       const list = result ? JSON.parse(result.value) : [];
       const profile = list.find(m => m.id === memberId);
       nameByMember[memberId] = (profile && profile.name) || '회원';
+      if(profile && profile.settlementExempt) exemptMemberIds.add(memberId);
     }catch(err){
       console.error('회원 이름 조회 오류:', memberId, err);
       nameByMember[memberId] = '회원';
     }
   }));
+  const billableSessions = sessions.filter(s => !exemptMemberIds.has(s.memberId));
 
   const baseSessionCount = config ? (config.baseSessionCount || 0) : 0;
   const baseRate = config ? (config.baseRate || 0) : 0;
@@ -13027,7 +13038,7 @@ async function computeRegularEmployeeEarnings(trainerUid, viewDate){
     tiers.forEach(t => { if(monthlyRevenue >= t.threshold) incentiveAmount = t.bonus; }); // 만족하는 것 중 가장 높은 구간
   }
   const enhancedRate = baseRate + incentiveAmount;
-  const sessionCount = sessions.length;
+  const sessionCount = billableSessions.length;
   const meetsThreshold = !!config && sessionCount >= baseSessionCount && baseSessionCount > 0;
 
   let todayTotal = 0, weekTotal = 0, monthTotal = 0;
@@ -13035,8 +13046,9 @@ async function computeRegularEmployeeEarnings(trainerUid, viewDate){
   const dailyBreakdown = {};
 
   // 기준을 못 채운 동안에도 세션(이름)은 달력에 그대로 보여준다 — 금액만 0원으로 표시하고,
-  // 기준을 채운 순간부터 그 달 세션 전체에 실제 단가가 반영된다.
-  sessions.forEach((s, index) => {
+  // 기준을 채운 순간부터 그 달 세션 전체에 실제 단가가 반영된다. 정산 제외 회원의 세션은
+  // (프리랜서 방식과 동일하게) 개수·달력 표시 어디에도 포함하지 않는다.
+  billableSessions.forEach((s, index) => {
     const rate = meetsThreshold ? (index < baseSessionCount ? incentiveAmount : enhancedRate) : 0;
     monthTotal += rate;
     dailyTotals[s.date] = (dailyTotals[s.date] || 0) + rate;
