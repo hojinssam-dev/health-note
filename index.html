@@ -5376,7 +5376,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.65.7';
+const APP_VERSION = '2.65.8';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -11631,18 +11631,26 @@ async function loadEmployerDashboard(){
       const trainerUid = trainerDoc.id;
       const isRegularEmployee = !!trainerDoc.data().isRegularEmployee;
       let trainerName = '트레이너';
-      let exemptMemberIds = new Set();
       try{
         const result = await storageGetWithRetry(STORAGE_KEY, false, trainerUid);
         const list = result ? JSON.parse(result.value) : [];
         const self = list.find(m => m.id === trainerUid);
         if(self && self.name) trainerName = self.name;
-        // 정산 제외로 지정된 회원은 이 트레이너가 작성한 일지 개수 집계에서도 뺀다
-        // (수업료 달력에서 이미 빼고 있는 것과 같은 기준)
-        exemptMemberIds = new Set(list.filter(m => m.settlementExempt).map(m => m.id));
       }catch(err){ /* 이름을 못 가져와도 기본값으로 계속 진행 */ }
       const membersSnap = await db.collection('users').where('trainerId', '==', trainerUid).get();
-      const memberIds = membersSnap.docs.map(d => d.id).filter(id => !exemptMemberIds.has(id));
+      const allMemberIds = membersSnap.docs.map(d => d.id);
+      // '정산 제외' 값은 트레이너 자신의 문서가 아니라 그 회원 본인의 문서(프로필)에 저장돼
+      // 있어서, 회원별로 각자 조회해서 확인해야 한다 (수업료 달력 계산과 같은 방식).
+      const exemptMemberIds = new Set();
+      await Promise.all(allMemberIds.map(async (memberId) => {
+        try{
+          const result = await storageGetWithRetry(STORAGE_KEY, false, memberId);
+          const list = result ? JSON.parse(result.value) : [];
+          const profile = list.find(m => m.id === memberId);
+          if(profile && profile.settlementExempt) exemptMemberIds.add(memberId);
+        }catch(err){ /* 조회 실패하면 정산 제외 아님으로 취급하고 계속 진행 */ }
+      }));
+      const memberIds = allMemberIds.filter(id => !exemptMemberIds.has(id));
 
       // '일지' 하나 = 어떤 회원의 그 날짜 PT 기록 묶음 하나. 종목(운동) 개수가 아니라 이 묶음 단위로 센다.
       const todayKeys = new Set();
