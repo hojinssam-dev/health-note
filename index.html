@@ -5376,7 +5376,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.65.0';
+const APP_VERSION = '2.65.3';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -11932,7 +11932,7 @@ async function renderEmployerMemberPtList(memberUid, memberName){
       if(!isCurrent) statusText = '완료';
       else if(inCycle <= 0) statusText = '진행 예정';
       else statusText = `진행중(${Math.min(inCycle, h.amount)}/${h.amount})`;
-      const rateText = h.rate ? `${formatNum(h.rate)}원` : '수업료 미등록';
+      const rateText = h.rate ? `${formatWon(h.rate)}원` : '수업료 미등록';
       const noteHtml = h.note ? `<div class="pt-history-item-note">${escapeHtml(h.note)}</div>` : '';
       return `<div class="pt-history-item employer-pt-history-item${isCurrent ? ' is-current' : ''}" data-index="${i}">
         <div class="pt-history-item-main">${i + 1}차 ${h.amount}회 · ${rateText} · ${statusText}</div>
@@ -11951,7 +11951,7 @@ async function renderEmployerMemberPtList(memberUid, memberName){
         sub: '회차, 1회당 수업료, 설명을 고쳐주세요.',
         fields: [
           { placeholder: '등록 횟수 (예: 10)', type: 'number', value: h.amount, unit: '회' },
-          { placeholder: '1회당 수업료 (예: 50000)', type: 'number', value: h.rate || '', unit: '원' },
+          { placeholder: '1회당 수업료 (예: 50,000)', type: 'number', value: h.rate || '', unit: '원' },
           { placeholder: '설명 (선택, 예: 4주년 이벤트)', value: h.note || '' },
         ],
         submitLabel: '저장',
@@ -12018,7 +12018,7 @@ employerMemberPtAddBtn.addEventListener('click', () => {
     sub: '이번에 등록할 횟수, 1회당 수업료, 필요하면 설명(예: 4주년 이벤트)을 입력해주세요.',
     fields: [
       { placeholder: '등록 횟수 (예: 10)', type: 'number', unit: '회' },
-      { placeholder: '1회당 수업료 (예: 50000)', type: 'number', unit: '원' },
+      { placeholder: '1회당 수업료 (예: 50,000)', type: 'number', unit: '원' },
       { placeholder: '설명 (선택, 예: 4주년 이벤트)' },
     ],
     submitLabel: '등록',
@@ -12974,7 +12974,10 @@ async function computeRegularEmployeeEarnings(trainerUid, viewDate){
   const trainerDoc = await db.collection('users').doc(trainerUid).get();
   const trainerData = trainerDoc.exists ? trainerDoc.data() : {};
   const employerId = trainerData.employerId;
-  const monthlyRevenue = (trainerData.monthlyRevenue && trainerData.monthlyRevenue[monthKey]) || 0;
+  // 아직 한 번도 저장 안 한 것과, 0원으로 명시적으로 저장한 것을 구분해야 화면에 다르게
+  // 보여줄 수 있어서(빈칸 vs "0"), 값이 아니라 그 달 키가 실제로 존재하는지로 판단한다.
+  const hasRevenue = !!(trainerData.monthlyRevenue && Object.prototype.hasOwnProperty.call(trainerData.monthlyRevenue, monthKey));
+  const monthlyRevenue = hasRevenue ? trainerData.monthlyRevenue[monthKey] : 0;
 
   let config = null;
   if(employerId){
@@ -13031,24 +13034,24 @@ async function computeRegularEmployeeEarnings(trainerUid, viewDate){
   const dailyTotals = {};
   const dailyBreakdown = {};
 
-  if(meetsThreshold){
-    sessions.forEach((s, index) => {
-      const rate = index < baseSessionCount ? incentiveAmount : enhancedRate;
-      monthTotal += rate;
-      dailyTotals[s.date] = (dailyTotals[s.date] || 0) + rate;
-      if(!dailyBreakdown[s.date]) dailyBreakdown[s.date] = [];
-      dailyBreakdown[s.date].push({ name: nameByMember[s.memberId] || '회원', amount: rate });
-      if(s.date >= weekStart) weekTotal += rate;
-      if(s.date === today) todayTotal += rate;
-    });
-  }
+  // 기준을 못 채운 동안에도 세션(이름)은 달력에 그대로 보여준다 — 금액만 0원으로 표시하고,
+  // 기준을 채운 순간부터 그 달 세션 전체에 실제 단가가 반영된다.
+  sessions.forEach((s, index) => {
+    const rate = meetsThreshold ? (index < baseSessionCount ? incentiveAmount : enhancedRate) : 0;
+    monthTotal += rate;
+    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + rate;
+    if(!dailyBreakdown[s.date]) dailyBreakdown[s.date] = [];
+    dailyBreakdown[s.date].push({ name: nameByMember[s.memberId] || '회원', amount: rate });
+    if(s.date >= weekStart) weekTotal += rate;
+    if(s.date === today) todayTotal += rate;
+  });
 
   return {
     todayTotal, weekTotal, monthTotal,
     missingRateCount: 0, missingRateMemberNames: [],
     dailyTotals, dailyBreakdown, monthStart, monthEnd,
     year: now.getFullYear(), month: now.getMonth(),
-    monthlyRevenue, config, sessionCount, baseSessionCount, monthKey,
+    monthlyRevenue, hasRevenue, config, sessionCount, baseSessionCount, monthKey,
   };
 }
 
@@ -13090,6 +13093,18 @@ function showTrainerEarningsView(trainerUid, { trainerName, returnTo } = {}){
   trainerEarningsReturnTo = returnTo || 'trainer';
   trainerEarningsViewDate = new Date(); // 매번 열 때는 항상 이번 달부터 보여준다
   trainerEarningsTitle.textContent = trainerName ? `${trainerName} 수업료 달력` : '수업료 달력';
+  // 이전 트레이너의 달력·금액이 새 데이터가 올 때까지 그대로 남아있지 않도록, 화면을 열자마자
+  // 바로 비워둔다 (다른 트레이너 것처럼 보이는 잔상을 막기 위함)
+  trainerEarningsTodayValue.innerHTML = `0<span class="earnings-stat-unit">원</span>`;
+  trainerEarningsWeekValue.innerHTML = `0<span class="earnings-stat-unit">원</span>`;
+  trainerEarningsMonthValue.innerHTML = `0<span class="earnings-stat-unit">원</span>`;
+  trainerEarningsCalendarGrid.innerHTML = '';
+  trainerEarningsMonthLabel.textContent = '';
+  trainerEarningsMissingNotice.style.display = 'none';
+  trainerEarningsMissingDetail.style.display = 'none';
+  trainerEarningsRegularEmployeeBox.style.display = 'none';
+  regularEmployeeRevenueInput.value = '';
+  regularEmployeeSavedBadge.style.display = 'none';
   viewLanding.classList.remove('active');
   viewLogin.classList.remove('active');
   viewLog.classList.remove('active');
@@ -13104,7 +13119,8 @@ function showTrainerEarningsView(trainerUid, { trainerName, returnTo } = {}){
 regularEmployeeRevenueSaveBtn.addEventListener('click', async () => {
   const uid = trainerEarningsCurrentUid;
   if(!uid) return;
-  const revenue = parseThousandsInput(regularEmployeeRevenueInput.value);
+  // 칸을 완전히 지우고 저장하면 매출 0원으로 저장한다 (지운 상태를 '입력 오류'로 막지 않는다)
+  const revenue = regularEmployeeRevenueInput.value.trim() === '' ? 0 : parseThousandsInput(regularEmployeeRevenueInput.value);
   if(isNaN(revenue) || revenue < 0){
     showCopyToast('매출 금액을 정확히 입력해주세요.');
     return;
@@ -13130,24 +13146,28 @@ regularEmployeeRevenueSaveBtn.addEventListener('click', async () => {
 
 async function loadTrainerEarnings(){
   if(!trainerEarningsCurrentUid) return;
+  const requestUid = trainerEarningsCurrentUid; // 이 함수 실행 중에 다른 트레이너로 넘어가도, 이 호출은 끝까지 이 uid 기준으로 조회한다
+  const requestViewDate = trainerEarningsViewDate;
   try{
-    const trainerDoc = await db.collection('users').doc(trainerEarningsCurrentUid).get();
+    const trainerDoc = await db.collection('users').doc(requestUid).get();
+    if(trainerEarningsCurrentUid !== requestUid) return; // 그 사이 다른 트레이너로 넘어갔으면 결과를 반영하지 않는다
     const isRegularEmployee = trainerDoc.exists && !!trainerDoc.data().isRegularEmployee;
+
+    const data = isRegularEmployee
+      ? await computeRegularEmployeeEarnings(requestUid, requestViewDate)
+      : await computeTrainerEarnings(requestUid, requestViewDate);
+    if(trainerEarningsCurrentUid !== requestUid || trainerEarningsViewDate !== requestViewDate) return; // 늦게 도착한 응답으로 새 화면을 덮어쓰지 않는다
 
     trainerEarningsNormalStatGrid.style.display = 'flex';
     trainerEarningsCalendarSection.style.display = 'block';
     trainerEarningsRegularEmployeeBox.style.display = isRegularEmployee ? 'block' : 'none';
 
-    const data = isRegularEmployee
-      ? await computeRegularEmployeeEarnings(trainerEarningsCurrentUid, trainerEarningsViewDate)
-      : await computeTrainerEarnings(trainerEarningsCurrentUid, trainerEarningsViewDate);
-
     trainerEarningsNextMonthBtn.disabled = trainerEarningsViewDate.getFullYear() === new Date().getFullYear()
       && trainerEarningsViewDate.getMonth() === new Date().getMonth(); // 이번 달보다 미래는 볼 필요가 없으니 막는다
 
     if(isRegularEmployee){
-      regularEmployeeRevenueInput.value = data.monthlyRevenue ? formatThousandsValue(data.monthlyRevenue) : '';
-      regularEmployeeSavedBadge.style.display = data.monthlyRevenue ? 'inline-block' : 'none';
+      regularEmployeeRevenueInput.value = data.hasRevenue ? formatThousandsValue(data.monthlyRevenue) : '';
+      regularEmployeeSavedBadge.style.display = data.hasRevenue ? 'inline-block' : 'none';
       regularEmployeeConfigHint.style.display = data.config ? 'none' : 'block';
     }
 
@@ -13180,6 +13200,7 @@ async function loadTrainerEarnings(){
     renderTrainerEarningsCalendar(data);
   }catch(err){
     console.error('수업료 달력 조회 오류:', err);
+    if(trainerEarningsCurrentUid !== requestUid) return; // 이미 다른 트레이너로 넘어갔으면 에러도 반영하지 않는다
     trainerEarningsCalendarGrid.innerHTML = '<div class="admin-empty">불러오지 못했어요.</div>';
   }
 }
@@ -13358,7 +13379,7 @@ function renderTrainerEditPtHistory(){
     if(!isCurrent) statusText = '완료';
     else if(inCycle <= 0) statusText = '진행 예정';
     else statusText = `진행중(${Math.min(inCycle, h.amount)}/${h.amount})`;
-    const rateText = h.rate ? `${formatNum(h.rate)}원` : '수업료 미등록';
+    const rateText = h.rate ? `${formatWon(h.rate)}원` : '수업료 미등록';
     const noteHtml = h.note ? `<div class="pt-history-item-note">${escapeHtml(h.note)}</div>` : '';
     return `<div class="pt-history-item ${isCurrent ? 'is-current' : ''}" data-index="${i}">
       <div class="pt-history-item-main">${i + 1}차 ${h.amount}회(회당 수업료 ${rateText}) ${statusText}</div>
@@ -13375,7 +13396,7 @@ function renderTrainerEditPtHistory(){
         sub: '회차, 1회당 수업료, 설명을 고쳐주세요.',
         fields: [
           { placeholder: '등록 횟수 (예: 10)', type: 'number', value: h.amount, unit: '회' },
-          { placeholder: '1회당 수업료 (예: 50000)', type: 'number', value: h.rate || '', unit: '원' },
+          { placeholder: '1회당 수업료 (예: 50,000)', type: 'number', value: h.rate || '', unit: '원' },
           { placeholder: '설명 (선택, 예: 4주년 이벤트)', value: h.note || '' },
         ],
         submitLabel: '수정하기',
@@ -13498,7 +13519,7 @@ trainerEditPtAddBtn.addEventListener('click', () => {
     sub: '이번에 등록할 횟수, 1회당 수업료, 필요하면 설명(예: 4주년 이벤트)을 입력해주세요.',
     fields: [
       { placeholder: '등록 횟수 (예: 10)', type: 'number', unit: '회' },
-      { placeholder: '1회당 수업료 (예: 50000)', type: 'number', unit: '원' },
+      { placeholder: '1회당 수업료 (예: 50,000)', type: 'number', unit: '원' },
       { placeholder: '설명 (선택, 예: 4주년 이벤트)' },
     ],
     submitLabel: '등록',
