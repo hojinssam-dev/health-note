@@ -567,6 +567,11 @@
     font-family: 'Noto Sans KR', sans-serif;
     margin-bottom: 10px;
   }
+  .modal-input-readonly{
+    color: var(--muted);
+    background: var(--surface);
+    cursor: default;
+  }
   .modal-input:focus{ outline:none; border-color: var(--brass); box-shadow: 0 0 0 3px rgba(201,162,39,0.15); }
   .modal-input::placeholder{ color: var(--muted); }
 
@@ -2173,6 +2178,10 @@
     color: var(--muted);
     margin: 14px 0 8px;
     padding: 0 2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
   .pt-session-badge{
     font-family: 'IBM Plex Mono', monospace;
@@ -3567,6 +3576,12 @@
     white-space: nowrap;
     letter-spacing: -0.3px;
   }
+  .earnings-stat-subtext{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
   .earnings-stat-unit{
     font-size: 10px;
     font-weight: 400;
@@ -4780,6 +4795,7 @@
       <div class="employer-stat-box">
         <div class="employer-stat-label">오늘</div>
         <div class="earnings-stat-value" id="trainerEarningsTodayValue">0<span class="earnings-stat-unit">원</span></div>
+        <div class="earnings-stat-subtext" id="trainerEarningsTodaySessionCount"></div>
       </div>
       <div class="employer-stat-box">
         <div class="employer-stat-label">이번 주</div>
@@ -5376,7 +5392,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.66.3';
+const APP_VERSION = '2.68.0';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8076,6 +8092,10 @@ function makeBlock(){
     const prev = name ? await findPreviousExercise(name, dateVal) : null;
     if(block.getAttribute('data-edit-id')) return; // 조회 도중 상태가 바뀌었으면 무시
     if(myGen !== nameInputGen) return; // 그 사이에 또 입력이 있었으면 낡은 응답이니 버림
+    // 무게·횟수 ↔ 시간 모드를 오갈 때 이전 값을 복원해주는 캐시는 '같은 종목 안에서' 실수로
+    // 모드 버튼을 눌렀을 때만 쓰라고 만든 것이다. 종목 이름 자체가 바뀌는 지금은 그 캐시에
+    // 남아있는 예전 종목의 세트 값이 되살아나면 안 되니, 여기서 캐시를 비워 완전히 새로 시작한다.
+    modeRowCache = {};
     if(prev && prev.setRows && prev.setRows.length){
       const mode = prev.recordMode === 'time' ? 'time' : 'reps';
       prevCompareRows = prev.setRows;
@@ -8792,6 +8812,13 @@ async function renderDayDetail(){
   const personalTimeText = (personalStartTime || personalEndTime)
     ? `${personalStartTime ? formatTimeAMPM(personalStartTime) : '--:--'} ~ ${personalEndTime ? formatTimeAMPM(personalEndTime) : '--:--'}`
     : '';
+  // '추가 일지'로 묶인 종목들의 시작·종료 시간도 '개인 운동'과 같은 방식으로 표시한다
+  const additionalEntries = entries.filter(e => e.isAdditionalEntry);
+  const additionalStartTime = additionalEntries[0] && additionalEntries[0].startTime;
+  const additionalEndTime = additionalEntries[0] && additionalEntries[0].endTime;
+  const additionalTimeText = (additionalStartTime || additionalEndTime)
+    ? `${additionalStartTime ? formatTimeAMPM(additionalStartTime) : '--:--'} ~ ${additionalEndTime ? formatTimeAMPM(additionalEndTime) : '--:--'}`
+    : '';
 
   function entryHtml(e, isFirstPersonal, isFirstAdditional){
     const c = colorForEntry(e);
@@ -8804,10 +8831,18 @@ async function renderDayDetail(){
     const additionalSessionEntry = isFirstAdditional ? entries.find(ae => ae.isAdditionalEntry && ae.sessionNo) : null;
     return `
       ${isFirstAdditional ? `
-      <div class="day-detail-personal-label">추가 일지</div>
+      <div class="day-detail-personal-label">
+        <span>추가 일지</span>
+        ${additionalTimeText ? `<span class="day-detail-time">${additionalTimeText}</span>` : ''}
+      </div>
       ${additionalSessionEntry ? `<span class="pt-session-badge" style="display:inline-block; margin-bottom:8px;">PT ${resolveSessionText(additionalSessionEntry)}회</span>` : ''}
       ` : ''}
-      ${isFirstPersonal ? `<div class="day-detail-personal-label">개인 운동${personalTimeText ? ` <span class="day-detail-time">${personalTimeText}</span>` : ''}</div>` : ''}
+      ${isFirstPersonal ? `
+      <div class="day-detail-personal-label">
+        <span>개인 운동</span>
+        ${personalTimeText ? `<span class="day-detail-time">${personalTimeText}</span>` : ''}
+      </div>
+      ` : ''}
       <div class="log-entry ${e.locked ? 'log-entry-locked' : ''}" data-id="${e.id}">
         <div class="log-entry-body" ${canEdit ? `data-entry-click="${e.id}"` : ''}>
           <p class="log-entry-name ${plain ? 'log-entry-name-plain' : ''}" ${plain ? '' : `style="color:${c}"`}>${e.locked ? '🔒 ' : ''}${escapeHtml(e.exercise)}</p>
@@ -10760,6 +10795,24 @@ let promptModalOnSubmit = null;
 let promptModalOnDelete = null;
 let promptModalOnCancel = null;
 
+// 지금 로그인한 트레이너가 '정직원'으로 지정돼 있으면, 센터장이 정해둔 기본 수업료를
+// 반환한다 (아니면 null — 그럼 평소처럼 트레이너가 직접 수업료를 입력할 수 있다).
+// 정직원은 개별 PT 등록마다 수업료를 다르게 정할 수 없고, 센터 전체 정산 체계를 그대로 따른다.
+async function getMyRegularEmployeeBaseRate(){
+  try{
+    const myDoc = await db.collection('users').doc(auth.currentUser.uid).get();
+    if(!myDoc.exists || !myDoc.data().isRegularEmployee) return null;
+    const employerId = myDoc.data().employerId;
+    if(!employerId) return null;
+    const employerDoc = await db.collection('users').doc(employerId).get();
+    const config = employerDoc.exists ? employerDoc.data().employeeSettlementConfig : null;
+    return config ? (config.baseRate || 0) : null;
+  }catch(err){
+    console.error('정직원 기본 수업료 조회 오류:', err);
+    return null;
+  }
+}
+
 function openPromptModal({ title, sub, fields, submitLabel, onSubmit, deleteLabel, onDelete, onCancel }){
   promptModalTitle.textContent = title;
   promptModalSub.textContent = sub || '';
@@ -10799,9 +10852,13 @@ function openPromptModal({ title, sub, fields, submitLabel, onSubmit, deleteLabe
       input.placeholder = f.placeholder || '';
       input.value = isMoneyField ? formatThousandsValue(f.value) : ((f.value != null) ? f.value : '');
       input.autocomplete = f.autocomplete || 'off';
+      // 수정 자체를 못 하게 막아야 하는 필드(예: 정직원의 수업료 — 센터 정산 체계를 그대로
+      // 따라가야 해서 트레이너가 직접 못 바꾸게 한다)는 읽기 전용으로 흐리게 보여준다.
+      input.readOnly = !!f.readonly;
+      input.classList.toggle('modal-input-readonly', !!f.readonly);
       // 이 입력칸들은 모달을 열 때마다 재사용되는 공용 엘리먼트라, addEventListener로 매번 붙이면
       // 리스너가 계속 쌓인다. oninput 프로퍼티 대입은 매번 덮어쓰기만 하니 이 경우에 안전하다.
-      input.oninput = isMoneyField ? () => {
+      input.oninput = (isMoneyField && !f.readonly) ? () => {
         const digits = input.value.replace(/[^\d]/g, '');
         input.value = digits ? parseInt(digits, 10).toLocaleString('ko-KR') : '';
       } : null;
@@ -10818,6 +10875,8 @@ function openPromptModal({ title, sub, fields, submitLabel, onSubmit, deleteLabe
       wrap.style.display = 'none';
       input.value = '';
       input.oninput = null;
+      input.readOnly = false;
+      input.classList.remove('modal-input-readonly');
       suffixEl.style.display = 'none';
     }
   });
@@ -12932,13 +12991,15 @@ async function computeTrainerEarnings(trainerUid, viewDate){
     .get();
 
   // 회원+날짜별로 세션 번호를 하나만 모은다 (하루에 여러 종목을 기록해도 세션 번호는 같은 값을 공유).
+  // 단, 같은 날 '+새 일지'로 또 PT를 진행해서 '추가 일지'로 구분되어 있다면 그건 완전히
+  // 별개의 세션이므로 따로 센다 (하루 두 번 PT 하면 두 번 다 계산되어야 한다).
   // 회차 번호가 없어도 일단 세션으로는 잡아둔다 — 아래에서 수업료를 확정 못 하면 '미등록'으로
   // 처리되어 안내에는 잡히지만, 달력 칸에는 안 보인다(프리랜서는 단가를 모르면 표시 안 함).
   const sessionsByKey = new Map();
   logsSnap.docs.forEach(d => {
     const data = d.data();
     const memberId = d.ref.parent.parent.id;
-    const key = `${memberId}|${data.date}`;
+    const key = `${memberId}|${data.date}|${data.isAdditionalEntry ? 1 : 0}`;
     if(!sessionsByKey.has(key)){
       sessionsByKey.set(key, { memberId, date: data.date, sessionNo: data.sessionNo || null });
     }
@@ -12963,7 +13024,7 @@ async function computeTrainerEarnings(trainerUid, viewDate){
     }
   }));
 
-  let todayTotal = 0, weekTotal = 0, monthTotal = 0, missingRateCount = 0;
+  let todayTotal = 0, weekTotal = 0, monthTotal = 0, missingRateCount = 0, todaySessionCount = 0;
   const dailyTotals = {};
   const dailyBreakdown = {};
   const missingRateMemberNames = new Set();
@@ -12988,10 +13049,13 @@ async function computeTrainerEarnings(trainerUid, viewDate){
       if(rate > 0) dailyBreakdown[date].push({ name: nameByMember[memberId] || '회원', amount: rate });
     }
     if(date >= weekStart) weekTotal += rate;
-    if(date === today) todayTotal += rate;
+    if(date === today){
+      todayTotal += rate;
+      todaySessionCount++; // 수업료 확정 여부와 상관없이, 오늘 진행한 세션 수 자체를 센다
+    }
   });
 
-  return { todayTotal, weekTotal, monthTotal, missingRateCount, missingRateMemberNames: [...missingRateMemberNames], dailyTotals, dailyBreakdown, monthStart, monthEnd, year: now.getFullYear(), month: now.getMonth() };
+  return { todayTotal, weekTotal, monthTotal, todaySessionCount, missingRateCount, missingRateMemberNames: [...missingRateMemberNames], dailyTotals, dailyBreakdown, monthStart, monthEnd, year: now.getFullYear(), month: now.getMonth() };
 }
 
 // 정직원 트레이너 전용 수업료 계산. 프리랜서용 computeTrainerEarnings와 같은 모양의 데이터를
@@ -13076,7 +13140,7 @@ async function computeRegularEmployeeEarnings(trainerUid, viewDate){
   const sessionCount = billableSessions.length;
   const meetsThreshold = !!config && sessionCount >= baseSessionCount && baseSessionCount > 0;
 
-  let todayTotal = 0, weekTotal = 0, monthTotal = 0;
+  let todayTotal = 0, weekTotal = 0, monthTotal = 0, todaySessionCount = 0;
   const dailyTotals = {};
   const dailyBreakdown = {};
 
@@ -13090,11 +13154,14 @@ async function computeRegularEmployeeEarnings(trainerUid, viewDate){
     if(!dailyBreakdown[s.date]) dailyBreakdown[s.date] = [];
     dailyBreakdown[s.date].push({ name: nameByMember[s.memberId] || '회원', amount: rate });
     if(s.date >= weekStart) weekTotal += rate;
-    if(s.date === today) todayTotal += rate;
+    if(s.date === today){
+      todayTotal += rate;
+      todaySessionCount++;
+    }
   });
 
   return {
-    todayTotal, weekTotal, monthTotal,
+    todayTotal, weekTotal, monthTotal, todaySessionCount,
     missingRateCount: 0, missingRateMemberNames: [],
     dailyTotals, dailyBreakdown, monthStart, monthEnd,
     year: now.getFullYear(), month: now.getMonth(),
@@ -13107,6 +13174,7 @@ const trainerEarningsRefreshBtn = document.getElementById('trainerEarningsRefres
 const trainerEarningsBackBtn = document.getElementById('trainerEarningsBackBtn');
 const trainerEarningsOpenBtn = document.getElementById('trainerEarningsOpenBtn');
 const trainerEarningsTodayValue = document.getElementById('trainerEarningsTodayValue');
+const trainerEarningsTodaySessionCount = document.getElementById('trainerEarningsTodaySessionCount');
 const trainerEarningsWeekValue = document.getElementById('trainerEarningsWeekValue');
 const trainerEarningsMonthValue = document.getElementById('trainerEarningsMonthValue');
 const trainerEarningsMissingNotice = document.getElementById('trainerEarningsMissingNotice');
@@ -13143,6 +13211,7 @@ function showTrainerEarningsView(trainerUid, { trainerName, returnTo } = {}){
   // 이전 트레이너의 달력·금액이 새 데이터가 올 때까지 그대로 남아있지 않도록, 화면을 열자마자
   // 바로 비워둔다 (다른 트레이너 것처럼 보이는 잔상을 막기 위함)
   trainerEarningsTodayValue.innerHTML = `0<span class="earnings-stat-unit">원</span>`;
+  trainerEarningsTodaySessionCount.textContent = '';
   trainerEarningsWeekValue.innerHTML = `0<span class="earnings-stat-unit">원</span>`;
   trainerEarningsMonthValue.innerHTML = `0<span class="earnings-stat-unit">원</span>`;
   trainerEarningsCalendarGrid.innerHTML = '';
@@ -13219,6 +13288,7 @@ async function loadTrainerEarnings(){
     }
 
     trainerEarningsTodayValue.innerHTML = `${formatWon(data.todayTotal)}<span class="earnings-stat-unit">원</span>`;
+    trainerEarningsTodaySessionCount.textContent = data.todaySessionCount > 0 ? `오늘 ${data.todaySessionCount}개 수업` : '';
     trainerEarningsWeekValue.innerHTML = `${formatWon(data.weekTotal)}<span class="earnings-stat-unit">원</span>`;
     trainerEarningsMonthValue.innerHTML = `${formatWon(data.monthTotal)}<span class="earnings-stat-unit">원</span>`;
 
@@ -13434,24 +13504,28 @@ function renderTrainerEditPtHistory(){
     </div>`;
   }).join('');
   trainerEditPtHistoryList.querySelectorAll('.pt-history-item').forEach(row => {
-    row.addEventListener('click', () => {
+    row.addEventListener('click', async () => {
       const i = parseInt(row.getAttribute('data-index'), 10);
       const h = trainerEditingPtHistory[i];
       trainerMemberEditModal.classList.remove('open');
+      // 정직원이면 수업료를 직접 못 정하고 센터 정산 체계를 그대로 따른다
+      const fixedRate = await getMyRegularEmployeeBaseRate();
       openPromptModal({
         title: `${i + 1}차 등록 수정`,
-        sub: '회차, 1회당 수업료, 설명을 고쳐주세요.',
+        sub: fixedRate !== null
+          ? '회차, 설명을 고쳐주세요. 수업료는 정직원 정산 체계를 따라가서 직접 정할 수 없어요.'
+          : '회차, 1회당 수업료, 설명을 고쳐주세요.',
         fields: [
           { placeholder: '등록 횟수 (예: 10)', type: 'number', value: h.amount, unit: '회' },
-          { placeholder: '1회당 수업료 (예: 50,000)', type: 'number', value: h.rate || '', unit: '원' },
+          { placeholder: '1회당 수업료 (예: 50,000)', type: 'number', value: fixedRate !== null ? fixedRate : (h.rate || ''), unit: '원', readonly: fixedRate !== null },
           { placeholder: '설명 (선택, 예: 4주년 이벤트)', value: h.note || '' },
         ],
         submitLabel: '수정하기',
         onSubmit: async (rawAmount, rawRate, note) => {
           const amount = parseInt(rawAmount, 10);
           if(!amount || amount <= 0) throw new Error('올바른 횟수를 입력해주세요.');
-          const rate = rawRate ? parseThousandsInput(rawRate) : 0;
-          if(rawRate && (isNaN(rate) || rate < 0)) throw new Error('올바른 수업료를 입력해주세요.');
+          const rate = fixedRate !== null ? fixedRate : (rawRate ? parseThousandsInput(rawRate) : 0);
+          if(fixedRate === null && rawRate && (isNaN(rate) || rate < 0)) throw new Error('올바른 수업료를 입력해주세요.');
           trainerEditingPtHistory[i] = { amount, rate: rate || 0, note: note.trim() };
           closePromptModal();
           renderTrainerEditPtHistory();
@@ -13559,22 +13633,27 @@ trainerMemberEditCancelBtn.addEventListener('click', closeTrainerMemberEditModal
 trainerMemberEditModal.addEventListener('click', (ev) => {
   if(ev.target === trainerMemberEditModal) closeTrainerMemberEditModal();
 });
-trainerEditPtAddBtn.addEventListener('click', () => {
+trainerEditPtAddBtn.addEventListener('click', async () => {
   trainerMemberEditModal.classList.remove('open');
+  // 정직원이면 수업료를 직접 못 정하고 센터 정산 체계를 그대로 따른다 — 그 기본 수업료를
+  // 미리 불러와서, 있으면 그 값으로 고정해 보여주고 입력칸은 잠근다.
+  const fixedRate = await getMyRegularEmployeeBaseRate();
   openPromptModal({
     title: '추가 등록',
-    sub: '이번에 등록할 횟수, 1회당 수업료, 필요하면 설명(예: 4주년 이벤트)을 입력해주세요.',
+    sub: fixedRate !== null
+      ? '이번에 등록할 횟수, 필요하면 설명(예: 4주년 이벤트)을 입력해주세요. 수업료는 정직원 정산 체계를 따라가서 직접 정할 수 없어요.'
+      : '이번에 등록할 횟수, 1회당 수업료, 필요하면 설명(예: 4주년 이벤트)을 입력해주세요.',
     fields: [
       { placeholder: '등록 횟수 (예: 10)', type: 'number', unit: '회' },
-      { placeholder: '1회당 수업료 (예: 50,000)', type: 'number', unit: '원' },
+      { placeholder: '1회당 수업료 (예: 50,000)', type: 'number', unit: '원', value: fixedRate || '', readonly: fixedRate !== null },
       { placeholder: '설명 (선택, 예: 4주년 이벤트)' },
     ],
     submitLabel: '등록',
     onSubmit: async (rawAmount, rawRate, note) => {
       const amount = parseInt(rawAmount, 10);
       if(!amount || amount <= 0) throw new Error('올바른 횟수를 입력해주세요.');
-      const rate = rawRate ? parseThousandsInput(rawRate) : 0;
-      if(rawRate && (isNaN(rate) || rate < 0)) throw new Error('올바른 수업료를 입력해주세요.');
+      const rate = fixedRate !== null ? fixedRate : (rawRate ? parseThousandsInput(rawRate) : 0);
+      if(fixedRate === null && rawRate && (isNaN(rate) || rate < 0)) throw new Error('올바른 수업료를 입력해주세요.');
       trainerEditingPtHistory.push({ amount, rate: rate || 0, note: note.trim() });
       closePromptModal();
       renderTrainerEditPtHistory();
