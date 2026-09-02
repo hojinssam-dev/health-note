@@ -3660,6 +3660,13 @@
     white-space: nowrap;
     text-align: center;
   }
+  .earnings-calendar-day-count{
+    margin-top: 2px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    text-align: center;
+  }
   .earnings-calendar-day-total{
     margin-top: 2px;
     padding-top: 2px;
@@ -4800,10 +4807,12 @@
       <div class="employer-stat-box">
         <div class="employer-stat-label">이번 주</div>
         <div class="earnings-stat-value" id="trainerEarningsWeekValue">0<span class="earnings-stat-unit">원</span></div>
+        <div class="earnings-stat-subtext" id="trainerEarningsWeekSessionCount"></div>
       </div>
       <div class="employer-stat-box">
         <div class="employer-stat-label">이번 달</div>
         <div class="earnings-stat-value" id="trainerEarningsMonthValue">0<span class="earnings-stat-unit">원</span></div>
+        <div class="earnings-stat-subtext" id="trainerEarningsMonthSessionCount"></div>
       </div>
     </div>
     <div id="trainerEarningsCalendarSection">
@@ -5392,7 +5401,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.68.0';
+const APP_VERSION = '2.68.1';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -13024,7 +13033,8 @@ async function computeTrainerEarnings(trainerUid, viewDate){
     }
   }));
 
-  let todayTotal = 0, weekTotal = 0, monthTotal = 0, missingRateCount = 0, todaySessionCount = 0;
+  let todayTotal = 0, weekTotal = 0, monthTotal = 0, missingRateCount = 0;
+  let todaySessionCount = 0, weekSessionCount = 0, monthSessionCount = 0;
   const dailyTotals = {};
   const dailyBreakdown = {};
   const missingRateMemberNames = new Set();
@@ -13042,20 +13052,29 @@ async function computeTrainerEarnings(trainerUid, viewDate){
 
     if(date >= monthStart && date <= monthEnd){
       monthTotal += rate;
+      monthSessionCount++; // 수업료 확정 여부와 상관없이, 이번 달 진행한 세션 수 자체를 센다
       dailyTotals[date] = (dailyTotals[date] || 0) + rate;
       if(!dailyBreakdown[date]) dailyBreakdown[date] = [];
       // 프리랜서는 수업료(단가)를 확정할 수 없는 세션(미등록·회차 번호 누락 등)은 달력 칸에는
       // 안 보이고, 위쪽 '수업료 미등록 N회' 안내에만 잡히게 한다.
       if(rate > 0) dailyBreakdown[date].push({ name: nameByMember[memberId] || '회원', amount: rate });
     }
-    if(date >= weekStart) weekTotal += rate;
+    if(date >= weekStart){
+      weekTotal += rate;
+      weekSessionCount++;
+    }
     if(date === today){
       todayTotal += rate;
       todaySessionCount++; // 수업료 확정 여부와 상관없이, 오늘 진행한 세션 수 자체를 센다
     }
   });
 
-  return { todayTotal, weekTotal, monthTotal, todaySessionCount, missingRateCount, missingRateMemberNames: [...missingRateMemberNames], dailyTotals, dailyBreakdown, monthStart, monthEnd, year: now.getFullYear(), month: now.getMonth() };
+  return {
+    todayTotal, weekTotal, monthTotal,
+    todaySessionCount, weekSessionCount, monthSessionCount,
+    missingRateCount, missingRateMemberNames: [...missingRateMemberNames],
+    dailyTotals, dailyBreakdown, monthStart, monthEnd, year: now.getFullYear(), month: now.getMonth(),
+  };
 }
 
 // 정직원 트레이너 전용 수업료 계산. 프리랜서용 computeTrainerEarnings와 같은 모양의 데이터를
@@ -13140,7 +13159,8 @@ async function computeRegularEmployeeEarnings(trainerUid, viewDate){
   const sessionCount = billableSessions.length;
   const meetsThreshold = !!config && sessionCount >= baseSessionCount && baseSessionCount > 0;
 
-  let todayTotal = 0, weekTotal = 0, monthTotal = 0, todaySessionCount = 0;
+  let todayTotal = 0, weekTotal = 0, monthTotal = 0;
+  let todaySessionCount = 0, weekSessionCount = 0;
   const dailyTotals = {};
   const dailyBreakdown = {};
 
@@ -13153,7 +13173,10 @@ async function computeRegularEmployeeEarnings(trainerUid, viewDate){
     dailyTotals[s.date] = (dailyTotals[s.date] || 0) + rate;
     if(!dailyBreakdown[s.date]) dailyBreakdown[s.date] = [];
     dailyBreakdown[s.date].push({ name: nameByMember[s.memberId] || '회원', amount: rate });
-    if(s.date >= weekStart) weekTotal += rate;
+    if(s.date >= weekStart){
+      weekTotal += rate;
+      weekSessionCount++;
+    }
     if(s.date === today){
       todayTotal += rate;
       todaySessionCount++;
@@ -13161,7 +13184,8 @@ async function computeRegularEmployeeEarnings(trainerUid, viewDate){
   });
 
   return {
-    todayTotal, weekTotal, monthTotal, todaySessionCount,
+    todayTotal, weekTotal, monthTotal,
+    todaySessionCount, weekSessionCount, monthSessionCount: sessionCount,
     missingRateCount: 0, missingRateMemberNames: [],
     dailyTotals, dailyBreakdown, monthStart, monthEnd,
     year: now.getFullYear(), month: now.getMonth(),
@@ -13175,6 +13199,8 @@ const trainerEarningsBackBtn = document.getElementById('trainerEarningsBackBtn')
 const trainerEarningsOpenBtn = document.getElementById('trainerEarningsOpenBtn');
 const trainerEarningsTodayValue = document.getElementById('trainerEarningsTodayValue');
 const trainerEarningsTodaySessionCount = document.getElementById('trainerEarningsTodaySessionCount');
+const trainerEarningsWeekSessionCount = document.getElementById('trainerEarningsWeekSessionCount');
+const trainerEarningsMonthSessionCount = document.getElementById('trainerEarningsMonthSessionCount');
 const trainerEarningsWeekValue = document.getElementById('trainerEarningsWeekValue');
 const trainerEarningsMonthValue = document.getElementById('trainerEarningsMonthValue');
 const trainerEarningsMissingNotice = document.getElementById('trainerEarningsMissingNotice');
@@ -13213,7 +13239,9 @@ function showTrainerEarningsView(trainerUid, { trainerName, returnTo } = {}){
   trainerEarningsTodayValue.innerHTML = `0<span class="earnings-stat-unit">원</span>`;
   trainerEarningsTodaySessionCount.textContent = '';
   trainerEarningsWeekValue.innerHTML = `0<span class="earnings-stat-unit">원</span>`;
+  trainerEarningsWeekSessionCount.textContent = '';
   trainerEarningsMonthValue.innerHTML = `0<span class="earnings-stat-unit">원</span>`;
+  trainerEarningsMonthSessionCount.textContent = '';
   trainerEarningsCalendarGrid.innerHTML = '';
   trainerEarningsMonthLabel.textContent = '';
   trainerEarningsMissingNotice.style.display = 'none';
@@ -13290,7 +13318,9 @@ async function loadTrainerEarnings(){
     trainerEarningsTodayValue.innerHTML = `${formatWon(data.todayTotal)}<span class="earnings-stat-unit">원</span>`;
     trainerEarningsTodaySessionCount.textContent = data.todaySessionCount > 0 ? `오늘 ${data.todaySessionCount}개 수업` : '';
     trainerEarningsWeekValue.innerHTML = `${formatWon(data.weekTotal)}<span class="earnings-stat-unit">원</span>`;
+    trainerEarningsWeekSessionCount.textContent = data.weekSessionCount > 0 ? `이번 주 ${data.weekSessionCount}개 수업` : '';
     trainerEarningsMonthValue.innerHTML = `${formatWon(data.monthTotal)}<span class="earnings-stat-unit">원</span>`;
+    trainerEarningsMonthSessionCount.textContent = data.monthSessionCount > 0 ? `이번 달 ${data.monthSessionCount}개 수업` : '';
 
     if(data.missingRateCount > 0){
       trainerEarningsMissingText.textContent = `수업료 미등록 ${data.missingRateCount}회 — 0원으로 계산됐어요.`;
@@ -13341,7 +13371,10 @@ function renderTrainerEarningsCalendar(data){
         <span class="earnings-calendar-amount">${formatWon(r.amount)}</span>
       </div>
     `).join('');
-    const totalHtml = dayRows.length > 1 ? `<div class="earnings-calendar-day-total">합계 ${formatWon(amount)}</div>` : '';
+    const totalHtml = dayRows.length > 1 ? `
+      <div class="earnings-calendar-day-count">총 ${dayRows.length}개 수업</div>
+      <div class="earnings-calendar-day-total">합계 ${formatWon(amount)}</div>
+    ` : '';
     return `<div class="earnings-calendar-cell${isToday ? ' is-today' : ''}${hasEarning ? ' has-earning' : ''}">
       <div class="earnings-calendar-day-num ${weekendClass}">${day}</div>
       ${rowsHtml}
