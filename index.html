@@ -5376,7 +5376,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.66.0';
+const APP_VERSION = '2.66.2';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8666,6 +8666,15 @@ function renderCalendar(){
       const plain = isPlainColor(c);
       return `<div class="cal-tag ${plain ? 'cal-tag-plain' : ''}" data-entry-id="${e.id}" ${plain ? '' : `style="background:${c}"`}>${e.private ? '<span class="cal-tag-private-icon" title="비공개 일지">🙈</span>' : ''}<span class="cal-tag-text">${escapeHtml(e.exercise)}</span></div>`;
     }
+    // 같은 그룹(PT 또는 개인 운동) 안에서, 같은 날 나중에 '+새 일지'로 추가된 종목이 있으면
+    // 그 앞에 '추가 일지' 표시를 끼워 넣는다
+    function tagsWithAdditionalLabel(list){
+      const firstAdditionalIdx = list.findIndex(e => e.isAdditionalEntry);
+      if(firstAdditionalIdx === -1) return list.map(tagHtml).join('');
+      return list.slice(0, firstAdditionalIdx).map(tagHtml).join('')
+        + `<div class="cal-personal-label">추가 일지</div>`
+        + list.slice(firstAdditionalIdx).map(tagHtml).join('');
+    }
 
     cellsHtml += `
       <div class="cal-cell ${hasEntries ? 'has-entries' : ''} ${isToday ? 'is-today' : ''} ${dateStr === selectedDetailDate ? 'is-selected' : ''}" data-date="${dateStr}">
@@ -8674,8 +8683,8 @@ function renderCalendar(){
         </div>
         ${sessionEntry ? `<div class="cal-tag cal-session-chip">${resolveSessionText(sessionEntry)}회</div>` : ''}
         ${isMixedDay
-          ? ptEntries.map(tagHtml).join('') + `<div class="cal-personal-label">개인 운동</div>` + personalEntries.map(tagHtml).join('')
-          : entries.map(tagHtml).join('')}
+          ? tagsWithAdditionalLabel(ptEntries) + `<div class="cal-personal-label">개인 운동</div>` + tagsWithAdditionalLabel(personalEntries)
+          : tagsWithAdditionalLabel(entries)}
       </div>`;
   }
 
@@ -9485,13 +9494,15 @@ function editEntry(entryId){
   const entry = currentLogs.find(e => e.id === entryId);
   if(!entry) return;
   const member = members.find(m => m.id === currentMemberId);
-  // 그 날짜 전체가 아니라, 지금 누른 종목과 같은 그룹(트레이너가 잠근 PT 기록 / 회원이 쓴 개인 운동)
-  // 것들만 불러온다 — 두 그룹이 섞여서 한 화면에서 같이 수정되면 저장할 때 잠금·PT인정 상태가
-  // 서로 덮어써지는 문제가 있었기 때문
+  // 그 날짜 전체가 아니라, 지금 누른 종목과 같은 그룹(트레이너가 잠근 PT 기록 / 회원이 쓴 개인 운동,
+  // 그리고 같은 날 나중에 '+새 일지'로 추가된 것인지도 구분)만 불러온다 — 그룹이 섞여서 한
+  // 화면에서 같이 수정되면 저장할 때 잠금·PT인정 상태나 순서가 서로 덮어써지는 문제가 있었기 때문
   const tappedGroupIsLocked = !!entry.locked;
+  const tappedGroupIsAdditional = !!entry.isAdditionalEntry;
   const dayEntriesAll = sortEntriesByOrder(currentLogs.filter(e => e.date === entry.date));
-  const dayEntries = dayEntriesAll.filter(e => !!e.locked === tappedGroupIsLocked);
-  const otherGroupEntries = dayEntriesAll.filter(e => !!e.locked !== tappedGroupIsLocked);
+  const sameGroup = e => !!e.locked === tappedGroupIsLocked && !!e.isAdditionalEntry === tappedGroupIsAdditional;
+  const dayEntries = dayEntriesAll.filter(sameGroup);
+  const otherGroupEntries = dayEntriesAll.filter(e => !sameGroup(e));
   clearAutoSaveTimer();
 
   entryMode = 'edit';
@@ -9583,9 +9594,8 @@ function editEntry(entryId){
     // 반대 그룹 전체가 이미 위에서(잠금 사유로) 안내됐으면 중복 안내하지 않는다
     const notice = document.createElement('div');
     notice.className = 'locked-entries-notice';
-    notice.textContent = tappedGroupIsLocked
-      ? `이 화면은 PT 기록만 수정해요. 개인 운동 종목 ${otherGroupEntries.length}개는 그 종목을 눌러서 따로 수정해주세요.`
-      : `이 화면은 개인 운동만 수정해요. PT 기록 ${otherGroupEntries.length}개는 그 종목을 눌러서 따로 수정해주세요.`;
+    const groupLabel = (tappedGroupIsLocked ? 'PT 기록' : '개인 운동') + (tappedGroupIsAdditional ? ' 중 추가 일지' : '');
+    notice.textContent = `이 화면은 ${groupLabel}만 수정해요. 다른 종목 ${otherGroupEntries.length}개는 그 종목을 눌러서 따로 수정해주세요.`;
     exerciseBlocks.prepend(notice);
   }
   resetSaveButtonState();
@@ -9950,10 +9960,11 @@ async function copyDateToClipboard(dateStr, groupEntries){
 async function copyEntry(entryId){
   const entry = currentLogs.find(e => e.id === entryId);
   if(!entry) return;
-  // 그 날짜 전체가 아니라, 지금 누른 종목과 같은 그룹(PT 기록 / 개인 운동)만 보낸다
+  // 그 날짜 전체가 아니라, 지금 누른 종목과 같은 그룹(PT 기록 / 개인 운동, 추가 일지 여부까지)만 보낸다
   const tappedGroupIsLocked = !!entry.locked;
+  const tappedGroupIsAdditional = !!entry.isAdditionalEntry;
   const groupEntries = sortEntriesByOrder(
-    currentLogs.filter(e => e.date === entry.date && !!e.locked === tappedGroupIsLocked)
+    currentLogs.filter(e => e.date === entry.date && !!e.locked === tappedGroupIsLocked && !!e.isAdditionalEntry === tappedGroupIsAdditional)
   );
   await copyDateToClipboard(entry.date, groupEntries);
 }
@@ -10101,10 +10112,12 @@ function resolvePtCycle(ptHistory, cumulativeCount){
 async function computeSessionNoForDate(memberId, dateVal){
   try{
     const snap = await logsCollection(memberId).where('ptRecognized', '==', true).get();
-    // 이 날짜보다 이전 날짜에 있는 PT 기록들 중, 실제로 회차 숫자가 적혀있는 것만 모은다
+    // 이 날짜까지(오늘 이미 써놓은 것 포함) 있는 PT 기록들 중, 실제로 회차 숫자가 적혀있는 것만 모은다.
+    // '<='로 오늘 날짜도 포함해야, 같은 날 먼저 써둔 PT일지 뒤에 '추가 일지'로 또 PT인정을
+    // 누를 때 그 다음 회차로 정확히 이어진다.
     const priorEntries = snap.docs
       .map(d => d.data())
-      .filter(e => e.date < dateVal && e.sessionNo);
+      .filter(e => e.date <= dateVal && e.sessionNo);
     if(priorEntries.length){
       // 트레이너가 처음에 "3회차부터 시작"처럼 수동으로 입력해뒀을 수 있으니, 날짜 순서상
       // 가장 최근 회차 숫자에 그냥 1을 더한다 (기록된 날짜 개수를 세는 게 아니라)
