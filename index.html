@@ -5376,7 +5376,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.65.8';
+const APP_VERSION = '2.66.0';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8784,13 +8784,20 @@ async function renderDayDetail(){
     ? `${personalStartTime ? formatTimeAMPM(personalStartTime) : '--:--'} ~ ${personalEndTime ? formatTimeAMPM(personalEndTime) : '--:--'}`
     : '';
 
-  function entryHtml(e, isFirstPersonal){
+  function entryHtml(e, isFirstPersonal, isFirstAdditional){
     const c = colorForEntry(e);
     const plain = isPlainColor(c);
     const comp = compById.get(e.id);
     const compClass = comp ? (comp.diff > 0 ? 'up' : comp.diff < 0 ? 'down' : 'flat') : '';
     const canEdit = !e.locked || isViewingAsTrainer || isAdmin();
+    // 같은 날 이미 일지가 있는 상태에서 '+새 일지'로 또 작성한 첫 종목 앞에는 '추가 일지'
+    // 표시를 남긴다. 그 추가된 묶음이 PT인정이면(회차가 있으면) 그 회차 칩도 같이 보여준다.
+    const additionalSessionEntry = isFirstAdditional ? entries.find(ae => ae.isAdditionalEntry && ae.sessionNo) : null;
     return `
+      ${isFirstAdditional ? `
+      <div class="day-detail-personal-label">추가 일지</div>
+      ${additionalSessionEntry ? `<span class="pt-session-badge" style="display:inline-block; margin-bottom:8px;">PT ${resolveSessionText(additionalSessionEntry)}회</span>` : ''}
+      ` : ''}
       ${isFirstPersonal ? `<div class="day-detail-personal-label">개인 운동${personalTimeText ? ` <span class="day-detail-time">${personalTimeText}</span>` : ''}</div>` : ''}
       <div class="log-entry ${e.locked ? 'log-entry-locked' : ''}" data-id="${e.id}">
         <div class="log-entry-body" ${canEdit ? `data-entry-click="${e.id}"` : ''}>
@@ -8812,6 +8819,8 @@ async function renderDayDetail(){
   const sessionInfoEntry = entries.find(e => e.sessionNo);
   // 이 날 남겨둔 메모(📌)도 찾는다 — 일지 수정 화면에 들어가야만 보이던 걸, 상세보기에서도 바로 보이게
   const dayNoteEntry = entries.find(e => e.nextNote && e.nextNote.trim());
+  // 같은 날 '+새 일지'로 나중에 추가된 첫 종목 — 그 앞에 '추가 일지' 표시를 남긴다
+  const firstAdditionalEntry = orderedEntries.find(e => e.isAdditionalEntry);
 
   dayDetail.innerHTML = `
     <div class="day-detail">
@@ -8821,7 +8830,7 @@ async function renderDayDetail(){
         ${cyclePhase ? `<span class="cycle-phase-badge ${cyclePhaseColorClass}">${cyclePhase.phase}${cyclePhase.isPredicted ? ' (예상)' : ''}</span>` : ''}
         ${dayTimeText ? `<span class="day-detail-time">${dayTimeText}</span>` : ''}
       </div>
-      ${orderedEntries.map((e, i) => entryHtml(e, isMixedDay && e === personalEntries[0])).join('')}
+      ${orderedEntries.map((e, i) => entryHtml(e, isMixedDay && e === personalEntries[0], e === firstAdditionalEntry)).join('')}
       ${dayNoteEntry ? `
       <div class="day-detail-note">
         <span class="day-detail-note-label">📌 메모</span>
@@ -10223,6 +10232,11 @@ async function addLogEntry(opts){
       startTime: entryStartTimeInput.value,
       endTime: entryEndTimeInput.value,
       order: blockIndex,
+      // 이 날짜에 이미 다른 일지가 있는 상태에서 '+새 일지'로 또 작성한 거라면, 기존 일지와
+      // 구분해서 보여줄 수 있도록 표시해둔다. 수정할 땐 원래 있던 값을 그대로 유지한다.
+      isAdditionalEntry: existingTarget
+        ? !!existingTarget.isAdditionalEntry
+        : (entryMode === 'add' && dateHadEntriesBefore),
       // 새로 만드는 기록은 작성자를 지금 로그인한 사람으로 남기고, 수정할 땐 원래 작성자를
       // 그대로 유지한다 — 단, 회원이 쓴 일지를 트레이너가 PT인정으로 저장하는 순간에는
       // 트레이너가 그 일지를 인정/책임지는 것이니 작성자도 그 트레이너로 바뀐다.
