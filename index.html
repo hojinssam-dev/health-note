@@ -5376,7 +5376,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.66.2';
+const APP_VERSION = '2.66.3';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8065,16 +8065,16 @@ function makeBlock(){
   });
   addSetRow(); // 기본 1세트, 무게·횟수 모드로 시작
 
-  let setRowsManuallyEdited = false;
-  setRowsEl.addEventListener('input', () => { setRowsManuallyEdited = true; });
-
   async function applyPrevSetRows(){
-    if(block.getAttribute('data-edit-id') || setRowsManuallyEdited) return;
+    // 종목 이름을 지우거나 다른 이름으로 바꾸면, 세트를 이미 손으로 고쳤었더라도 항상 다시
+    // 불러오거나(그 종목의 이전 기록이 있으면) 초기화한다(없으면) — 이름이 바뀌었으니 예전
+    // 세트 값을 그대로 남겨두면 안 되기 때문.
+    if(block.getAttribute('data-edit-id')) return;
     const myGen = nameInputGen;
     const name = nameInputEl.value.trim();
     const dateVal = (entryDateInput && entryDateInput.value) || todayStr();
     const prev = name ? await findPreviousExercise(name, dateVal) : null;
-    if(block.getAttribute('data-edit-id') || setRowsManuallyEdited) return; // 조회 도중 상태가 바뀌었으면 무시
+    if(block.getAttribute('data-edit-id')) return; // 조회 도중 상태가 바뀌었으면 무시
     if(myGen !== nameInputGen) return; // 그 사이에 또 입력이 있었으면 낡은 응답이니 버림
     if(prev && prev.setRows && prev.setRows.length){
       const mode = prev.recordMode === 'time' ? 'time' : 'reps';
