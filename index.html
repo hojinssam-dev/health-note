@@ -5402,7 +5402,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.69.3';
+const APP_VERSION = '2.69.4';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6921,6 +6921,12 @@ function sortEntriesByOrder(entries){
   return entries
     .map((e, i) => ({ e, i }))
     .sort((a, b) => {
+      // order는 저장할 때마다(배치마다) 0부터 다시 매겨지는 값이라, 배치가 다르면 순서
+      // 비교에 의미가 없다. 그래서 배치 번호를 먼저 비교하고(원래 일지 → 추가 일지 순),
+      // 같은 배치 안에서만 order로 세부 순서를 정한다.
+      const ba = a.e.entryBatchIndex || 0;
+      const bb = b.e.entryBatchIndex || 0;
+      if(ba !== bb) return ba - bb;
       const oa = typeof a.e.order === 'number' ? a.e.order : a.i;
       const ob = typeof b.e.order === 'number' ? b.e.order : b.i;
       return oa - ob;
