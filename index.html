@@ -5402,7 +5402,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.69.4';
+const APP_VERSION = '2.69.6';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8041,11 +8041,14 @@ function makeBlock(){
     }));
   }
 
-  function setMode(mode, prefillRows){
-    // 버튼을 눌러서 모드를 바꾸는 경우(prefillRows가 없을 때)엔, 지금까지 입력돼 있던 세트
-    // 기록을 지금 모드 쪽 캐시에 저장해둔다 — 실수로 다른 모드를 눌렀다가 다시 원래 모드로
-    // 돌아와도 값이 그대로 남아있게 하기 위함.
-    if(!prefillRows){
+  function setMode(mode, prefillRows, bypassCache){
+    // 버튼을 눌러서 모드를 바꾸는 경우(prefillRows도 없고 bypassCache도 아닐 때)엔, 지금까지
+    // 입력돼 있던 세트 기록을 지금 모드 쪽 캐시에 저장해둔다 — 실수로 다른 모드를 눌렀다가
+    // 다시 원래 모드로 돌아와도 값이 그대로 남아있게 하기 위함.
+    // bypassCache는 종목 이름이 바뀌어서 완전히 새로 시작해야 할 때 쓴다 — 그렇지 않으면 여기서
+    // 화면에 아직 남아있는(지워지기 전) 예전 종목 값을 캐시에 다시 담아버리고, 바로 아래에서
+    // 그 캐시를 그대로 복원해버려서 초기화가 사실상 안 먹는 문제가 있었다.
+    if(!prefillRows && !bypassCache){
       modeRowCache[recordMode] = captureCurrentRowsForCache();
     }
     recordMode = mode;
@@ -8057,7 +8060,7 @@ function makeBlock(){
     dropModeActive = false;
     addDropModeBtn.classList.remove('active');
     setRowsEl.innerHTML = '';
-    const rowsToRestore = prefillRows || modeRowCache[mode];
+    const rowsToRestore = prefillRows || (bypassCache ? null : modeRowCache[mode]);
     if(rowsToRestore){
       // 빈 배열이면(세트를 다 지운 채로 저장했거나, 그 모드를 아직 한 번도 써본 적 없으면)
       // 그대로 세트 없이 둔다 — 여기서 자동으로 기본 세트를 되살리면 안 된다.
@@ -8144,7 +8147,7 @@ function makeBlock(){
     } else {
       // 이름을 지우거나 이전 기록이 없는 종목으로 바꾸면, 자동으로 채워졌던 값도 초기화
       prevCompareRows = null;
-      setMode(defaultRecordModeForName(name));
+      setMode(defaultRecordModeForName(name), null, true); // bypassCache: 화면에 남아있는 예전 값을 캐시에 다시 담지 않고 확실히 비운다
     }
     updatePrevRowHints();
   }
@@ -8904,14 +8907,20 @@ async function renderDayDetail(){
     const personalStart = personalBatchStarts.get(e);
     const ptStart = ptBatchStarts.get(e);
     const start = personalStart || ptStart;
-    const isPersonalBase = personalStart && personalStart.batchIndex === 0;
-    const label = start ? (isPersonalBase ? '개인 운동' : '추가 일지') : null;
+    // 개인 운동의 첫 배치(0번)만 '개인 운동' 라벨을 쓴다. PT는 원래 첫 배치에 아무 라벨도
+    // 안 붙고, PT든 개인 운동이든 두 번째 배치(1번)부터만 '추가 일지'가 붙어야 한다.
+    // (전엔 'PT의 0번 배치'까지 '개인 운동이 아니니까 추가 일지'로 잘못 걸려버리고 있었다)
+    let label = null;
+    if(start){
+      if(personalStart) label = personalStart.batchIndex === 0 ? '개인 운동' : '추가 일지';
+      else if(ptStart && ptStart.batchIndex > 0) label = '추가 일지';
+    }
     return `
-      ${start ? `
+      ${label ? `
       <div class="day-detail-personal-label">
         <span style="display:flex; align-items:center; gap:6px;">
           <span>${label}</span>
-          ${(!isPersonalBase && start.sessionEntry) ? `<span class="pt-session-badge">PT ${resolveSessionText(start.sessionEntry)}회</span>` : ''}
+          ${start.sessionEntry ? `<span class="pt-session-badge">PT ${resolveSessionText(start.sessionEntry)}회</span>` : ''}
         </span>
         ${start.timeText ? `<span class="day-detail-time">${start.timeText}</span>` : ''}
       </div>
