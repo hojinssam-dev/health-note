@@ -5402,7 +5402,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.68.3';
+const APP_VERSION = '2.69.1';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -7638,7 +7638,11 @@ function makeBlock(){
       return;
     }
     const dateVal = (entryDateInput && entryDateInput.value) || todayStr();
-    const prev = await findPreviousExercise(name, dateVal);
+    // findPreviousExercise는 '이 날짜보다 이전'만 찾아서, 오늘 먼저 저장해둔 배치(예: 오전 PT)의
+    // 같은 종목은 놓친다 — 그래서 오늘 것부터 먼저 찾아보고, 없을 때만 서버에서 예전 기록을 조회한다.
+    const hintNameKey = computeExerciseKey(name);
+    const sameDayHintMatch = currentLogs.find(e => e.date === dateVal && computeExerciseKey(e.exercise) === hintNameKey);
+    const prev = sameDayHintMatch || await findPreviousExercise(name, dateVal);
     if(myGen !== nameInputGen) return; // 그 사이에 또 입력이 있었으면 낡은 응답이니 버림
     if(!prev || !prev.setRows || !prev.setRows.length){
       prevHintEl.style.display = 'none';
@@ -8099,7 +8103,14 @@ function makeBlock(){
     const myGen = nameInputGen;
     const name = nameInputEl.value.trim();
     const dateVal = (entryDateInput && entryDateInput.value) || todayStr();
-    const prev = name ? await findPreviousExercise(name, dateVal) : null;
+    // findPreviousExercise는 '이 날짜보다 이전'만 찾아서, 오늘 먼저 저장해둔 배치(예: 오전 PT)의
+    // 같은 종목은 놓친다 — 그래서 오늘 것부터 currentLogs에서 먼저 찾아보고, 없을 때만 서버에서
+    // 예전 기록을 조회한다.
+    const nameKey = name ? computeExerciseKey(name) : null;
+    const sameDayMatch = nameKey
+      ? currentLogs.find(e => e.date === dateVal && computeExerciseKey(e.exercise) === nameKey)
+      : null;
+    const prev = sameDayMatch || (name ? await findPreviousExercise(name, dateVal) : null);
     if(block.getAttribute('data-edit-id')) return; // 조회 도중 상태가 바뀌었으면 무시
     if(myGen !== nameInputGen) return; // 그 사이에 또 입력이 있었으면 낡은 응답이니 버림
     // 무게·횟수 ↔ 시간 모드를 오갈 때 이전 값을 복원해주는 캐시는 '같은 종목 안에서' 실수로
@@ -8698,16 +8709,22 @@ function renderCalendar(){
     }
     // 같은 그룹(PT 또는 개인 운동) 안에서, 같은 날 나중에 '+새 일지'로 추가된 종목이 있으면
     // 그 앞에 '추가 일지' 표시를 끼워 넣는다
+    // list 안에서 배치 번호(entryBatchIndex)가 바뀔 때마다 '추가 일지' 표시(+ 그 배치의
+    // 회차 칩)를 끼워 넣는다. 몇 번째로 추가됐든(세 번째, 네 번째...) 전부 따로 구분된다.
     function tagsWithAdditionalLabel(list){
-      const firstAdditionalIdx = list.findIndex(e => e.isAdditionalEntry);
-      if(firstAdditionalIdx === -1) return list.map(tagHtml).join('');
-      // 추가 일지 쪽에도 PT 회차가 있으면(하루에 PT를 두 번 진행한 경우), 그 회차 칩도
-      // 종목 칩들 위에 같이 보여줘서 달력만 보고도 알 수 있게 한다
-      const additionalSessionEntry = list.slice(firstAdditionalIdx).find(e => e.sessionNo);
-      return list.slice(0, firstAdditionalIdx).map(tagHtml).join('')
-        + `<div class="cal-personal-label">추가 일지</div>`
-        + (additionalSessionEntry ? `<div class="cal-tag cal-session-chip">${resolveSessionText(additionalSessionEntry)}회</div>` : '')
-        + list.slice(firstAdditionalIdx).map(tagHtml).join('');
+      let html = '';
+      let prevBatch = null;
+      list.forEach((e, idx) => {
+        const b = e.entryBatchIndex || 0;
+        if(idx > 0 && b !== prevBatch){
+          const batchSessionEntry = list.filter(x => (x.entryBatchIndex || 0) === b).find(x => x.sessionNo);
+          html += `<div class="cal-personal-label">추가 일지</div>`;
+          if(batchSessionEntry) html += `<div class="cal-tag cal-session-chip">${resolveSessionText(batchSessionEntry)}회</div>`;
+        }
+        html += tagHtml(e);
+        prevBatch = b;
+      });
+      return html;
     }
 
     cellsHtml += `
@@ -8821,42 +8838,58 @@ async function renderDayDetail(){
   const personalEntries = entries.filter(e => !e.locked);
   const isMixedDay = ptEntries.length > 0 && personalEntries.length > 0;
   const orderedEntries = isMixedDay ? [...ptEntries, ...personalEntries] : entries;
-  const personalStartTime = personalEntries[0] && personalEntries[0].startTime;
-  const personalEndTime = personalEntries[0] && personalEntries[0].endTime;
-  const personalTimeText = (personalStartTime || personalEndTime)
-    ? `${personalStartTime ? formatTimeAMPM(personalStartTime) : '--:--'} ~ ${personalEndTime ? formatTimeAMPM(personalEndTime) : '--:--'}`
-    : '';
-  // '추가 일지'로 묶인 종목들의 시작·종료 시간도 '개인 운동'과 같은 방식으로 표시한다
-  const additionalEntries = entries.filter(e => e.isAdditionalEntry);
-  const additionalStartTime = additionalEntries[0] && additionalEntries[0].startTime;
-  const additionalEndTime = additionalEntries[0] && additionalEntries[0].endTime;
-  const additionalTimeText = (additionalStartTime || additionalEndTime)
-    ? `${additionalStartTime ? formatTimeAMPM(additionalStartTime) : '--:--'} ~ ${additionalEndTime ? formatTimeAMPM(additionalEndTime) : '--:--'}`
-    : '';
 
-  function entryHtml(e, isFirstPersonal, isFirstAdditional){
+  // 같은 배치(entryBatchIndex)끼리의 시작~종료 시간, 회차 정보를 계산한다.
+  function batchInfo(batchEntries){
+    const startTime = batchEntries[0] && batchEntries[0].startTime;
+    const endTime = batchEntries[0] && batchEntries[0].endTime;
+    const timeText = (startTime || endTime)
+      ? `${startTime ? formatTimeAMPM(startTime) : '--:--'} ~ ${endTime ? formatTimeAMPM(endTime) : '--:--'}`
+      : '';
+    const sessionEntry = batchEntries.find(e => e.sessionNo);
+    return { timeText, sessionEntry };
+  }
+  // list(예: ptEntries, personalEntries) 안에서 배치 번호가 바뀌는 지점마다(0=원래 일지,
+  // 1=첫 추가 일지, 2=두 번째 추가 일지...) 그 시작 종목을 찾아 라벨 정보를 붙여준다.
+  // 예전엔 참/거짓만 구분해서 세 번째 이상 작성하면 두 번째와 합쳐졌는데, 번호로 관리해서
+  // 몇 번째로 추가됐든 전부 따로따로 구분되게 한다.
+  function batchStartPoints(list){
+    const points = new Map();
+    let prevBatch = null;
+    list.forEach((e, idx) => {
+      const b = e.entryBatchIndex || 0;
+      if(idx === 0 || b !== prevBatch){
+        const batchEntries = list.filter(x => (x.entryBatchIndex || 0) === b);
+        points.set(e, { batchIndex: b, ...batchInfo(batchEntries) });
+      }
+      prevBatch = b;
+    });
+    return points;
+  }
+  const personalBatchStarts = batchStartPoints(personalEntries);
+  const ptBatchStarts = batchStartPoints(ptEntries);
+
+  function entryHtml(e){
     const c = colorForEntry(e);
     const plain = isPlainColor(c);
     const comp = compById.get(e.id);
     const compClass = comp ? (comp.diff > 0 ? 'up' : comp.diff < 0 ? 'down' : 'flat') : '';
     const canEdit = !e.locked || isViewingAsTrainer || isAdmin();
-    // 같은 날 이미 일지가 있는 상태에서 '+새 일지'로 또 작성한 첫 종목 앞에는 '추가 일지'
-    // 표시를 남긴다. 그 추가된 묶음이 PT인정이면(회차가 있으면) 그 회차 칩도 같이 보여준다.
-    const additionalSessionEntry = isFirstAdditional ? entries.find(ae => ae.isAdditionalEntry && ae.sessionNo) : null;
+    // 이 종목이 (PT든 개인 운동이든) 그 종류 안에서 새 배치가 시작되는 자리인지 확인한다.
+    // 배치 0이면서 개인 운동이면 '개인 운동' 라벨, 그 외(배치 1 이상)면 '추가 일지' 라벨을 붙인다.
+    const personalStart = personalBatchStarts.get(e);
+    const ptStart = ptBatchStarts.get(e);
+    const start = personalStart || ptStart;
+    const isPersonalBase = personalStart && personalStart.batchIndex === 0;
+    const label = start ? (isPersonalBase ? '개인 운동' : '추가 일지') : null;
     return `
-      ${isFirstAdditional ? `
+      ${start ? `
       <div class="day-detail-personal-label">
         <span style="display:flex; align-items:center; gap:6px;">
-          <span>추가 일지</span>
-          ${additionalSessionEntry ? `<span class="pt-session-badge">PT ${resolveSessionText(additionalSessionEntry)}회</span>` : ''}
+          <span>${label}</span>
+          ${(!isPersonalBase && start.sessionEntry) ? `<span class="pt-session-badge">PT ${resolveSessionText(start.sessionEntry)}회</span>` : ''}
         </span>
-        ${additionalTimeText ? `<span class="day-detail-time">${additionalTimeText}</span>` : ''}
-      </div>
-      ` : ''}
-      ${isFirstPersonal ? `
-      <div class="day-detail-personal-label">
-        <span>개인 운동</span>
-        ${personalTimeText ? `<span class="day-detail-time">${personalTimeText}</span>` : ''}
+        ${start.timeText ? `<span class="day-detail-time">${start.timeText}</span>` : ''}
       </div>
       ` : ''}
       <div class="log-entry ${e.locked ? 'log-entry-locked' : ''}" data-id="${e.id}">
@@ -8879,8 +8912,6 @@ async function renderDayDetail(){
   const sessionInfoEntry = entries.find(e => e.sessionNo);
   // 이 날 남겨둔 메모(📌)도 찾는다 — 일지 수정 화면에 들어가야만 보이던 걸, 상세보기에서도 바로 보이게
   const dayNoteEntry = entries.find(e => e.nextNote && e.nextNote.trim());
-  // 같은 날 '+새 일지'로 나중에 추가된 첫 종목 — 그 앞에 '추가 일지' 표시를 남긴다
-  const firstAdditionalEntry = orderedEntries.find(e => e.isAdditionalEntry);
 
   dayDetail.innerHTML = `
     <div class="day-detail">
@@ -8890,7 +8921,7 @@ async function renderDayDetail(){
         ${cyclePhase ? `<span class="cycle-phase-badge ${cyclePhaseColorClass}">${cyclePhase.phase}${cyclePhase.isPredicted ? ' (예상)' : ''}</span>` : ''}
         ${dayTimeText ? `<span class="day-detail-time">${dayTimeText}</span>` : ''}
       </div>
-      ${orderedEntries.map((e, i) => entryHtml(e, isMixedDay && e === personalEntries[0], e === firstAdditionalEntry)).join('')}
+      ${orderedEntries.map(e => entryHtml(e)).join('')}
       ${dayNoteEntry ? `
       <div class="day-detail-note">
         <span class="day-detail-note-label">📌 메모</span>
@@ -9549,9 +9580,9 @@ function editEntry(entryId){
   // 그리고 같은 날 나중에 '+새 일지'로 추가된 것인지도 구분)만 불러온다 — 그룹이 섞여서 한
   // 화면에서 같이 수정되면 저장할 때 잠금·PT인정 상태나 순서가 서로 덮어써지는 문제가 있었기 때문
   const tappedGroupIsLocked = !!entry.locked;
-  const tappedGroupIsAdditional = !!entry.isAdditionalEntry;
+  const tappedGroupBatchIndex = entry.entryBatchIndex || 0;
   const dayEntriesAll = sortEntriesByOrder(currentLogs.filter(e => e.date === entry.date));
-  const sameGroup = e => !!e.locked === tappedGroupIsLocked && !!e.isAdditionalEntry === tappedGroupIsAdditional;
+  const sameGroup = e => !!e.locked === tappedGroupIsLocked && (e.entryBatchIndex || 0) === tappedGroupBatchIndex;
   const dayEntries = dayEntriesAll.filter(sameGroup);
   const otherGroupEntries = dayEntriesAll.filter(e => !sameGroup(e));
   clearAutoSaveTimer();
@@ -9645,7 +9676,7 @@ function editEntry(entryId){
     // 반대 그룹 전체가 이미 위에서(잠금 사유로) 안내됐으면 중복 안내하지 않는다
     const notice = document.createElement('div');
     notice.className = 'locked-entries-notice';
-    const groupLabel = (tappedGroupIsLocked ? 'PT 기록' : '개인 운동') + (tappedGroupIsAdditional ? ' 중 추가 일지' : '');
+    const groupLabel = (tappedGroupIsLocked ? 'PT 기록' : '개인 운동') + (tappedGroupBatchIndex > 0 ? ' 중 추가 일지' : '');
     notice.textContent = `이 화면은 ${groupLabel}만 수정해요. 다른 종목 ${otherGroupEntries.length}개는 그 종목을 눌러서 따로 수정해주세요.`;
     exerciseBlocks.prepend(notice);
   }
@@ -10011,11 +10042,11 @@ async function copyDateToClipboard(dateStr, groupEntries){
 async function copyEntry(entryId){
   const entry = currentLogs.find(e => e.id === entryId);
   if(!entry) return;
-  // 그 날짜 전체가 아니라, 지금 누른 종목과 같은 그룹(PT 기록 / 개인 운동, 추가 일지 여부까지)만 보낸다
+  // 그 날짜 전체가 아니라, 지금 누른 종목과 같은 그룹(PT 기록 / 개인 운동, 같은 배치인지까지)만 보낸다
   const tappedGroupIsLocked = !!entry.locked;
-  const tappedGroupIsAdditional = !!entry.isAdditionalEntry;
+  const tappedGroupBatchIndex = entry.entryBatchIndex || 0;
   const groupEntries = sortEntriesByOrder(
-    currentLogs.filter(e => e.date === entry.date && !!e.locked === tappedGroupIsLocked && !!e.isAdditionalEntry === tappedGroupIsAdditional)
+    currentLogs.filter(e => e.date === entry.date && !!e.locked === tappedGroupIsLocked && (e.entryBatchIndex || 0) === tappedGroupBatchIndex)
   );
   await copyDateToClipboard(entry.date, groupEntries);
 }
@@ -10224,6 +10255,14 @@ async function addLogEntry(opts){
   const sessionPtTotal = member && member.ptTotal ? member.ptTotal : null;
   const nextNote = nextNoteInput.value.trim();
   const dateHadEntriesBefore = dateHasEntries(dateVal);
+  // 이 날짜에 이미 있는 일지들 중 가장 큰 배치 번호를 찾아서, 이번에 '+새 일지'로 저장하는
+  // 묶음은 그다음 번호를 받는다 (0=원래 일지, 1=첫 번째 추가 일지, 2=두 번째 추가 일지...).
+  // 참(true)/거짓만 구분하던 예전 방식은 세 번째 이상 작성할 때 두 번째와 합쳐지는 문제가 있었다.
+  const nextEntryBatchIndexForDate = (() => {
+    const existing = currentLogs.filter(e => e.date === dateVal);
+    if(!existing.length) return 0;
+    return Math.max(...existing.map(e => e.entryBatchIndex || 0)) + 1;
+  })();
 
   if(opts.end && !entryEndTimeInput.value){
     entryEndTimeInput.value = formatTimeHHMM(new Date());
@@ -10296,11 +10335,12 @@ async function addLogEntry(opts){
       startTime: entryStartTimeInput.value,
       endTime: entryEndTimeInput.value,
       order: blockIndex,
-      // 이 날짜에 이미 다른 일지가 있는 상태에서 '+새 일지'로 또 작성한 거라면, 기존 일지와
-      // 구분해서 보여줄 수 있도록 표시해둔다. 수정할 땐 원래 있던 값을 그대로 유지한다.
-      isAdditionalEntry: existingTarget
-        ? !!existingTarget.isAdditionalEntry
-        : (entryMode === 'add' && dateHadEntriesBefore),
+      // 이 날짜에 이미 다른 일지가 있는 상태에서 '+새 일지'로 또 작성한 거라면, 몇 번째로
+      // 작성된 묶음인지 번호로 남겨서 세 번째 이상 작성해도 각각 구분되게 한다. 수정할 땐
+      // 원래 있던 값을 그대로 유지한다.
+      entryBatchIndex: existingTarget
+        ? (existingTarget.entryBatchIndex || 0)
+        : (entryMode === 'add' ? nextEntryBatchIndexForDate : 0),
       // 새로 만드는 기록은 작성자를 지금 로그인한 사람으로 남기고, 수정할 땐 원래 작성자를
       // 그대로 유지한다 — 단, 회원이 쓴 일지를 트레이너가 PT인정으로 저장하는 순간에는
       // 트레이너가 그 일지를 인정/책임지는 것이니 작성자도 그 트레이너로 바뀐다.
@@ -13018,7 +13058,7 @@ async function computeTrainerEarnings(trainerUid, viewDate){
   logsSnap.docs.forEach(d => {
     const data = d.data();
     const memberId = d.ref.parent.parent.id;
-    const key = `${memberId}|${data.date}|${data.isAdditionalEntry ? 1 : 0}`;
+    const key = `${memberId}|${data.date}|${data.entryBatchIndex || 0}`;
     if(!sessionsByKey.has(key)){
       sessionsByKey.set(key, { memberId, date: data.date, sessionNo: data.sessionNo || null });
     }
