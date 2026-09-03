@@ -3666,6 +3666,7 @@
     font-size: 9px;
     color: var(--muted);
     text-align: center;
+    white-space: nowrap;
   }
   .earnings-calendar-day-total{
     margin-top: 2px;
@@ -5401,7 +5402,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.68.1';
+const APP_VERSION = '2.68.3';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8700,8 +8701,12 @@ function renderCalendar(){
     function tagsWithAdditionalLabel(list){
       const firstAdditionalIdx = list.findIndex(e => e.isAdditionalEntry);
       if(firstAdditionalIdx === -1) return list.map(tagHtml).join('');
+      // 추가 일지 쪽에도 PT 회차가 있으면(하루에 PT를 두 번 진행한 경우), 그 회차 칩도
+      // 종목 칩들 위에 같이 보여줘서 달력만 보고도 알 수 있게 한다
+      const additionalSessionEntry = list.slice(firstAdditionalIdx).find(e => e.sessionNo);
       return list.slice(0, firstAdditionalIdx).map(tagHtml).join('')
         + `<div class="cal-personal-label">추가 일지</div>`
+        + (additionalSessionEntry ? `<div class="cal-tag cal-session-chip">${resolveSessionText(additionalSessionEntry)}회</div>` : '')
         + list.slice(firstAdditionalIdx).map(tagHtml).join('');
     }
 
@@ -8841,10 +8846,12 @@ async function renderDayDetail(){
     return `
       ${isFirstAdditional ? `
       <div class="day-detail-personal-label">
-        <span>추가 일지</span>
+        <span style="display:flex; align-items:center; gap:6px;">
+          <span>추가 일지</span>
+          ${additionalSessionEntry ? `<span class="pt-session-badge">PT ${resolveSessionText(additionalSessionEntry)}회</span>` : ''}
+        </span>
         ${additionalTimeText ? `<span class="day-detail-time">${additionalTimeText}</span>` : ''}
       </div>
-      ${additionalSessionEntry ? `<span class="pt-session-badge" style="display:inline-block; margin-bottom:8px;">PT ${resolveSessionText(additionalSessionEntry)}회</span>` : ''}
       ` : ''}
       ${isFirstPersonal ? `
       <div class="day-detail-personal-label">
@@ -12991,6 +12998,9 @@ async function computeTrainerEarnings(trainerUid, viewDate){
   })();
   const monthStart = toDateStr(now.getFullYear(), now.getMonth(), 1);
   const monthEnd = toDateStr(now.getFullYear(), now.getMonth() + 1, 0);
+  // 이번 주가 지난달에 걸쳐 시작하더라도(예: 일요일이 8월 31일), 지금 보고 있는 달의 '이번 주'
+  // 합계에는 그 달이 시작된 날짜부터만 반영한다 — 그래야 8월 31일치가 9월 합계에 안 섞인다.
+  const effectiveWeekStart = weekStart > monthStart ? weekStart : monthStart;
   const rangeStart = weekStart < monthStart ? weekStart : monthStart;
 
   const logsSnap = await db.collectionGroup('logs')
@@ -13059,7 +13069,7 @@ async function computeTrainerEarnings(trainerUid, viewDate){
       // 안 보이고, 위쪽 '수업료 미등록 N회' 안내에만 잡히게 한다.
       if(rate > 0) dailyBreakdown[date].push({ name: nameByMember[memberId] || '회원', amount: rate });
     }
-    if(date >= weekStart){
+    if(date >= effectiveWeekStart){
       weekTotal += rate;
       weekSessionCount++;
     }
@@ -13094,6 +13104,9 @@ async function computeRegularEmployeeEarnings(trainerUid, viewDate){
   })();
   const monthStart = toDateStr(now.getFullYear(), now.getMonth(), 1);
   const monthEnd = toDateStr(now.getFullYear(), now.getMonth() + 1, 0);
+  // 이번 주가 지난달에 걸쳐 시작하더라도, 지금 보고 있는 달의 '이번 주' 합계에는 그 달이
+  // 시작된 날짜부터만 반영한다
+  const effectiveWeekStart = weekStart > monthStart ? weekStart : monthStart;
   const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
   const trainerDoc = await db.collection('users').doc(trainerUid).get();
@@ -13173,7 +13186,7 @@ async function computeRegularEmployeeEarnings(trainerUid, viewDate){
     dailyTotals[s.date] = (dailyTotals[s.date] || 0) + rate;
     if(!dailyBreakdown[s.date]) dailyBreakdown[s.date] = [];
     dailyBreakdown[s.date].push({ name: nameByMember[s.memberId] || '회원', amount: rate });
-    if(s.date >= weekStart){
+    if(s.date >= effectiveWeekStart){
       weekTotal += rate;
       weekSessionCount++;
     }
@@ -13372,7 +13385,7 @@ function renderTrainerEarningsCalendar(data){
       </div>
     `).join('');
     const totalHtml = dayRows.length > 1 ? `
-      <div class="earnings-calendar-day-count">총 ${dayRows.length}개 수업</div>
+      <div class="earnings-calendar-day-count">${dayRows.length}개 수업</div>
       <div class="earnings-calendar-day-total">합계 ${formatWon(amount)}</div>
     ` : '';
     return `<div class="earnings-calendar-cell${isToday ? ' is-today' : ''}${hasEarning ? ' has-earning' : ''}">
