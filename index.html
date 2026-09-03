@@ -5402,7 +5402,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.69.1';
+const APP_VERSION = '2.69.3';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5802,6 +5802,15 @@ prevNoteDismissBtn.addEventListener('click', async () => {
 });
 
 entryDateInput.addEventListener('change', () => {
+  if(entryMode === 'add'){
+    // 날짜를 바꾸면(다른 날짜에 백데이트하는 경우), 그 새 날짜 기준으로 배치 번호를 다시 계산한다
+    const dateVal = entryDateInput.value || todayStr();
+    currentSessionBatchIndex = (() => {
+      const existing = currentLogs.filter(e => e.date === dateVal);
+      if(!existing.length) return 0;
+      return Math.max(...existing.map(e => e.entryBatchIndex || 0)) + 1;
+    })();
+  }
   [...exerciseBlocks.querySelectorAll('.exercise-block')].forEach(block => {
     if(block._updatePrevHint) block._updatePrevHint();
     if(block._updateExerciseMemoHint) block._updateExerciseMemoHint();
@@ -6299,6 +6308,11 @@ let selectedDetailDate = null;
 let dayClipboard = null; // { sourceDate, entries } for '이 날짜 일지 복사' → 다른 날짜에 붙여넣기
 let entryMode = 'add'; // 'add' | 'edit'
 let entryEditDate = null; // date of the day being edited, for delete-sync on save
+// '+새 일지'를 열 때 딱 한 번만 정해두는 이번 세션의 배치 번호. 자동 저장이 중간에 여러 번
+// 일어나도(첫 종목 저장 → 두 번째 종목 추가 → 자동 저장...) 이 번호를 계속 재사용해야, 자동
+// 저장 때문에 한 세션 안에서 저장이 여러 번 일어나는 걸 '진짜 추가 일지'로 착각하지 않는다.
+// 저장할 때마다 다시 계산하면 안 되고, 화면을 열 때(또는 날짜를 바꿀 때)만 다시 계산한다.
+let currentSessionBatchIndex = 0;
 let editHiddenLockedIds = []; // 회원 화면에서 잠긴 기록이라 안 보여준(수정 불가) 종목 id들 — 저장할 때 삭제로 오해하면 안 됨
 
 /* ---------- 부위별 색상 설정 ---------- */
@@ -8826,11 +8840,6 @@ async function renderDayDetail(){
 
   const comparisons = await Promise.all(entries.map(e => getComparison(e, selectedDetailDate)));
   const compById = new Map(entries.map((e, i) => [e.id, comparisons[i]]));
-  const dayStartTime = entries[0].startTime;
-  const dayEndTime = entries[0].endTime;
-  const dayTimeText = (dayStartTime || dayEndTime)
-    ? `${dayStartTime ? formatTimeAMPM(dayStartTime) : '--:--'} ~ ${dayEndTime ? formatTimeAMPM(dayEndTime) : '--:--'}`
-    : '';
 
   // 트레이너가 잠근(PT) 기록과 회원 개인 운동이 섞여 있으면, 뒤섞이지 않게 PT를 먼저 묶고
   // 그 사이에 '개인 운동' 구분선을 넣는다 — 달력 칸에 보이는 구분이랑 똑같은 기준
@@ -8838,6 +8847,15 @@ async function renderDayDetail(){
   const personalEntries = entries.filter(e => !e.locked);
   const isMixedDay = ptEntries.length > 0 && personalEntries.length > 0;
   const orderedEntries = isMixedDay ? [...ptEntries, ...personalEntries] : entries;
+
+  // 맨 위 날짜 옆 시간은 PT 배지와 짝을 이루는 'PT 세션 시간'이라, PT 기록이 있을 때만
+  // 보여준다. 개인 운동만 있는 날은 아래 '개인 운동' 줄에서 이미 시간을 보여주기 때문에,
+  // 여기서 또 같은 시간을 보여주면 중복이 된다.
+  const dayStartTime = ptEntries[0] && ptEntries[0].startTime;
+  const dayEndTime = ptEntries[0] && ptEntries[0].endTime;
+  const dayTimeText = (dayStartTime || dayEndTime)
+    ? `${dayStartTime ? formatTimeAMPM(dayStartTime) : '--:--'} ~ ${dayEndTime ? formatTimeAMPM(dayEndTime) : '--:--'}`
+    : '';
 
   // 같은 배치(entryBatchIndex)끼리의 시작~종료 시간, 회차 정보를 계산한다.
   function batchInfo(batchEntries){
@@ -9533,6 +9551,15 @@ function openEntryForm(){
   entryMode = 'add';
   entryEditDate = null;
   editHiddenLockedIds = [];
+  // 이 날짜에 이미 있는 일지들 중 가장 큰 배치 번호를 찾아서, 이번 '+새 일지' 세션 전체가
+  // 그다음 번호를 쓰게 고정해둔다 (0=원래 일지, 1=첫 추가 일지, 2=두 번째 추가 일지...).
+  // addLogEntry가 저장할 때마다 새로 계산하면, 자동 저장으로 인해 한 세션 안에서 여러 번
+  // 저장이 일어날 때 그때마다 번호가 올라가버리는 문제가 있었다.
+  currentSessionBatchIndex = (() => {
+    const existing = currentLogs.filter(e => e.date === todayStr());
+    if(!existing.length) return 0;
+    return Math.max(...existing.map(e => e.entryBatchIndex || 0)) + 1;
+  })();
   entryMemberName.textContent = formatDateHintStyle(todayStr());
   entryTrainerBadge.style.display = isViewingAsTrainer ? 'block' : 'none';
   entryTrainerBadge.textContent = isViewingAsTrainer ? (() => { const m = members.find(x => x.id === currentMemberId); return `${m ? m.name : '회원'}님의 일지`; })() : '';
@@ -10255,14 +10282,9 @@ async function addLogEntry(opts){
   const sessionPtTotal = member && member.ptTotal ? member.ptTotal : null;
   const nextNote = nextNoteInput.value.trim();
   const dateHadEntriesBefore = dateHasEntries(dateVal);
-  // 이 날짜에 이미 있는 일지들 중 가장 큰 배치 번호를 찾아서, 이번에 '+새 일지'로 저장하는
-  // 묶음은 그다음 번호를 받는다 (0=원래 일지, 1=첫 번째 추가 일지, 2=두 번째 추가 일지...).
-  // 참(true)/거짓만 구분하던 예전 방식은 세 번째 이상 작성할 때 두 번째와 합쳐지는 문제가 있었다.
-  const nextEntryBatchIndexForDate = (() => {
-    const existing = currentLogs.filter(e => e.date === dateVal);
-    if(!existing.length) return 0;
-    return Math.max(...existing.map(e => e.entryBatchIndex || 0)) + 1;
-  })();
+  // 배치 번호는 '+새 일지'를 열 때(또는 날짜를 바꿀 때) 딱 한 번만 정해서 currentSessionBatchIndex에
+  // 담아둔다 — 여기서 저장할 때마다 새로 계산하면, 자동 저장이 중간에 먼저 한 종목을 저장해버린
+  // 뒤에 이어서 종목을 더 추가할 때 그걸 '새 배치'로 착각해서 번호가 올라가버리는 문제가 있었다.
 
   if(opts.end && !entryEndTimeInput.value){
     entryEndTimeInput.value = formatTimeHHMM(new Date());
@@ -10340,7 +10362,7 @@ async function addLogEntry(opts){
       // 원래 있던 값을 그대로 유지한다.
       entryBatchIndex: existingTarget
         ? (existingTarget.entryBatchIndex || 0)
-        : (entryMode === 'add' ? nextEntryBatchIndexForDate : 0),
+        : (entryMode === 'add' ? currentSessionBatchIndex : 0),
       // 새로 만드는 기록은 작성자를 지금 로그인한 사람으로 남기고, 수정할 땐 원래 작성자를
       // 그대로 유지한다 — 단, 회원이 쓴 일지를 트레이너가 PT인정으로 저장하는 순간에는
       // 트레이너가 그 일지를 인정/책임지는 것이니 작성자도 그 트레이너로 바뀐다.
