@@ -5420,7 +5420,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.70.6';
+const APP_VERSION = '2.70.7';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5756,11 +5756,8 @@ function closePrevNoteEdit(){
 
 function refreshPrevNoteBanner(){
   closePrevNoteEdit();
-  if(entryMode !== 'add'){
-    prevNoteBanner.style.display = 'none';
-    activeNoteEntryId = null;
-    return;
-  }
+  // '+새 일지'든 '일지 수정'이든 상관없이, 가장 최근에 남겨둔 메모가 있으면 계속 상단에
+  // 보여준다. '더 이상 안 보기'로 닫아둔 날짜라면(dismissedNoteDate) 어느 쪽이든 안 보인다.
   const noteEntry = getActiveStandingNoteEntry();
   if(noteEntry){
     activeNoteEntryId = noteEntry.id;
@@ -9646,6 +9643,7 @@ function editEntry(entryId){
 
   entryMode = 'edit';
   entryEditDate = entry.date;
+  refreshPrevNoteBanner(); // 수정 화면에서도 최근 메모가 계속 상단에 보이게
   entryMemberName.textContent = formatDateHintStyle(todayStr());
   entryTrainerBadge.style.display = isViewingAsTrainer ? 'block' : 'none';
   entryTrainerBadge.textContent = isViewingAsTrainer ? (() => { const m = members.find(x => x.id === currentMemberId); return `${m ? m.name : '회원'}님의 일지`; })() : '';
