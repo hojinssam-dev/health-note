@@ -5420,7 +5420,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.70.7';
+const APP_VERSION = '2.70.8';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -13134,6 +13134,7 @@ async function computeTrainerEarnings(trainerUid, viewDate){
   const sessionsByKey = new Map();
   logsSnap.docs.forEach(d => {
     const data = d.data();
+    if(data.private) return; // 비공개로 남긴 PT 일지는 수업료 계산 대상에서 뺀다
     const memberId = d.ref.parent.parent.id;
     const key = `${memberId}|${data.date}|${data.entryBatchIndex || 0}`;
     if(!sessionsByKey.has(key)){
@@ -13253,6 +13254,7 @@ async function computeRegularEmployeeEarnings(trainerUid, viewDate){
   const sessionsByKey = new Map();
   logsSnap.docs.forEach(d => {
     const data = d.data();
+    if(data.private) return; // 비공개로 남긴 PT 일지는 수업료 계산 대상에서 뺀다
     const memberId = d.ref.parent.parent.id;
     const key = `${memberId}|${data.date}`;
     if(!sessionsByKey.has(key)){
