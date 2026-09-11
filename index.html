@@ -5420,7 +5420,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.70.8';
+const APP_VERSION = '2.70.9';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -9656,7 +9656,6 @@ function editEntry(entryId){
   refreshEntryTimeDisplays();
 
   nextNoteInput.value = (dayEntries[0] && dayEntries[0].nextNote) || '';
-  prevNoteBanner.style.display = 'none';
 
   entryTrainerToggles.style.display = isViewingAsTrainer ? 'flex' : 'none';
   const firstEntry = dayEntries[0];
