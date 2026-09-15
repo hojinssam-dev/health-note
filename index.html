@@ -5420,7 +5420,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.71.0';
+const APP_VERSION = '2.71.1';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5783,16 +5783,18 @@ prevNoteEditCancelBtn.addEventListener('click', () => {
   closePrevNoteEdit();
 });
 
-prevNoteEditSaveBtn.addEventListener('click', async () => {
+prevNoteEditSaveBtn.addEventListener('click', () => {
   const noteEntry = currentLogs.find(e => e.id === activeNoteEntryId);
   if(!noteEntry) return;
   const newText = prevNoteEditInput.value.trim();
-  // 하루치 메모는 그날 저장된 모든 종목 문서에 똑같이 복제되어 있을 수 있어서, 그날
-  // 날짜의 모든 일지를 같이 갱신해야 나중에 다른 사본이 예전 문구로 다시 뜨지 않는다.
-  const sameDayEntries = currentLogs.filter(e => e.date === noteEntry.date && e.nextNote && e.nextNote.trim());
-  sameDayEntries.forEach(e => { e.nextNote = newText; });
-  await syncLogChanges(sameDayEntries, []);
-  refreshPrevNoteBanner();
+  showConfirmModal('메모 수정', '이 메모를 수정할까요?', async () => {
+    // 하루치 메모는 그날 저장된 모든 종목 문서에 똑같이 복제되어 있을 수 있어서, 그날
+    // 날짜의 모든 일지를 같이 갱신해야 나중에 다른 사본이 예전 문구로 다시 뜨지 않는다.
+    const sameDayEntries = currentLogs.filter(e => e.date === noteEntry.date && e.nextNote && e.nextNote.trim());
+    sameDayEntries.forEach(e => { e.nextNote = newText; });
+    await syncLogChanges(sameDayEntries, []);
+    refreshPrevNoteBanner();
+  }, '수정');
 });
 
 prevNoteDeleteBtn.addEventListener('click', () => {
@@ -5808,12 +5810,14 @@ prevNoteDeleteBtn.addEventListener('click', () => {
   }, '삭제');
 });
 
-prevNoteDismissBtn.addEventListener('click', async () => {
+prevNoteDismissBtn.addEventListener('click', () => {
   const noteEntry = currentLogs.find(e => e.id === activeNoteEntryId);
   if(!noteEntry) return;
-  dismissedNoteDate = noteEntry.date;
-  await storageSetWithRetry(dismissedNoteKey(currentMemberId), dismissedNoteDate, false, undefined, currentMemberId);
-  refreshPrevNoteBanner();
+  showConfirmModal('메모 그만 보기', '이 메모를 더 이상 보지 않을까요?', async () => {
+    dismissedNoteDate = noteEntry.date;
+    await storageSetWithRetry(dismissedNoteKey(currentMemberId), dismissedNoteDate, false, undefined, currentMemberId);
+    refreshPrevNoteBanner();
+  }, '확인');
 });
 
 entryDateInput.addEventListener('change', () => {
