@@ -5420,7 +5420,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.70.9';
+const APP_VERSION = '2.71.0';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8239,6 +8239,7 @@ function makeBlock(){
   block._getMode = () => recordMode;
   block._setRowsEl = setRowsEl;
   block._updatePrevHint = updatePrevHint;
+  block._updatePrevRowHints = updatePrevRowHints;
   block._updateExerciseMemoHint = updateExerciseMemoHint;
   block._applyPrevSetRows = applyPrevSetRows;
   block._autoGrowStatMemo = autoGrowStatMemo;
@@ -9626,7 +9627,7 @@ function openEntryForm(){
   updateUndoFab();
 }
 
-function editEntry(entryId){
+async function editEntry(entryId){
   const entry = currentLogs.find(e => e.id === entryId);
   if(!entry) return;
   const member = members.find(m => m.id === currentMemberId);
@@ -9715,6 +9716,9 @@ function editEntry(entryId){
       ? dayEntry.setRows
       : (mode === 'time' ? [{ minutes: '', seconds: '' }] : [{ weight: dayEntry.weight || '', reps: dayEntry.reps || '' }]);
     block._setMode(mode, rows);
+    // 신기록 여부를 다시 계산해서, 수정 화면에서도 저장 당시와 똑같이 '신기록이에요' 배지가
+    // 뜨게 한다 — 이름·세트를 그냥 채워 넣기만 해서는 이 비교 로직이 자동으로 실행되지 않는다.
+    block._updatePrevHint().then(() => block._updatePrevRowHints());
 
     exerciseBlocks.appendChild(block);
     // 실제 화면에 붙은 뒤에 높이를 재야 정확하게 계산된다 (붙이기 전엔 스크롤 높이가 제대로 안 잡힘)
