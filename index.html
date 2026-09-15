@@ -5420,7 +5420,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.71.1';
+const APP_VERSION = '2.71.2';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -10207,13 +10207,20 @@ function getCyclePhase(periodStartDates, dateStr){
   const follicularLength = Math.max(1, cycleLength - periodLength - lutealLength);
 
   const rawDayIndex = dateDiffDays(anchor, dateStr); // 시작일 자체가 0일차
+  // 이 기준 시작일 바로 다음으로 실제 기록된 시작일이 있다면(=예정일보다 실제로 하루이틀
+  // 늦게 시작해서 방금 그 날짜를 기록해둔 경우 포함), 그 전날까지는 평균 주기 길이를 넘어서더라도
+  // 전부 이번 주기로 본다 — 잘라내지 않고 늘어난 만큼 황체기가 자연스럽게 이어지게 한다.
+  const hasConfirmedNextStart = anchorIndex + 1 < sorted.length;
   // 지금 기준으로 삼은 시작일이 '가장 최근 기록'이고(=그 뒤로 아직 실제 시작일이 안 잡힘),
   // 평균 주기를 믿을 수 있는 상태면, 한 주기를 넘어가도 계속 다음 달(그다음달...)까지
   // 예측해서 보여준다. 실제 시작일이 새로 기록되면 그 날짜가 새 기준이 되어 자동으로
   // 정확한 값으로 이어받는다 — 그래서 이 예측은 언제든 자연스럽게 수정된다.
   const isFutureOfLastAnchor = anchorIndex === sorted.length - 1;
   let dayIndex, isPredicted;
-  if(hasReliableAverage && isFutureOfLastAnchor){
+  if(hasConfirmedNextStart){
+    dayIndex = rawDayIndex;
+    isPredicted = false;
+  } else if(hasReliableAverage && isFutureOfLastAnchor){
     dayIndex = rawDayIndex % cycleLength;
     isPredicted = rawDayIndex >= cycleLength;
   } else {
