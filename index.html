@@ -2359,6 +2359,51 @@
     object-fit: cover;
     display:block;
   }
+  .body-photo-thumb-error{
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px;
+    text-align: center;
+    background: var(--surface-raised);
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .body-photo-thumb-error .retry-btn{
+    font-size: 11px;
+    color: var(--brass-bright);
+    background: rgba(201,162,39,0.12);
+    border: 1px solid rgba(201,162,39,0.35);
+    border-radius: 20px;
+    padding: 3px 10px;
+    cursor: pointer;
+  }
+  .photo-lightbox-error{
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 24px;
+    min-height: 200px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .photo-lightbox-error .retry-btn{
+    font-size: 13px;
+    color: var(--brass-bright);
+    background: rgba(201,162,39,0.12);
+    border: 1px solid rgba(201,162,39,0.35);
+    border-radius: 20px;
+    padding: 6px 16px;
+    cursor: pointer;
+  }
   .body-photo-thumb .thumb-badge{
     position:absolute;
     left: 4px;
@@ -5187,6 +5232,7 @@
 <div class="modal-overlay" id="photoLightbox">
   <div class="photo-lightbox-box">
     <img id="photoLightboxImg" src="" alt="사진">
+    <div class="photo-lightbox-error" id="photoLightboxError"></div>
     <div class="photo-lightbox-meta" id="photoLightboxMeta"></div>
     <div class="modal-actions">
       <button class="modal-btn modal-btn-danger" id="photoLightboxDeleteBtn">사진 삭제</button>
@@ -5420,7 +5466,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.71.2';
+const APP_VERSION = '2.72.1';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5958,6 +6004,7 @@ const bodyPhotosGrid = document.getElementById('bodyPhotosGrid');
 const bodyPhotoFileInput = document.getElementById('bodyPhotoFileInput');
 const photoLightbox = document.getElementById('photoLightbox');
 const photoLightboxImg = document.getElementById('photoLightboxImg');
+const photoLightboxError = document.getElementById('photoLightboxError');
 const photoLightboxMeta = document.getElementById('photoLightboxMeta');
 const photoLightboxDeleteBtn = document.getElementById('photoLightboxDeleteBtn');
 const photoLightboxCloseBtn = document.getElementById('photoLightboxCloseBtn');
@@ -6016,34 +6063,26 @@ async function loadBodyPhotos(memberId){
   return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
 
-/* Cloudinary에서 직접 지운 사진은 파일 자체가 없어져서 깨진 이미지로 남는데,
-   그걸 목록에서도 조용히 정리해준다. 사진 하나하나가 실제로 열리는지 확인해서,
-   안 열리는(깨진) 것만 뒤에서(화면 안 막고) 기록까지 지운다. */
-function checkImageLoads(url){
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(true);
-    img.onerror = () => resolve(false);
-    img.src = url;
-  });
-}
-async function pruneBrokenBodyPhotos(memberId, photos){
-  if(!photos.length) return;
-  const results = await Promise.all(photos.map(p => checkImageLoads(p.url)));
-  const broken = photos.filter((p, i) => !results[i]);
-  if(!broken.length) return;
+/* 사진이 실제로 로딩에 실패하면(onerror), 그게 "진짜로 Cloudinary에서 지워진 것"인지
+   "그 순간 네트워크가 불안정했던 것"인지 서버(Netlify Function)에 물어봐서 확인한다.
+   전엔 회원의 브라우저가 직접 이미지를 다시 로딩해보고 그 결과만으로 판단했는데, 그러면
+   회원의 와이파이 상태에 따라 멀쩡한 사진도 "깨졌다"고 오판할 수 있었다. 서버는 회원의
+   네트워크 상태와 무관하게 안정적으로 확인해주니 훨씬 믿을 만하다. 또한 이제는 이 확인
+   결과를 이유로 자동으로 지우지 않는다 — 결과를 사람이 보고 판단해서 직접 삭제해야 한다.
+   반환값: true(정상) / false(서버가 "없음"으로 확답) / null(서버도 확실히 판단 못 함) */
+async function checkPhotoExistsOnServer(url){
   try{
-    const batch = db.batch();
-    broken.forEach(p => batch.delete(bodyPhotosCollection(memberId).doc(p.id)));
-    await batch.commit();
+    const res = await fetch('/.netlify/functions/check-photo-exists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    if(!res.ok) return null;
+    const data = await res.json();
+    return typeof data.exists === 'boolean' ? data.exists : null;
   }catch(err){
-    console.error('깨진 사진 정리 오류:', err);
-    return;
-  }
-  if(currentMemberId === memberId){
-    const brokenIds = new Set(broken.map(p => p.id));
-    currentBodyPhotos = currentBodyPhotos.filter(p => !brokenIds.has(p.id));
-    renderBodyPhotos();
+    console.error('사진 확인 오류:', err);
+    return null; // 확인 요청 자체가 실패했으면 '확실하지 않음'으로 취급한다
   }
 }
 
@@ -6062,14 +6101,44 @@ function renderBodyPhotos(){
   const sorted = [...currentBodyPhotos].sort((a,b) => b.date.localeCompare(a.date));
   bodyPhotosGrid.innerHTML = sorted.map(p => `
     <div class="body-photo-thumb" data-photo-id="${p.id}">
-      <img src="${p.url}" alt="등록된 사진">
+      <img src="${p.url}" alt="등록된 사진" data-photo-url="${p.url}">
+      <div class="body-photo-thumb-error"></div>
       <span class="thumb-date">${p.date.slice(5).replace('-', '/')}</span>
     </div>
   `).join('');
 
   bodyPhotosGrid.querySelectorAll('[data-photo-id]').forEach(el => {
     el.addEventListener('click', () => openPhotoLightbox(el.getAttribute('data-photo-id')));
+    const img = el.querySelector('img');
+    img.addEventListener('error', () => handlePhotoLoadFailure(img, el.querySelector('.body-photo-thumb-error')));
   });
+}
+
+// 썸네일 로딩이 실패하면, 브라우저의 기본 깨진 이미지 아이콘 대신 서버 확인 결과에 맞는
+// 문구를 보여준다. '원본이 지워졌어요'는 서버가 명확히 확인해준 경우에만 표시하고, 그
+// 외(네트워크 문제 등으로 확실하지 않을 때)는 '다시 시도'를 눌러볼 수 있게 안내한다.
+// 어느 쪽이든 여기서 자동으로 삭제하지 않는다 — 삭제는 항상 사람이 직접 눌러야 한다.
+async function handlePhotoLoadFailure(imgEl, errorBoxEl){
+  if(!errorBoxEl) return;
+  const url = imgEl.getAttribute('data-photo-url');
+  imgEl.style.display = 'none';
+  errorBoxEl.innerHTML = `<span>확인하는 중...</span>`;
+  errorBoxEl.style.display = 'flex';
+  const exists = await checkPhotoExistsOnServer(url);
+  // 확인하는 사이에 이미 이 썸네일이 화면에서 사라졌을 수 있으니(다른 회원으로 이동 등),
+  // 지금도 문서에 그대로 붙어있을 때만 결과를 반영한다
+  if(!document.body.contains(errorBoxEl)) return;
+  if(exists === false){
+    errorBoxEl.innerHTML = `<span>📷 원본이 지워졌어요</span>`;
+  } else {
+    errorBoxEl.innerHTML = `<span>불러오지 못했어요</span><button type="button" class="retry-btn">다시 시도</button>`;
+    errorBoxEl.querySelector('.retry-btn').addEventListener('click', (ev) => {
+      ev.stopPropagation(); // 썸네일 클릭(라이트박스 열기)으로 안 번지게
+      errorBoxEl.style.display = 'none';
+      imgEl.style.display = '';
+      imgEl.src = url + (url.includes('?') ? '&' : '?') + 'retry=' + Date.now(); // 캐시된 실패를 피해 다시 요청
+    });
+  }
 }
 
 function resizeImageFile(file){
@@ -6166,6 +6235,9 @@ function openPhotoLightbox(photoId){
   const photo = currentBodyPhotos.find(p => p.id === photoId);
   if(!photo) return;
   lightboxPhotoId = photoId;
+  photoLightboxError.style.display = 'none';
+  photoLightboxImg.style.display = '';
+  photoLightboxImg.setAttribute('data-photo-url', photo.url);
   photoLightboxImg.src = photo.url;
   photoLightboxMeta.textContent = formatDate(photo.date);
   photoLightbox.classList.add('open');
@@ -6173,8 +6245,15 @@ function openPhotoLightbox(photoId){
 function closePhotoLightbox(){
   photoLightbox.classList.remove('open');
   photoLightboxImg.src = '';
+  photoLightboxError.style.display = 'none';
   lightboxPhotoId = null;
 }
+photoLightboxImg.addEventListener('error', () => {
+  // 라이트박스를 닫으면서 src를 비울 때도(빈 문자열 → 현재 페이지 주소로 해석되어) 이 이벤트가
+  // 뜰 수 있어서, 지금 라이트박스가 실제로 열려있을 때만 반응한다
+  if(!photoLightbox.classList.contains('open')) return;
+  handlePhotoLoadFailure(photoLightboxImg, photoLightboxError);
+});
 photoLightboxCloseBtn.addEventListener('click', closePhotoLightbox);
 photoLightbox.addEventListener('click', (ev) => {
   if(ev.target === photoLightbox) closePhotoLightbox();
@@ -6338,12 +6417,12 @@ const BODY_PARTS = ['가슴', '등', '어깨', '팔', '복근', '하체', '유�
 /* 운동 종목 이름에 아래 글자가 포함되면 해당 부위로 자동 인식해서
    설정에서 지정한 부위 색을 이름 글자색에 자동 적용한다 */
 const BODY_PART_KEYWORDS = {
-  '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈', '핵프레스', '런지', '클램쉘'],
-  '어깨': ['숄더', '솔뎌', '숄뎌', '밀리터리', '사레레', '슈러그', '레터럴레이즈', '프론트레이즈', '업라이트로우'],
-  '가슴': ['벤치', '딥스', '푸시업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이', '체스트', '덤벨프레스', '덤벨플라이'],
+  '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈', '핵프레스', '런지', '클램쉘', '스티프데드리프트'],
+  '어깨': ['숄더', '솔뎌', '숄뎌', '밀리터리', '사레레', '슈러그', '레터럴레이즈', '프론트레이즈', '업라이트로우', '오버헤드프레스', '페이스풀'],
+  '가슴': ['벤치', '딥스', '푸시업', '푸쉬업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이', '체스트', '덤벨프레스', '덤벨플라이', '플라이'],
   '복근': ['레그레이즈', '크런치', '리버스', '플랭크', '데드버그', '싯업', '윗몸일으키기', '트위스트', '롤아웃', '버드독'],
   '팔': ['바이셉스', '트라이셉스', '케이블푸시다운', '덤벨컬', '바벨컬', '오버헤드익스텐션'],
-  '등': ['랫풀다운', '풀다운', '풀업', '롱풀', '레터럴로우', '로우로우', '어시스트풀업', '친업', '시티드로우'],
+  '등': ['랫풀다운', '풀다운', '풀업', '롱풀', '레터럴로우', '로우로우', '어시스트풀업', '친업', '시티드로우', '바벨로우', '로우풀리', '루마니안데드리프트'],
   '유산소': ['유산소', '러닝', '런닝', '자전거', '싸이클', '워킹', '천국', '계단', '트레드밀', '트래드밀', '로잉'],
 };
 
@@ -8396,7 +8475,6 @@ async function openMember(memberId, isNewMember, jumpToDate){
     if(currentMemberId !== memberId) return; // 그 사이 다른 회원으로 넘어갔으면 화면엔 반영하지 않는다
     currentBodyPhotos = photos;
     renderBodyPhotos();
-    pruneBrokenBodyPhotos(memberId, currentBodyPhotos); // 화면 막지 않고 뒤에서 깨진 사진만 조용히 정리
   })();
   storageGetWithRetry(dismissedNoteKey(memberId), false, memberId).then((dismissedResult) => {
     dismissedNoteDate = dismissedResult ? dismissedResult.value : null;
