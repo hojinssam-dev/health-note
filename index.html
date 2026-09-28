@@ -1162,6 +1162,34 @@
     color: var(--brass);
     margin-bottom: 2px;
   }
+  .pending-sync-banner{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 10px;
+    background: rgba(193,95,69,0.12);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    border-radius: var(--radius-s);
+    padding: 10px 12px;
+    margin: 0 0 14px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  .pending-sync-banner button{
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    border-radius: var(--radius-s);
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s ease;
+  }
+  .pending-sync-banner button:hover{ background: rgba(193,95,69,0.15); }
   .header-new-entry-btn{
     flex-shrink: 0;
     background: linear-gradient(160deg, var(--brass-bright), var(--brass));
@@ -1332,6 +1360,14 @@
     box-shadow: none;
   }
   .log-submit.not-saved:hover{ filter: none; box-shadow: none; transform: none; }
+  .log-submit.saving{
+    background: var(--surface-raised);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+  .log-submit.saving:hover{ filter: none; box-shadow: none; transform: none; }
   .log-submit:active{ transform: translateY(0) scale(.98); }
   .log-submit-secondary{
     background: var(--surface-raised);
@@ -4503,6 +4539,11 @@
       <button class="header-new-entry-btn" id="openEntryTab">+새일지</button>
     </div>
 
+    <div class="pending-sync-banner" id="pendingSyncBanner" style="display:none;">
+      <span id="pendingSyncBannerText">⚠ 아직 서버에 저장되지 않은 기록이 있어요. 이 화면을 켜두시면 자동으로 다시 저장을 시도해요.</span>
+      <button type="button" id="pendingSyncRetryBtn">지금 다시 시도</button>
+    </div>
+
     <div class="member-info-memo-wrap">
       <textarea autocapitalize="off" class="member-info-memo" id="memberInfoMemo" placeholder="회원 특이사항을 적어두세요. 회원에게는 안 보이고, 나(트레이너/관리자)한테만 보여요." style="display:none;"></textarea>
       <span class="member-info-memo-saved" id="memberInfoMemoSaved"></span>
@@ -5466,7 +5507,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.1';
+const APP_VERSION = '2.72.2';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5838,7 +5879,7 @@ prevNoteEditSaveBtn.addEventListener('click', () => {
     // 날짜의 모든 일지를 같이 갱신해야 나중에 다른 사본이 예전 문구로 다시 뜨지 않는다.
     const sameDayEntries = currentLogs.filter(e => e.date === noteEntry.date && e.nextNote && e.nextNote.trim());
     sameDayEntries.forEach(e => { e.nextNote = newText; });
-    await syncLogChanges(sameDayEntries, []);
+    await syncLogChanges(sameDayEntries, [], currentMemberId);
     refreshPrevNoteBanner();
   }, '수정');
 });
@@ -5851,7 +5892,7 @@ prevNoteDeleteBtn.addEventListener('click', () => {
     // 나머지 사본이 '가장 최근 메모'로 다시 나타나서 안 지워진 것처럼 보이는 문제가 있었다)
     const sameDayEntries = currentLogs.filter(e => e.date === noteEntry.date && e.nextNote && e.nextNote.trim());
     sameDayEntries.forEach(e => { e.nextNote = ''; });
-    await syncLogChanges(sameDayEntries, []);
+    await syncLogChanges(sameDayEntries, [], currentMemberId);
     refreshPrevNoteBanner();
   }, '삭제');
 });
@@ -5943,13 +5984,23 @@ let formTouchedSinceOpen = false;
 function markSavedState(){
   entrySaved = true;
   logAddBtn.textContent = '저장 완료';
-  logAddBtn.classList.remove('not-saved');
+  logAddBtn.classList.remove('not-saved', 'saving');
   formTouchedSinceOpen = false;
 }
 function resetSaveButtonState(){
   entrySaved = false;
   logAddBtn.textContent = '저장';
+  logAddBtn.classList.remove('saving');
   logAddBtn.classList.add('not-saved');
+}
+/* 서버 응답을 기다리는 동안(특히 재시도가 걸려서 몇 초 걸릴 때) "멈춘 것처럼" 보이지 않도록,
+   저장 버튼에 진행 중 표시를 하고 중복 클릭도 막아둔다. */
+function markSavingState(){
+  logAddBtn.textContent = '저장 중...';
+  logAddBtn.classList.remove('not-saved');
+  logAddBtn.classList.add('saving');
+  logAddBtn.disabled = true;
+  logAddCopyBtn.disabled = true;
 }
 
 /* 20초간 아무 입력이 없으면 자동 저장 */
@@ -6419,15 +6470,18 @@ const BODY_PARTS = ['가슴', '등', '어깨', '팔', '복근', '하체', '유�
 const BODY_PART_KEYWORDS = {
   '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈', '핵프레스', '런지', '클램쉘', '스티프데드리프트'],
   '어깨': ['숄더', '솔뎌', '숄뎌', '밀리터리', '사레레', '슈러그', '레터럴레이즈', '프론트레이즈', '업라이트로우', '오버헤드프레스', '페이스풀'],
-  '가슴': ['벤치', '딥스', '푸시업', '푸쉬업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이', '체스트', '덤벨프레스', '덤벨플라이', '플라이'],
-  '복근': ['레그레이즈', '크런치', '리버스', '플랭크', '데드버그', '싯업', '윗몸일으키기', '트위스트', '롤아웃', '버드독'],
+  '가슴': ['딥스', '푸시업', '푸쉬업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이', '체스트', '덤벨프레스', '덤벨플라이', '플라이'],
+  '복근': ['레그레이즈', '크런치', '플랭크', '데드버그', '싯업', '윗몸일으키기', '트위스트', '롤아웃', '버드독'],
   '팔': ['바이셉스', '트라이셉스', '케이블푸시다운', '덤벨컬', '바벨컬', '오버헤드익스텐션'],
   '등': ['랫풀다운', '풀다운', '풀업', '롱풀', '레터럴로우', '로우로우', '어시스트풀업', '친업', '시티드로우', '바벨로우', '로우풀리', '루마니안데드리프트'],
   '유산소': ['유산소', '러닝', '런닝', '자전거', '싸이클', '워킹', '천국', '계단', '트레드밀', '트래드밀', '로잉'],
 };
 
-/* '인클라인', '디클라인'은 다른 부위 운동에도 흔히 붙는 말이라 일반 키워드로 넣지 않고,
-   아래 특정 종목 이름(띄어쓰기 무시하고 정확히 일치할 때만)일 때만 가슴 색으로 인식한다 */
+/* '인클라인', '디클라인', '벤치'는 다른 부위 운동에도 흔히 붙거나(예: 벤치 스텝업 - 하체)
+   너무 흔한 말이라 일반 키워드로 넣지 않고, 아래 특정 종목 이름(띄어쓰기 무시하고
+   정확히 일치할 때만)일 때만 가슴 색으로 인식한다 */
+/* '리버스'도 리버스 런지(하체), 리버스 플라이(어깨/등)처럼 다른 부위 운동에 흔히 붙는 말이라
+   일반 키워드로 넣지 않고, 정확히 일치할 때만 복근으로 인식한다 */
 /* 이런 글자가 이름에 들어간 종목은 '무게·횟수'가 아니라 '시간'으로 재는 게 자연스러워서,
    이전 기록이 없는 새 종목일 때 기본 모드를 '시간'으로 잡아준다 */
 const TIME_MODE_KEYWORDS = ['플랭크', '매달리기', '월싯', '천국의 계단', '자전거', '사이클', '싸이클', '러닝머신', '런닝머신', '러닝', '런닝', '조깅', '산책'];
@@ -6437,7 +6491,8 @@ function defaultRecordModeForName(name){
   return TIME_MODE_KEYWORDS.some(kw => noSpace.includes(kw.replace(/\s+/g, ''))) ? 'time' : 'reps';
 }
 
-const CHEST_EXACT_NAMES = ['인클라인프레스', '인클라인벤치프레스', '디클라인프레스', '디클라인벤치프레스'].map(n => n.replace(/\s+/g, ''));
+const CHEST_EXACT_NAMES = ['인클라인프레스', '인클라인벤치프레스', '디클라인프레스', '디클라인벤치프레스', '벤치프레스'].map(n => n.replace(/\s+/g, ''));
+const ABS_EXACT_NAMES = ['리버스크런치'].map(n => n.replace(/\s+/g, ''));
 
 // '어시스트/어시스티드' 계열 운동(어시스트 풀업, 어시스티드 친업 등)은 기계가 대신 들어주는
 // 무게라서, 무게가 가벼울수록(도움을 덜 받을수록) 더 잘한 것이다. 그래서 이 종목들은 신기록
@@ -6451,6 +6506,7 @@ function detectBodyPartFromName(name){
   if(!trimmed) return null;
   const noSpace = trimmed.replace(/\s+/g, '');
   if(CHEST_EXACT_NAMES.includes(noSpace)) return '가슴';
+  if(ABS_EXACT_NAMES.includes(noSpace)) return '복근';
   for(const part of BODY_PARTS){
     const keywords = BODY_PART_KEYWORDS[part];
     if(keywords && keywords.some(kw => noSpace.includes(kw))) return part;
@@ -6649,24 +6705,153 @@ async function loadLogsForMember(memberId){
   return snap.docs.map(d => d.data());
 }
 
-/* entriesToSave: 새로 만들었거나 바뀐 일지들, idsToDelete: 삭제된 일지 id들.
-   바뀐 것만 정확히 골라서 쓰기 때문에, 기록이 아무리 많이 쌓여도 매번 전체를 다시 쓰지 않는다. */
-async function syncLogChanges(entriesToSave, idsToDelete){
+/* ---------- 아직 서버에 완전히 저장되지 못한 일지: 이 기기에 임시로 남겨뒀다가 자동으로 다시 시도한다 ----------
+   2026-09-28 있었던 사고(수업 중 네트워크가 불안정해서 일지 저장이 조용히 실패하고, 화면에는 저장된
+   것처럼 보였다가 나중에 통째로 사라진 일) 이후로 추가됨.
+   - 저장을 시도하기 "전에" 먼저 이 기기(localStorage)에 남겨두므로, 재시도가 전부 실패하거나
+     앱을 꺼도 이 기기 안에서는 기록이 사라지지 않는다.
+   - 서버 저장이 성공하면 바로 이 목록에서 지워진다.
+   - 아직 안 지워진(=서버에 못 올라간) 기록이 있으면 화면 상단에 배너로 계속 알려준다. */
+const PENDING_SYNC_KEY = 'pending-log-sync:v1';
+
+function loadPendingSyncMap(){
   try{
-    const batch = db.batch();
-    (entriesToSave || []).forEach(entry => {
-      batch.set(logsCollection(currentMemberId).doc(entry.id), entry);
-    });
-    (idsToDelete || []).forEach(id => {
-      batch.delete(logsCollection(currentMemberId).doc(id));
-    });
-    await batch.commit();
-    return true;
-  }catch(err){
-    console.error('일지 저장 오류:', err);
-    return false;
+    const raw = localStorage.getItem(PENDING_SYNC_KEY);
+    return raw ? JSON.parse(raw) : {};
+  }catch(err){ return {}; }
+}
+function savePendingSyncMap(map){
+  try{ localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(map)); }catch(err){ /* 저장 공간 문제 등은 조용히 건너뜀 */ }
+}
+function addToPendingSync(memberId, entriesToSave, idsToDelete){
+  const map = loadPendingSyncMap();
+  const bucket = map[memberId] || { entries: {}, deletes: [] };
+  (entriesToSave || []).forEach(entry => { bucket.entries[entry.id] = entry; });
+  (idsToDelete || []).forEach(id => {
+    delete bucket.entries[id];
+    if(!bucket.deletes.includes(id)) bucket.deletes.push(id);
+  });
+  map[memberId] = bucket;
+  savePendingSyncMap(map);
+  updatePendingSyncBanner();
+}
+function removeFromPendingSync(memberId, entriesToSave, idsToDelete){
+  const map = loadPendingSyncMap();
+  const bucket = map[memberId];
+  if(!bucket) return;
+  (entriesToSave || []).forEach(entry => { delete bucket.entries[entry.id]; });
+  (idsToDelete || []).forEach(id => { bucket.deletes = bucket.deletes.filter(x => x !== id); });
+  if(Object.keys(bucket.entries).length === 0 && bucket.deletes.length === 0){
+    delete map[memberId];
+  } else {
+    map[memberId] = bucket;
+  }
+  savePendingSyncMap(map);
+  updatePendingSyncBanner();
+}
+function getPendingEntriesFor(memberId){
+  if(!memberId) return [];
+  const bucket = loadPendingSyncMap()[memberId];
+  return bucket ? Object.values(bucket.entries || {}) : [];
+}
+function hasPendingSyncFor(memberId){
+  if(!memberId) return false;
+  const bucket = loadPendingSyncMap()[memberId];
+  return !!bucket && (Object.keys(bucket.entries).length > 0 || bucket.deletes.length > 0);
+}
+
+function updatePendingSyncBanner(){
+  const banner = document.getElementById('pendingSyncBanner');
+  const text = document.getElementById('pendingSyncBannerText');
+  if(!banner) return;
+  const map = loadPendingSyncMap();
+  const pendingMemberIds = Object.keys(map);
+  if(pendingMemberIds.length === 0){
+    banner.style.display = 'none';
+    return;
+  }
+  banner.style.display = 'flex';
+  if(currentMemberId && pendingMemberIds.includes(currentMemberId)){
+    text.textContent = '⚠ 아직 서버에 저장되지 않은 기록이 있어요. 이 화면을 켜두시면 자동으로 다시 저장을 시도해요.';
+  } else {
+    text.textContent = '⚠ 다른 회원의 기록 중 아직 서버에 저장되지 못한 게 있어요. 자동으로 계속 재시도 중이에요.';
   }
 }
+
+/* entriesToSave: 새로 만들었거나 바뀐 일지들, idsToDelete: 삭제된 일지 id들.
+   memberId를 생략하면 호출 시점의 currentMemberId를 쓴다 — 재시도 도중에 화면이 다른 회원으로
+   바뀌어도 엉뚱한 회원에게 저장되지 않도록, 호출하는 쪽에서 되도록 명시적으로 넘겨준다.
+   바뀐 것만 정확히 골라서 쓰기 때문에, 기록이 아무리 많이 쌓여도 매번 전체를 다시 쓰지 않는다. */
+async function syncLogChanges(entriesToSave, idsToDelete, memberId){
+  memberId = memberId || currentMemberId;
+  entriesToSave = entriesToSave || [];
+  idsToDelete = idsToDelete || [];
+  if(!memberId || (entriesToSave.length === 0 && idsToDelete.length === 0)) return true;
+
+  // 서버에 보내기 전에 먼저 이 기기에 남겨둔다 (아래 재시도가 전부 실패해도 여기엔 남아있음)
+  addToPendingSync(memberId, entriesToSave, idsToDelete);
+
+  const retries = 4;
+  let lastErr = null;
+  for(let attempt = 0; attempt <= retries; attempt++){
+    try{
+      const batch = db.batch();
+      entriesToSave.forEach(entry => {
+        batch.set(logsCollection(memberId).doc(entry.id), entry);
+      });
+      idsToDelete.forEach(id => {
+        batch.delete(logsCollection(memberId).doc(id));
+      });
+      await batch.commit();
+      removeFromPendingSync(memberId, entriesToSave, idsToDelete);
+      return true;
+    }catch(err){
+      lastErr = err;
+      if(attempt < retries){
+        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+      }
+    }
+  }
+  console.error('일지 저장 오류 (재시도 후에도 실패 — 이 기기에는 남아있어서 나중에 다시 시도됨):', memberId, lastErr);
+  return false;
+}
+
+/* 이 기기에 남아있는 "아직 저장 안 된" 기록들을 전부 다시 시도한다.
+   로그인 직후, 이 화면이 다시 보일 때(visibilitychange), 인터넷이 다시 연결될 때(online),
+   그리고 배너의 "지금 다시 시도" 버튼을 눌렀을 때 호출된다. */
+let pendingSyncFlushInFlight = false;
+async function flushPendingSync(){
+  if(pendingSyncFlushInFlight) return;
+  pendingSyncFlushInFlight = true;
+  try{
+    const map = loadPendingSyncMap();
+    for(const memberId of Object.keys(map)){
+      const bucket = map[memberId];
+      const entries = Object.values((bucket && bucket.entries) || {});
+      const deletes = (bucket && bucket.deletes) || [];
+      if(entries.length === 0 && deletes.length === 0) continue;
+      const ok = await syncLogChanges(entries, deletes, memberId);
+      if(ok && memberId === currentMemberId){
+        entries.forEach(entry => {
+          const idx = currentLogs.findIndex(e => e.id === entry.id);
+          if(idx >= 0) currentLogs[idx] = entry; else currentLogs.push(entry);
+        });
+        renderCalendar();
+        renderDayDetail();
+      }
+    }
+  } finally {
+    pendingSyncFlushInFlight = false;
+    updatePendingSyncBanner();
+  }
+}
+window.addEventListener('online', () => { flushPendingSync(); });
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible') flushPendingSync();
+});
+document.getElementById('pendingSyncRetryBtn').addEventListener('click', () => {
+  flushPendingSync();
+});
 
 /* ---------- 되돌리기 (스냅샷 방식) ----------
    '이 날짜 일지 전체 삭제', '운동 종목 기록 삭제'를 할 때만, 그 작업이 지우는 일지들의
@@ -6890,7 +7075,7 @@ function clearAllCalCache(){
    부분을 통째로 맞춰 넣는다. 단순히 "없는 것만 추가"하는 게 아니라: 서버에서 이미 지워진
    기록은 화면에서도 지우고, 내용이 바뀐 기록은 최신 내용으로 덮어쓴다. 캐시로 먼저 보여준
    예전 데이터를 나중에 정확하게 바꿔치기하려면 이 방식이 꼭 필요하다. */
-function reconcileLogsInRange(freshEntries, start, end){
+function reconcileLogsInRange(freshEntries, start, end, memberId){
   // 트레이너가 '비공개'로 표시해둔 기록은, 그 트레이너나 관리자가 보는 게 아니라면
   // (즉 회원 본인 화면이라면) 애초에 currentLogs에 들어오지 않게 걸러낸다.
   const visibleEntries = (isViewingAsTrainer || isAdmin())
@@ -6903,6 +7088,16 @@ function reconcileLogsInRange(freshEntries, start, end){
     const idx = currentLogs.findIndex(e => e.id === entry.id);
     if(idx >= 0) currentLogs[idx] = entry; else currentLogs.push(entry);
   });
+
+  // 서버에 아직 저장되지 못하고 이 기기에 대기 중인 기록은, 방금 서버 값으로 덮어쓰다가
+  // 화면에서 사라지지 않도록 다시 채워 넣는다(실제로 지워진 게 아니라 동기화 대기 중이라는 뜻 —
+  // 상단 배너로 계속 안내되고, 뒤에서 flushPendingSync가 계속 재시도한다).
+  getPendingEntriesFor(memberId).forEach(entry => {
+    if(entry.date >= start && entry.date <= end && !freshIds.has(entry.id)){
+      const idx = currentLogs.findIndex(e => e.id === entry.id);
+      if(idx >= 0) currentLogs[idx] = entry; else currentLogs.push(entry);
+    }
+  });
 }
 
 async function loadMonthLogs(memberId, year, month){
@@ -6914,7 +7109,7 @@ async function loadMonthLogs(memberId, year, month){
     .where('date', '<=', end)
     .get();
   loadedMonthsCache[key] = true;
-  reconcileLogsInRange(snap.docs.map(d => d.data()), start, end);
+  reconcileLogsInRange(snap.docs.map(d => d.data()), start, end, memberId);
 }
 
 /* 화면을 최대한 빨리 띄우기 위해, 이번 주 분량만 먼저 빠르게 불러온다 (달 전체는 이 다음에 뒤에서 마저 불러옴) */
@@ -6934,7 +7129,7 @@ async function loadWeekLogs(memberId, date){
     .where('date', '>=', start)
     .where('date', '<=', end)
     .get();
-  reconcileLogsInRange(snap.docs.map(d => d.data()), start, end);
+  reconcileLogsInRange(snap.docs.map(d => d.data()), start, end, memberId);
 }
 
 /* ---------- 총 기록일 수: 매번 전체를 다시 세지 않고, 값 하나만 유지·갱신 ----------
@@ -8372,6 +8567,8 @@ async function openMember(memberId, isNewMember, jumpToDate){
   selectedDetailDate = null;
   loadedMonthsCache = {};
   currentLogs = [];
+  updatePendingSyncBanner();
+  flushPendingSync(); // 이 회원(또는 다른 회원)에게 아직 못 올라간 기록이 있으면 여기서 다시 시도해본다
 
   viewLanding.classList.remove('active');
   viewPrivacy.classList.remove('active');
@@ -9126,7 +9323,7 @@ async function deleteDayEntries(dateStr){
   if(selectedDetailDate === dateStr && !dayStillHasEntries) selectedDetailDate = null;
   renderCalendar();
   renderDayDetail();
-  const ok = await syncLogChanges([], idsToDelete);
+  const ok = await syncLogChanges([], idsToDelete, currentMemberId);
   if(!ok) showCopyToast('삭제에 실패했어요. 잠시 후 다시 시도해주세요.');
   if(idsToDelete.length > 0 && !dayStillHasEntries) await adjustTotalWorkoutDays(-1);
   refreshCalendarHeaderStats();
@@ -9211,7 +9408,7 @@ function pasteDayClipboard(targetDate){
       dayClipboard = null;
       updateClipboardBanner();
       selectedDetailDate = targetDate;
-      const ok = await syncLogChanges(newEntries, []);
+      const ok = await syncLogChanges(newEntries, [], currentMemberId);
       if(!ok) showCopyToast('붙여넣기 저장에 실패했어요. 잠시 후 다시 시도해주세요.');
       if(existingCount === 0 && newEntries.length > 0) await adjustTotalWorkoutDays(1);
       renderCalendar();
@@ -9317,7 +9514,7 @@ async function deleteLogEntry(id){
   currentLogs = currentLogs.filter(e => e.id !== id);
   renderCalendar();
   renderDayDetail();
-  const ok = await syncLogChanges([], [id]);
+  const ok = await syncLogChanges([], [id], currentMemberId);
   if(!ok) showCopyToast('삭제에 실패했어요. 잠시 후 다시 시도해주세요.');
   if(dateStr && !dateHasEntries(dateStr)) await adjustTotalWorkoutDays(-1);
   refreshCalendarHeaderStats();
@@ -10542,8 +10739,11 @@ async function addLogEntry(opts){
     await copyDateToClipboardOnly(dateVal, savedEntries);
   }
 
-  const ok = await syncLogChanges(savedEntries, deletedIds);
-  if(!ok) showCopyToast('일지 저장에 실패했어요. 잠시 후 다시 시도해주세요.');
+  markSavingState();
+  const ok = await syncLogChanges(savedEntries, deletedIds, currentMemberId);
+  logAddBtn.disabled = false;
+  logAddCopyBtn.disabled = false;
+  if(!ok) showCopyToast('일지 저장에 실패했어요. 이 기기에는 남아있고, 자동으로 계속 다시 시도해요.');
   if(ok) saveCalCache(currentMemberId, currentLogs);
   if(savedEntries.some(e => e.ptRecognized) || deletedIds.length > 0){
     updateCachedPtProgress(currentMemberId); // 목록 화면 성능을 위한 캐시 갱신 — 화면 흐름을 막지 않게 기다리지 않는다
@@ -10568,7 +10768,7 @@ async function addLogEntry(opts){
   }
 
   if(opts.stay){
-    markSavedState();
+    if(ok) markSavedState(); else resetSaveButtonState();
   } else {
     entryMode = 'add';
     entryEditDate = null;
@@ -14152,6 +14352,7 @@ auth.onAuthStateChanged(async (user) => {
     await loadMembers();
     await loadBodyPartColors();
     await enterMemberHome();
+    flushPendingSync(); // 지난번 세션에서 못 올라간 기록이 이 기기에 남아있으면 로그인 직후 다시 시도한다
   } else {
     members = [];
     currentMemberId = null;
