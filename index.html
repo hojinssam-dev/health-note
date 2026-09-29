@@ -5507,7 +5507,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.2';
+const APP_VERSION = '2.72.3';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6481,7 +6481,7 @@ const BODY_PART_KEYWORDS = {
    너무 흔한 말이라 일반 키워드로 넣지 않고, 아래 특정 종목 이름(띄어쓰기 무시하고
    정확히 일치할 때만)일 때만 가슴 색으로 인식한다 */
 /* '리버스'도 리버스 런지(하체), 리버스 플라이(어깨/등)처럼 다른 부위 운동에 흔히 붙는 말이라
-   일반 키워드로 넣지 않고, 정확히 일치할 때만 복근으로 인식한다 */
+   일반 키워드로 넣지 않고, 정확히 일치할 때만 복근/하체로 인식한다 (리버스크런치→복근, 리버스하이퍼→하체) */
 /* 이런 글자가 이름에 들어간 종목은 '무게·횟수'가 아니라 '시간'으로 재는 게 자연스러워서,
    이전 기록이 없는 새 종목일 때 기본 모드를 '시간'으로 잡아준다 */
 const TIME_MODE_KEYWORDS = ['플랭크', '매달리기', '월싯', '천국의 계단', '자전거', '사이클', '싸이클', '러닝머신', '런닝머신', '러닝', '런닝', '조깅', '산책'];
@@ -6493,6 +6493,7 @@ function defaultRecordModeForName(name){
 
 const CHEST_EXACT_NAMES = ['인클라인프레스', '인클라인벤치프레스', '디클라인프레스', '디클라인벤치프레스', '벤치프레스'].map(n => n.replace(/\s+/g, ''));
 const ABS_EXACT_NAMES = ['리버스크런치'].map(n => n.replace(/\s+/g, ''));
+const LOWER_EXACT_NAMES = ['리버스하이퍼'].map(n => n.replace(/\s+/g, ''));
 
 // '어시스트/어시스티드' 계열 운동(어시스트 풀업, 어시스티드 친업 등)은 기계가 대신 들어주는
 // 무게라서, 무게가 가벼울수록(도움을 덜 받을수록) 더 잘한 것이다. 그래서 이 종목들은 신기록
@@ -6507,6 +6508,7 @@ function detectBodyPartFromName(name){
   const noSpace = trimmed.replace(/\s+/g, '');
   if(CHEST_EXACT_NAMES.includes(noSpace)) return '가슴';
   if(ABS_EXACT_NAMES.includes(noSpace)) return '복근';
+  if(LOWER_EXACT_NAMES.includes(noSpace)) return '하체';
   for(const part of BODY_PARTS){
     const keywords = BODY_PART_KEYWORDS[part];
     if(keywords && keywords.some(kw => noSpace.includes(kw))) return part;
