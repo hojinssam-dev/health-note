@@ -5507,7 +5507,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.4';
+const APP_VERSION = '2.72.5';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -10165,10 +10165,15 @@ async function findBestExerciseRecord(exerciseName, beforeDate, extraEntry){
     const snap = await logsCollection(currentMemberId)
       .where('exerciseKey', '==', nameNorm)
       .where('date', '<', beforeDate)
+      .orderBy('date', 'desc') // 기존 '이전 기록' 조회와 같은 정렬 — 이미 만들어져 있는 Firestore 색인을 그대로 쓰기 위해 꼭 필요
       .get();
     snap.docs.forEach(doc => considerEntry(doc.data()));
   }catch(err){
     console.error('역대 최고 기록 조회 오류:', err);
+    // 전체 조회가 실패해도 힌트가 통째로 사라지지 않게, 가장 최근 기록 한 건이라도 대신 보여준다
+    try{
+      considerEntry(await findPreviousExercise(exerciseName, beforeDate));
+    }catch(e2){}
   }
   considerEntry(extraEntry);
 
