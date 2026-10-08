@@ -3620,6 +3620,13 @@
     white-space: nowrap;
   }
   .employer-pastmonth-count.is-zero{ color: var(--muted); font-weight: 500; }
+  .employer-pastmonth-right{ display:flex; align-items:baseline; gap:8px; white-space:nowrap; }
+  .employer-pastmonth-won{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--chalk);
+    opacity: .85;
+  }
   .employer-member-row-name{
     font-size: 15px;
     color: var(--chalk);
@@ -5625,7 +5632,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.13';
+const APP_VERSION = '2.72.14';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -12569,6 +12576,7 @@ async function loadEmployerPastMonthAll(){
   const reqId = ++employerPastMonthRequestId;
   const offset = employerPastMonthAllOffset;
   const { startStr, endStr, label, relLabel } = getPastMonthRange(offset);
+  const monthRefDate = getEmployerMonthContext(offset).firstDate;
   employerPastMonthTitle.textContent = '전체 트레이너 기록';
   employerPastMonthLabel.textContent = relLabel;
   employerPastMonthPrevBtn.disabled = offset <= -EMPLOYER_PASTMONTH_MAX_BACK;
@@ -12581,15 +12589,27 @@ async function loadEmployerPastMonthAll(){
   }
   try{
     const results = await withTimeout(Promise.all(trainers.map(async (t) => {
-      const stats = await computeEmployerTrainerMonthStats(t.uid, startStr, endStr);
-      return { ...t, total: stats.total, memberCount: stats.memberCount };
+      const [stats, earn] = await Promise.all([
+        computeEmployerTrainerMonthStats(t.uid, startStr, endStr),
+        (async () => {
+          try{
+            const d = t.isRegularEmployee
+              ? await computeRegularEmployeeEarnings(t.uid, monthRefDate)
+              : await computeTrainerEarnings(t.uid, monthRefDate);
+            return (d && typeof d.monthTotal === 'number') ? d.monthTotal : null;
+          }catch(e){ console.error('수업료 계산 오류:', e); return null; }
+        })()
+      ]);
+      return { ...t, total: stats.total, memberCount: stats.memberCount, earnings: earn };
     })), 20000);
     if(reqId !== employerPastMonthRequestId) return; // 그 사이 달을 또 바꿨거나 창을 닫았으면 낡은 응답이니 버린다
     const grandTotal = results.reduce((sum, r) => sum + r.total, 0);
-    employerPastMonthBody.innerHTML = pastMonthTotalHtml(label, grandTotal) + results.map(r => `
+    const grandWon = results.reduce((sum, r) => sum + (r.earnings || 0), 0);
+    employerPastMonthBody.innerHTML = pastMonthTotalHtml(label, grandTotal) +
+      `<div class="employer-pastmonth-total"><span>${escapeHtml(label)} 총 수업료</span><strong style="font-size:18px;">${formatWon(grandWon)}원</strong></div>` + results.map(r => `
       <div class="employer-member-row">
         <span class="employer-member-row-name">${escapeHtml(r.name)}${r.isRegularEmployee ? ' <span style="font-size:11px;color:var(--muted);">정직원</span>' : ''}</span>
-        ${pastMonthCountHtml(r.total)}
+        <span class="employer-pastmonth-right">${pastMonthCountHtml(r.total)}<span class="employer-pastmonth-won">${r.earnings == null ? '-' : formatWon(r.earnings) + '원'}</span></span>
       </div>
     `).join('');
   }catch(err){
