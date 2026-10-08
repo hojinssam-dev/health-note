@@ -3522,6 +3522,19 @@
     cursor: pointer;
   }
   .employer-trainer-action-btn:hover{ border-color: var(--brass); color: var(--brass-bright); }
+  /* '수업료 달력' 버튼 안의 글자 아래에 이번 달 수업료를 작게 보여준다 */
+  .employer-trainer-action-btn.has-sub{ height: auto; min-height: 38px; padding: 6px 4px; }
+  .employer-action-sub{
+    display: block;
+    margin-top: 2px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--brass-bright);
+    min-height: 14px;
+  }
+  .employer-action-sub.is-loading{ color: var(--muted); font-weight: 400; }
+
   .employer-member-list{
     display: flex;
     flex-direction: column;
@@ -3559,6 +3572,27 @@
     cursor: pointer;
   }
   .employer-member-rate-btn:hover{ background: var(--brass); color: var(--bg); }
+  .employer-pastmonth-total{
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 4px 4px 8px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .employer-pastmonth-total strong{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px;
+    color: var(--brass-bright);
+  }
+  .employer-pastmonth-count{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--brass-bright);
+    white-space: nowrap;
+  }
+  .employer-pastmonth-count.is-zero{ color: var(--muted); font-weight: 500; }
   .employer-member-row-name{
     font-size: 15px;
     color: var(--chalk);
@@ -4821,6 +4855,7 @@
       <button class="logout-btn" id="employerSettingsBtn" title="설정">⚙</button>
     </div>
     <button type="button" class="modal-btn" id="employerSettlementConfigBtn" style="width:100%; margin-bottom:14px;">🏢 정직원 수업료 정산 체계 설정</button>
+    <button type="button" class="modal-btn" id="employerPastMonthAllBtn" style="width:100%; margin-bottom:14px;">📅 전체 트레이너 지난달 기록</button>
     <div class="email-reminder-row" style="margin-bottom:14px;">
       <input autocapitalize="off" id="employerTrainerIdInput" type="text" class="modal-input" placeholder="트레이너 아이디로 연결하기" autocomplete="off">
       <button class="email-reminder-register-btn" id="employerConnectTrainerBtn">연결</button>
@@ -4875,6 +4910,15 @@
       <div class="modal-sub">연결을 해제하면 새 트레이너가 이 회원을 연결할 수 있게 돼요. 그동안의 운동 기록은 그대로 남아요.</div>
       <div class="employer-member-list" id="employerTrainerMembersList"></div>
       <button class="modal-cancel" id="employerTrainerMembersCloseBtn">닫기</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="employerPastMonthModal">
+    <div class="modal-box">
+      <div class="modal-title" id="employerPastMonthTitle">지난달 기록</div>
+      <div class="modal-sub">PT 인정 일지를 기준으로, 회원 한 명의 하루 기록을 일지 1개로 센 숫자예요. 비공개 일지와 정산 제외 회원은 빼고 집계해요.</div>
+      <div class="employer-member-list" id="employerPastMonthBody"></div>
+      <button class="modal-cancel" id="employerPastMonthCloseBtn">닫기</button>
     </div>
   </div>
 
@@ -5549,7 +5593,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.8';
+const APP_VERSION = '2.72.11';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -12152,6 +12196,7 @@ const employerSettingsModal = document.getElementById('employerSettingsModal');
 const employerSettingsCloseBtn = document.getElementById('employerSettingsCloseBtn');
 const employerSettingsLogoutBtn = document.getElementById('employerSettingsLogoutBtn');
 const employerSettingsCheckUpdateBtn = document.getElementById('employerSettingsCheckUpdateBtn');
+let employerDashboardRowsCache = []; // [{uid, name, isRegularEmployee}] — 마지막으로 불러온 트레이너 목록
 
 function showEmployerDashboardView(){
   viewLanding.classList.remove('active');
@@ -12301,6 +12346,8 @@ async function loadEmployerDashboardCore(){
       if(a.isRegularEmployee !== b.isRegularEmployee) return a.isRegularEmployee ? -1 : 1;
       return a.name.localeCompare(b.name, 'ko');
     });
+    // '전체 트레이너 지난달 기록' 버튼이 같은 순서·같은 이름으로 쓰도록 목록을 기억해둔다
+    employerDashboardRowsCache = rows.map(r => ({ uid: r.uid, name: r.name, isRegularEmployee: r.isRegularEmployee }));
     employerTrainerList.innerHTML = rows.map(r => `
       <div class="employer-trainer-card${r.todayCount > 0 ? ' has-activity-today' : ''}" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}">
         <div class="employer-trainer-header">
@@ -12325,8 +12372,11 @@ async function loadEmployerDashboardCore(){
           </div>
         </div>
         <div class="employer-trainer-actions">
-          <button type="button" class="employer-trainer-action-btn" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}" data-action="earnings">💰 수업료 달력</button>
+          <button type="button" class="employer-trainer-action-btn has-sub" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}" data-action="earnings">💰 수업료 달력<span class="employer-action-sub is-loading" data-earnings-sub="${r.uid}">이번 달 계산 중…</span></button>
           <button type="button" class="employer-trainer-action-btn" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}" data-action="manage-members">👥 회원 관리</button>
+        </div>
+        <div class="employer-trainer-actions" style="margin-top:8px;">
+          <button type="button" class="employer-trainer-action-btn" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}" data-action="past-month">📅 지난달 기록</button>
         </div>
         <button type="button" class="employer-trainer-employee-toggle-btn${r.isRegularEmployee ? ' active' : ''}" data-trainer-uid="${r.uid}" data-trainer-name="${escapeHtml(r.name)}" data-current="${r.isRegularEmployee ? '1' : '0'}">${r.isRegularEmployee ? '🏢 정직원 (해제하려면 누르세요)' : '🏢 정직원으로 지정'}</button>
       </div>
@@ -12383,8 +12433,11 @@ async function loadEmployerDashboardCore(){
       btn.addEventListener('click', () => {
         const trainerUid = btn.getAttribute('data-trainer-uid');
         const trainerName = btn.getAttribute('data-trainer-name');
-        if(btn.getAttribute('data-action') === 'manage-members'){
+        const action = btn.getAttribute('data-action');
+        if(action === 'manage-members'){
           openEmployerTrainerMembersModal(trainerUid, trainerName);
+        } else if(action === 'past-month'){
+          openEmployerPastMonthForTrainer(trainerUid, trainerName);
         } else {
           showTrainerEarningsView(trainerUid, { trainerName, returnTo: 'employer' });
         }
@@ -12417,10 +12470,162 @@ async function loadEmployerDashboardCore(){
         );
       });
     });
+    fillEmployerDashboardEarnings(rows); // 화면은 먼저 보여주고, 수업료 금액은 계산되는 대로 채운다
   }catch(err){
     console.error('센터장 대시보드 조회 오류:', err);
     employerTrainerList.innerHTML = '<div class="admin-empty">불러오지 못했어요.</div>';
   }
+}
+
+/* ---------- 센터장 대시보드: 지난달 기록 ---------- */
+const employerPastMonthModal = document.getElementById('employerPastMonthModal');
+const employerPastMonthTitle = document.getElementById('employerPastMonthTitle');
+const employerPastMonthBody = document.getElementById('employerPastMonthBody');
+const employerPastMonthCloseBtn = document.getElementById('employerPastMonthCloseBtn');
+const employerPastMonthAllBtn = document.getElementById('employerPastMonthAllBtn');
+let employerPastMonthRequestId = 0; // 창을 닫았다 다시 열었을 때, 늦게 도착한 이전 응답이 화면을 덮어쓰지 않게 하는 번호표
+employerPastMonthCloseBtn.addEventListener('click', () => {
+  employerPastMonthRequestId++;
+  employerPastMonthModal.classList.remove('open');
+});
+employerPastMonthModal.addEventListener('click', (ev) => {
+  if(ev.target === employerPastMonthModal){
+    employerPastMonthRequestId++;
+    employerPastMonthModal.classList.remove('open');
+  }
+});
+
+// 지난달 1일 ~ 이번 달 1일 직전까지 (endStr 날짜 자체는 포함하지 않는다)
+function getLastMonthRange(){
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return {
+    startStr: toDateStr(start.getFullYear(), start.getMonth(), 1),
+    endStr: toDateStr(now.getFullYear(), now.getMonth(), 1),
+    label: `${start.getFullYear()}년 ${start.getMonth() + 1}월`,
+  };
+}
+
+// 한 트레이너의 연결 회원별 PT 인정 일지 수를 센다. 대시보드의 '이번 달' 숫자와 같은 규칙:
+// 일지 1개 = 회원 1명의 그 날짜 PT 기록 묶음 하나, 비공개 일지와 '정산 제외' 회원은 뺀다.
+async function computeEmployerTrainerMonthStats(trainerUid, startStr, endStr){
+  const membersSnap = await db.collection('users').where('trainerId', '==', trainerUid).get();
+  const perMember = (await Promise.all(membersSnap.docs.map(async (docSnap) => {
+    const memberId = docSnap.id;
+    let name = '회원';
+    try{
+      const result = await storageGetWithRetry(STORAGE_KEY, false, memberId);
+      const list = result ? JSON.parse(result.value) : [];
+      const profile = list.find(m => m.id === memberId) || {};
+      if(profile.settlementExempt) return null;
+      if(profile.name) name = profile.name;
+    }catch(err){ /* 이름·제외 여부를 못 읽어도 기본값으로 계속 진행 */ }
+    const dates = new Set();
+    const logsSnap = await logsCollection(memberId)
+      .where('ptRecognized', '==', true)
+      .where('date', '>=', startStr)
+      .where('date', '<', endStr)
+      .get();
+    logsSnap.docs.forEach(d => {
+      const data = d.data();
+      if(data.private) return;
+      dates.add(data.date);
+    });
+    return { memberId, name, count: dates.size };
+  }))).filter(Boolean);
+  const total = perMember.reduce((sum, m) => sum + m.count, 0);
+  return { memberCount: perMember.length, total, perMember };
+}
+
+function pastMonthTotalHtml(label, total){
+  return `<div class="employer-pastmonth-total"><span>${escapeHtml(label)} 총 일지</span><strong>${total}</strong></div>`;
+}
+function pastMonthCountHtml(count){
+  return `<span class="employer-pastmonth-count${count === 0 ? ' is-zero' : ''}">${count}개</span>`;
+}
+
+// 트레이너 한 명의 지난달 기록 (회원별)
+async function openEmployerPastMonthForTrainer(trainerUid, trainerName){
+  const reqId = ++employerPastMonthRequestId;
+  const { startStr, endStr, label } = getLastMonthRange();
+  employerPastMonthTitle.textContent = `${trainerName} — ${label} 기록`;
+  employerPastMonthBody.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
+  employerPastMonthModal.classList.add('open');
+  try{
+    const stats = await withTimeout(computeEmployerTrainerMonthStats(trainerUid, startStr, endStr), 20000);
+    if(reqId !== employerPastMonthRequestId) return;
+    if(!stats.memberCount){
+      employerPastMonthBody.innerHTML = '<div class="admin-empty" style="padding:10px;">연결된 회원이 없어요.</div>';
+      return;
+    }
+    const sorted = [...stats.perMember].sort((a, b) => (b.count - a.count) || a.name.localeCompare(b.name, 'ko'));
+    employerPastMonthBody.innerHTML = pastMonthTotalHtml(label, stats.total) + sorted.map(m => `
+      <div class="employer-member-row">
+        <span class="employer-member-row-name">${escapeHtml(m.name)}</span>
+        ${pastMonthCountHtml(m.count)}
+      </div>
+    `).join('');
+  }catch(err){
+    console.error('지난달 기록 조회 오류:', err);
+    if(reqId !== employerPastMonthRequestId) return;
+    employerPastMonthBody.innerHTML = '<div class="admin-empty" style="padding:10px;">불러오지 못했어요. 잠시 후 다시 시도해주세요.</div>';
+  }
+}
+
+// 모든 트레이너의 지난달 기록 (트레이너별 합계)
+async function openEmployerPastMonthForAll(){
+  const reqId = ++employerPastMonthRequestId;
+  const { startStr, endStr, label } = getLastMonthRange();
+  employerPastMonthTitle.textContent = `전체 트레이너 — ${label} 기록`;
+  employerPastMonthBody.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
+  employerPastMonthModal.classList.add('open');
+  const trainers = employerDashboardRowsCache;
+  if(!trainers.length){
+    employerPastMonthBody.innerHTML = '<div class="admin-empty" style="padding:10px;">연결된 트레이너가 없어요.</div>';
+    return;
+  }
+  try{
+    const results = await withTimeout(Promise.all(trainers.map(async (t) => {
+      const stats = await computeEmployerTrainerMonthStats(t.uid, startStr, endStr);
+      return { ...t, total: stats.total, memberCount: stats.memberCount };
+    })), 20000);
+    if(reqId !== employerPastMonthRequestId) return;
+    const grandTotal = results.reduce((sum, r) => sum + r.total, 0);
+    employerPastMonthBody.innerHTML = pastMonthTotalHtml(label, grandTotal) + results.map(r => `
+      <div class="employer-member-row">
+        <span class="employer-member-row-name">${escapeHtml(r.name)}${r.isRegularEmployee ? ' <span style="font-size:11px;color:var(--muted);">정직원</span>' : ''}</span>
+        ${pastMonthCountHtml(r.total)}
+      </div>
+    `).join('');
+  }catch(err){
+    console.error('전체 트레이너 지난달 기록 조회 오류:', err);
+    if(reqId !== employerPastMonthRequestId) return;
+    employerPastMonthBody.innerHTML = '<div class="admin-empty" style="padding:10px;">불러오지 못했어요. 잠시 후 다시 시도해주세요.</div>';
+  }
+}
+employerPastMonthAllBtn.addEventListener('click', openEmployerPastMonthForAll);
+
+// 트레이너 카드의 '수업료 달력' 버튼 글자 아래에 이번 달 수업료를 채운다. 금액 계산은 트레이너마다
+// 따로 조회해서 느릴 수 있으니, 대시보드 표시를 막지 않고 끝나는 카드부터 하나씩 채운다.
+let employerEarningsFillId = 0;
+function fillEmployerDashboardEarnings(rows){
+  const myFillId = ++employerEarningsFillId; // 새로고침으로 목록이 다시 그려졌으면 이전 호출 결과는 버린다
+  rows.forEach(async (r) => {
+    let text = '이번 달 -';
+    try{
+      const data = r.isRegularEmployee
+        ? await computeRegularEmployeeEarnings(r.uid)
+        : await computeTrainerEarnings(r.uid);
+      text = `이번 달 ${formatWon(data.monthTotal)}원`;
+    }catch(err){
+      console.error('트레이너 이번 달 수업료 계산 오류:', r.uid, err);
+    }
+    if(myFillId !== employerEarningsFillId) return;
+    const el = employerTrainerList.querySelector(`.employer-action-sub[data-earnings-sub="${r.uid}"]`);
+    if(!el) return;
+    el.textContent = text;
+    el.classList.remove('is-loading');
+  });
 }
 
 const employerTrainerMembersModal = document.getElementById('employerTrainerMembersModal');
