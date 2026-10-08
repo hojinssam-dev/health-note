@@ -2019,6 +2019,23 @@
   .cal-date-num.cal-cycle-follicular{ color: #D9A441 !important; font-weight: 700; }
   .cal-date-num.cal-cycle-luteal{ color: #8B9FD9 !important; font-weight: 700; }
   .cal-date-num.is-predicted{ opacity: .6; }
+  /* PT 인정 일지가 있는 날: 날짜 숫자에 금색 동그라미. (오늘·선택된 날은 아래에서 따로 처리하므로 제외)
+     생리 주기 글자색(!important)이 금색 바탕 위에서 안 보이지 않게 글자는 어두운 색으로 고정하고,
+     주기 정보는 동그라미 바깥 테두리 색으로 대신 보여준다. */
+  .cal-cell:not(.is-selected):not(.is-today) .cal-date-num.has-pt{
+    color: var(--bg) !important;
+    font-weight: 700;
+    background: var(--brass);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: clamp(18px, 2.4vw, 30px);
+    height: clamp(18px, 2.4vw, 30px);
+    border-radius: 50%;
+  }
+  .cal-cell:not(.is-selected):not(.is-today) .cal-date-num.has-pt.cal-cycle-period{ box-shadow: 0 0 0 2px #E0574A; }
+  .cal-cell:not(.is-selected):not(.is-today) .cal-date-num.has-pt.cal-cycle-follicular{ box-shadow: 0 0 0 2px #D9A441; }
+  .cal-cell:not(.is-selected):not(.is-today) .cal-date-num.has-pt.cal-cycle-luteal{ box-shadow: 0 0 0 2px #8B9FD9; }
   /* 오늘/선택된 날짜는 원래 동그라미 배경에 대비색 글자를 쓰는데, 생리 주기 글자색이 그
      대비를 깨서 안 보이게 만들 수 있다. 그래서 이 두 경우엔 글자색 대신 동그라미 배경
      자체를 주기 색으로 바꾸고 글자는 흰색으로 고정해서 항상 잘 보이게 한다. */
@@ -2130,10 +2147,11 @@
     margin: 16px 0 8px;
     padding: 0 4px;
   }
+  /* 오늘 표시는 금색(PT 인정 표시)과 헷갈리지 않게 초록색 동그라미로 구분한다 */
   .cal-cell.is-today .cal-date-num{
-    color: var(--bg);
+    color: #fff;
     font-weight: 700;
-    background: var(--brass);
+    background: #2FB28A;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2141,6 +2159,8 @@
     height: clamp(18px, 2.4vw, 30px);
     border-radius: 50%;
   }
+  /* 오늘이 PT 인정 일지가 있는 날이면 초록 동그라미 바깥에 금색 테두리를 더한다 */
+  .cal-cell.is-today .cal-date-num.has-pt{ box-shadow: 0 0 0 2px var(--brass-bright); }
   .cal-tag{
     font-size: clamp(9.5px, 1.8vw, 22px);
     height: clamp(18px, 2.8vw, 36px);
@@ -5549,7 +5569,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.6';
+const APP_VERSION = '2.72.7';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -9021,6 +9041,7 @@ function renderCalendar(){
     const isToday = dateStr === todayD;
     const hasEntries = entries.length > 0;
     const sessionEntry = entries.find(e => e.sessionNo);
+    const hasPtDay = entries.some(e => e.ptRecognized || e.locked); // PT 인정 일지가 있는 날 (날짜 숫자에 금색 동그라미)
     const weekday = (firstWeekday + day - 1) % 7;
     const weekendClass = weekday === 0 ? 'cal-date-sun' : (weekday === 6 ? 'cal-date-sat' : '');
     const cyclePhase = calShowCycle ? getCyclePhase(calMember.periodStartDates, dateStr) : null;
@@ -9059,7 +9080,7 @@ function renderCalendar(){
     cellsHtml += `
       <div class="cal-cell ${hasEntries ? 'has-entries' : ''} ${isToday ? 'is-today' : ''} ${dateStr === selectedDetailDate ? 'is-selected' : ''}" data-date="${dateStr}">
         <div class="cal-date-row">
-          <span class="cal-date-num ${weekendClass} ${sessionEntry ? 'has-session' : ''} ${cyclePhaseClass}${cyclePhase && cyclePhase.isPredicted ? ' is-predicted' : ''}">${day}</span>
+          <span class="cal-date-num ${weekendClass} ${sessionEntry ? 'has-session' : ''} ${hasPtDay ? 'has-pt' : ''} ${cyclePhaseClass}${cyclePhase && cyclePhase.isPredicted ? ' is-predicted' : ''}">${day}</span>
         </div>
         ${sessionEntry ? `<div class="cal-tag cal-session-chip">${resolveSessionText(sessionEntry)}회</div>` : ''}
         ${isMixedDay
