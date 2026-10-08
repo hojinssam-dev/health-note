@@ -3776,6 +3776,43 @@
     color: var(--muted);
     padding: 4px 6px 10px;
   }
+  /* 이름 검색: 검색어가 들어간 수업은 강조하고, 나머지는 흐리게 처리해서 한눈에 구분되게 한다 */
+  .earnings-search-row{
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .earnings-search-row .modal-input{ flex: 1; margin: 0; min-width: 0; }
+  .earnings-search-clear-btn{
+    flex-shrink: 0;
+    padding: 9px 12px;
+    border-radius: var(--radius-s);
+    border: 1px solid var(--brass);
+    background: none;
+    color: var(--brass-bright);
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .earnings-search-summary{
+    font-size: 12px;
+    color: var(--brass-bright);
+    margin: 0 2px 10px;
+    min-height: 0;
+  }
+  .earnings-calendar-grid.search-active .earnings-calendar-row:not(.is-match),
+  .earnings-calendar-grid.search-active .earnings-calendar-day-count,
+  .earnings-calendar-grid.search-active .earnings-calendar-day-total{ opacity: 0.25; }
+  .earnings-calendar-cell.has-match{ border-color: var(--brass-bright); box-shadow: 0 0 0 1px var(--brass-bright) inset; }
+  .earnings-calendar-row.is-match{
+    background: var(--brass);
+    border-radius: 4px;
+    padding: 1px 2px;
+  }
+  .earnings-calendar-row.is-match .earnings-calendar-name,
+  .earnings-calendar-row.is-match .earnings-calendar-amount{ color: #1a1a1a; font-weight: 700; }
   .trainer-pending-badge{
     background: var(--brass);
     color: var(--bg);
@@ -4911,6 +4948,11 @@
       </div>
     </div>
     <div id="trainerEarningsCalendarSection">
+      <div class="earnings-search-row">
+        <input autocapitalize="off" type="text" id="trainerEarningsSearchInput" class="modal-input" placeholder="이름으로 검색 (예: 정보영)">
+        <button type="button" class="earnings-search-clear-btn" id="trainerEarningsSearchClearBtn" style="display:none;">표시 취소</button>
+      </div>
+      <div class="earnings-search-summary" id="trainerEarningsSearchSummary" style="display:none;"></div>
       <div class="login-error" id="trainerEarningsMissingNotice" style="display:none; margin-bottom:0; cursor:pointer; align-items:center; justify-content:flex-start; gap:4px;">
         <span id="trainerEarningsMissingText"></span>
         <span id="trainerEarningsMissingChevron" style="flex-shrink:0; transition: transform .15s ease;">▾</span>
@@ -5507,7 +5549,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.5';
+const APP_VERSION = '2.72.6';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -13707,6 +13749,14 @@ const trainerEarningsNextMonthBtn = document.getElementById('trainerEarningsNext
 let trainerEarningsCurrentUid = null;
 let trainerEarningsReturnTo = 'trainer'; // 'trainer' | 'employer' — 닫기 버튼을 눌렀을 때 어디로 돌아갈지
 let trainerEarningsViewDate = new Date(); // 지금 보고 있는 달 (달력 이전/다음 버튼으로 바뀐다)
+let trainerEarningsLastData = null; // 마지막으로 그린 달력 데이터 (검색어를 바꿀 때 서버 조회 없이 다시 그리기 위함)
+const trainerEarningsSearchInput = document.getElementById('trainerEarningsSearchInput');
+const trainerEarningsSearchClearBtn = document.getElementById('trainerEarningsSearchClearBtn');
+const trainerEarningsSearchSummary = document.getElementById('trainerEarningsSearchSummary');
+
+// 띄어쓰기·대소문자를 무시하고 비교하기 위한 정규화
+function normalizeEarningsSearchText(s){ return (s || '').replace(/\s+/g, '').toLowerCase(); }
+function getEarningsSearchTerm(){ return normalizeEarningsSearchText(trainerEarningsSearchInput.value); }
 
 function showTrainerEarningsView(trainerUid, { trainerName, returnTo } = {}){
   trainerEarningsCurrentUid = trainerUid;
@@ -13722,6 +13772,10 @@ function showTrainerEarningsView(trainerUid, { trainerName, returnTo } = {}){
   trainerEarningsMonthValue.innerHTML = `0<span class="earnings-stat-unit">원</span>`;
   trainerEarningsMonthSessionCount.textContent = '';
   trainerEarningsCalendarGrid.innerHTML = '';
+  trainerEarningsLastData = null;
+  trainerEarningsSearchInput.value = ''; // 다른 트레이너 화면을 열 때 이전 검색어가 남아있지 않게
+  trainerEarningsSearchClearBtn.style.display = 'none';
+  trainerEarningsSearchSummary.style.display = 'none';
   trainerEarningsMonthLabel.textContent = '';
   trainerEarningsMissingNotice.style.display = 'none';
   trainerEarningsMissingDetail.style.display = 'none';
@@ -13845,6 +13899,10 @@ async function loadTrainerEarningsCore(){
 }
 
 function renderTrainerEarningsCalendar(data){
+  trainerEarningsLastData = data;
+  const searchTerm = getEarningsSearchTerm();
+  let matchCount = 0;
+  let matchAmount = 0;
   const firstOfMonth = new Date(data.year, data.month, 1);
   const daysInMonth = new Date(data.year, data.month + 1, 0).getDate();
   const startWeekday = firstOfMonth.getDay(); // 0=일요일
@@ -13857,17 +13915,22 @@ function renderTrainerEarningsCalendar(data){
     const hasEarning = amount > 0;
     const weekendClass = weekdayIdx === 0 ? 'is-sun' : (weekdayIdx === 6 ? 'is-sat' : '');
     const dayRows = data.dailyBreakdown[dateStr] || [];
-    const rowsHtml = dayRows.map(r => `
-      <div class="earnings-calendar-row">
+    let dayHasMatch = false;
+    const rowsHtml = dayRows.map(r => {
+      const isMatch = !!searchTerm && normalizeEarningsSearchText(r.name).includes(searchTerm);
+      if(isMatch){ dayHasMatch = true; matchCount++; matchAmount += r.amount || 0; }
+      return `
+      <div class="earnings-calendar-row${isMatch ? ' is-match' : ''}">
         <span class="earnings-calendar-name">${escapeHtml(r.name)}</span>
         <span class="earnings-calendar-amount">${formatWon(r.amount)}</span>
       </div>
-    `).join('');
+    `;
+    }).join('');
     const totalHtml = dayRows.length > 1 ? `
       <div class="earnings-calendar-day-count">${dayRows.length}개 수업</div>
       <div class="earnings-calendar-day-total">합계 ${formatWon(amount)}</div>
     ` : '';
-    return `<div class="earnings-calendar-cell${isToday ? ' is-today' : ''}${hasEarning ? ' has-earning' : ''}">
+    return `<div class="earnings-calendar-cell${isToday ? ' is-today' : ''}${hasEarning ? ' has-earning' : ''}${dayHasMatch ? ' has-match' : ''}">
       <div class="earnings-calendar-day-num ${weekendClass}">${day}</div>
       ${rowsHtml}
       ${totalHtml}
@@ -13897,7 +13960,31 @@ function renderTrainerEarningsCalendar(data){
   if(week.length) flushWeek();
 
   trainerEarningsCalendarGrid.innerHTML = html;
+  trainerEarningsCalendarGrid.classList.toggle('search-active', !!searchTerm);
+
+  // 검색 중이면 '표시 취소' 버튼과 결과 요약(이번 달 몇 회, 합계 얼마)을 보여준다
+  trainerEarningsSearchClearBtn.style.display = searchTerm ? 'inline-block' : 'none';
+  if(searchTerm){
+    const label = trainerEarningsSearchInput.value.trim();
+    trainerEarningsSearchSummary.textContent = matchCount > 0
+      ? `'${label}' ${data.month + 1}월 ${matchCount}회 · 합계 ${formatWon(matchAmount)}원`
+      : `'${label}'은(는) ${data.month + 1}월 달력에 없어요.`;
+    trainerEarningsSearchSummary.style.display = 'block';
+  } else {
+    trainerEarningsSearchSummary.style.display = 'none';
+  }
 }
+
+// 검색어를 입력할 때마다 서버 조회 없이, 이미 불러온 달력을 바로 다시 그려서 표시를 갱신한다
+trainerEarningsSearchInput.addEventListener('input', () => {
+  if(trainerEarningsLastData) renderTrainerEarningsCalendar(trainerEarningsLastData);
+});
+// 표시 취소: 검색어를 지우고 강조 표시를 모두 없앤다
+trainerEarningsSearchClearBtn.addEventListener('click', () => {
+  trainerEarningsSearchInput.value = '';
+  if(trainerEarningsLastData) renderTrainerEarningsCalendar(trainerEarningsLastData);
+  trainerEarningsSearchInput.focus();
+});
 
 trainerEarningsOpenBtn.addEventListener('click', () => {
   showTrainerEarningsView(auth.currentUser.uid, { returnTo: 'trainer' });
