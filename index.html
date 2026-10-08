@@ -1633,6 +1633,7 @@
     gap: 8px;
   }
   .prev-note-icon{ flex-shrink:0; }
+  .prev-note-date{ font-size:12px; color: var(--muted); margin-bottom:2px; }
   #prevNoteText{
     white-space: pre-wrap;
     word-break: break-word;
@@ -4707,7 +4708,10 @@
       <div class="prev-note-banner" id="prevNoteBanner" style="display:none;">
         <div class="prev-note-main">
           <span class="prev-note-icon">📌</span>
-          <span id="prevNoteText"></span>
+          <div style="min-width:0;flex:1;">
+            <div id="prevNoteDate" class="prev-note-date"></div>
+            <span id="prevNoteText"></span>
+          </div>
         </div>
         <div class="prev-note-edit-box" id="prevNoteEditBox" style="display:none;">
           <textarea autocapitalize="off" id="prevNoteEditInput" placeholder="메모 내용을 수정하세요."></textarea>
@@ -5632,7 +5636,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.14';
+const APP_VERSION = '2.72.17';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5933,6 +5937,7 @@ const nextNoteInput = document.getElementById('nextNoteInput');
 const prevNoteBanner = document.getElementById('prevNoteBanner');
 const prevNoteMain = document.querySelector('.prev-note-main');
 const prevNoteText = document.getElementById('prevNoteText');
+const prevNoteDate = document.getElementById('prevNoteDate');
 const prevNoteActions = document.getElementById('prevNoteActions');
 const prevNoteEditBox = document.getElementById('prevNoteEditBox');
 const prevNoteEditInput = document.getElementById('prevNoteEditInput');
@@ -5949,7 +5954,15 @@ let activeNoteEntryId = null;
 /* 이 회원이 남겨둔 메모 중 가장 최근에 작성된 것을 찾아 반환.
    '더 이상 보지 않기'로 닫아둔 날짜라면 표시하지 않는다. */
 function getActiveStandingNoteEntry(){
-  const candidates = currentLogs.filter(e => e.nextNote && e.nextNote.trim());
+  // 지금 보고 있는 일지의 날짜보다 '앞서' 남긴 메모만 후보로 삼는다.
+  // - 일지 수정: 그 일지 날짜보다 이전에 쓴 메모 (그날·그 이후 메모는 제외)
+  // - 새 일지: 선택한 날짜 이전(같은 날 포함)에 쓴 메모
+  let candidates = currentLogs.filter(e => e.nextNote && e.nextNote.trim());
+  if(entryMode === 'edit' && entryEditDate){
+    candidates = candidates.filter(e => e.date < entryEditDate);
+  } else if(entryDateInput && entryDateInput.value){
+    candidates = candidates.filter(e => e.date <= entryDateInput.value);
+  }
   if(candidates.length === 0) return null;
   const sorted = [...candidates].sort((a, b) => {
     if(a.date !== b.date) return a.date < b.date ? 1 : -1;
@@ -5974,6 +5987,8 @@ function refreshPrevNoteBanner(){
   if(noteEntry){
     activeNoteEntryId = noteEntry.id;
     prevNoteText.textContent = noteEntry.nextNote;
+    const noteYear = noteEntry.date.slice(0, 4);
+    prevNoteDate.textContent = (noteYear !== String(new Date().getFullYear()) ? noteYear + '년 ' : '') + formatDateHintStyle(noteEntry.date) + ' 작성';
     prevNoteBanner.style.display = 'flex';
   } else {
     activeNoteEntryId = null;
@@ -6037,6 +6052,7 @@ entryDateInput.addEventListener('change', () => {
     // 날짜를 바꾸면(다른 날짜에 백데이트하는 경우), 그 새 날짜용 배치 번호 캐시를 새로 시작한다
     sessionBatchCache = {};
   }
+  refreshPrevNoteBanner(); // 날짜가 바뀌면 그 날짜 기준으로 상단 메모도 다시 고른다
   [...exerciseBlocks.querySelectorAll('.exercise-block')].forEach(block => {
     if(block._updatePrevHint) block._updatePrevHint();
     if(block._updateExerciseMemoHint) block._updateExerciseMemoHint();
@@ -6595,7 +6611,7 @@ const BODY_PARTS = ['가슴', '등', '어깨', '팔', '복근', '하체', '유�
 const BODY_PART_KEYWORDS = {
   '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈', '핵프레스', '런지', '클램쉘', '스티프데드리프트'],
   '어깨': ['숄더', '솔뎌', '숄뎌', '밀리터리', '사레레', '슈러그', '레터럴레이즈', '프론트레이즈', '업라이트로우', '오버헤드프레스', '페이스풀'],
-  '가슴': ['딥스', '푸시업', '푸쉬업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이', '체스트', '덤벨프레스', '덤벨플라이', '플라이'],
+  '가슴': ['딥스', '푸시업', '푸쉬업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이', '체스트', '덤벨프레스', '덤벨플라이', '케이블플라이'],
   '복근': ['레그레이즈', '크런치', '플랭크', '데드버그', '싯업', '윗몸일으키기', '트위스트', '롤아웃', '버드독'],
   '팔': ['바이셉스', '트라이셉스', '케이블푸시다운', '덤벨컬', '바벨컬', '오버헤드익스텐션'],
   '등': ['랫풀다운', '풀다운', '풀업', '롱풀', '레터럴로우', '로우로우', '어시스트풀업', '친업', '시티드로우', '바벨로우', '로우풀리', '루마니안데드리프트'],
@@ -6631,6 +6647,12 @@ function detectBodyPartFromName(name){
   const trimmed = (name || '').trim();
   if(!trimmed) return null;
   const noSpace = trimmed.replace(/\s+/g, '');
+  // '플라이'만 쓴 이름은 어느 부위인지 알 수 없어서 일반 키워드로 넣지 않는다.
+  // 덤벨플라이·케이블플라이만 가슴, 벤트오버 플라이는 어깨, 리어/리버스 플라이는 미분류.
+  if(noSpace.includes('플라이')){
+    if(/리어|리버스/.test(noSpace)) return null;
+    if(noSpace.includes('벤트오버')) return '어깨';
+  }
   if(CHEST_EXACT_NAMES.includes(noSpace)) return '가슴';
   if(ABS_EXACT_NAMES.includes(noSpace)) return '복근';
   if(LOWER_EXACT_NAMES.includes(noSpace)) return '하체';
