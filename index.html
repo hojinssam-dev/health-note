@@ -5636,7 +5636,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.21';
+const APP_VERSION = '2.72.23';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6610,7 +6610,7 @@ const BODY_PARTS = ['가슴', '등', '어깨', '팔', '복근', '하체', '유�
    설정에서 지정한 부위 색을 이름 글자색에 자동 적용한다 */
 const BODY_PART_KEYWORDS = {
   '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈', '핵프레스', '런지', '클램쉘', '스티프데드리프트', '어덕션', '어브덕션', '몬스터글루트'],
-  '어깨': ['숄더', '솔뎌', '숄뎌', '밀리터리', '사레레', '슈러그', '레터럴레이즈', '프론트레이즈', '업라이트로우', '오버헤드프레스', '페이스풀', '리어델트', '델토이'],
+  '어깨': ['숄더', '솔뎌', '숄뎌', '밀리터리', '사레레', '슈러그', '레터럴레이즈', '프론트레이즈', '업라이트로우', '오버헤드프레스', '페이스풀', '리어델트', '델토이', '아놀드'],
   '가슴': ['딥스', '푸시업', '푸쉬업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이', '체스트', '덤벨프레스', '덤벨플라이', '케이블플라이', '벤치프레스'],
   '복근': ['레그레이즈', '크런치', '플랭크', '데드버그', '싯업', '윗몸일으키기', '트위스트', '롤아웃', '버드독'],
   '팔': ['바이셉스', '트라이셉스', '케이블푸시다운', '덤벨컬', '바벨컬', '해머컬', '오버헤드익스텐션'],
@@ -6649,6 +6649,7 @@ function detectBodyPartFromName(name){
   const noSpace = trimmed.replace(/\s+/g, '');
   // '플라이'만 쓴 이름은 어느 부위인지 알 수 없어서 일반 키워드로 넣지 않는다.
   // 덤벨플라이·케이블플라이만 가슴, 벤트오버 플라이는 어깨, 리어/리버스 플라이는 미분류.
+  if(noSpace.includes('아놀드')) return '어깨'; // 아놀드 (덤벨)프레스가 가슴 키워드(덤벨프레스)에 먼저 걸리지 않게
   if(noSpace.includes('플라이')){
     if(noSpace.includes('리어델트')) return '어깨';
     if(/리어|리버스/.test(noSpace)) return null;
@@ -6934,6 +6935,7 @@ function updatePendingSyncBanner(){
    memberId를 생략하면 호출 시점의 currentMemberId를 쓴다 — 재시도 도중에 화면이 다른 회원으로
    바뀌어도 엉뚱한 회원에게 저장되지 않도록, 호출하는 쪽에서 되도록 명시적으로 넘겨준다.
    바뀐 것만 정확히 골라서 쓰기 때문에, 기록이 아무리 많이 쌓여도 매번 전체를 다시 쓰지 않는다. */
+const SYNC_COMMIT_TIMEOUT_MS = 12000;
 async function syncLogChanges(entriesToSave, idsToDelete, memberId){
   memberId = memberId || currentMemberId;
   entriesToSave = entriesToSave || [];
@@ -6947,18 +6949,31 @@ async function syncLogChanges(entriesToSave, idsToDelete, memberId){
   let lastErr = null;
   for(let attempt = 0; attempt <= retries; attempt++){
     try{
-      const batch = db.batch();
-      entriesToSave.forEach(entry => {
-        batch.set(logsCollection(memberId).doc(entry.id), entry);
-      });
-      idsToDelete.forEach(id => {
-        batch.delete(logsCollection(memberId).doc(id));
-      });
-      await batch.commit();
+      // Firestore는 undefined 값이 하나라도 있으면 저장을 거부한다. 일지는 원래 JSON 형태라
+      // JSON을 한 번 거치면 undefined 항목만 깔끔하게 빠진다.
+      const cleanEntries = entriesToSave.map(entry => JSON.parse(JSON.stringify(entry)));
+      // 한 번에 묶을 수 있는 쓰기는 500개까지라서, 많으면 나눠서 보낸다
+      const ops = [
+        ...cleanEntries.map(entry => ({ type: 'set', id: entry.id, entry })),
+        ...idsToDelete.map(id => ({ type: 'delete', id })),
+      ];
+      for(let i = 0; i < ops.length; i += 400){
+        const batch = db.batch();
+        ops.slice(i, i + 400).forEach(op => {
+          if(op.type === 'set') batch.set(logsCollection(memberId).doc(op.id), op.entry);
+          else batch.delete(logsCollection(memberId).doc(op.id));
+        });
+        // 인터넷이 불안정하면 commit()이 성공도 실패도 안 하고 영원히 멈춰있을 수 있다.
+        // 그러면 '저장 중...'과 '지금 다시 시도'가 같이 멈춰버리니, 일정 시간 뒤엔 실패로 처리한다.
+        await withTimeout(batch.commit(), SYNC_COMMIT_TIMEOUT_MS);
+      }
       removeFromPendingSync(memberId, entriesToSave, idsToDelete);
       return true;
     }catch(err){
       lastErr = err;
+      // 시간 초과는 요청이 이미 대기열에 들어가 있다는 뜻이라 같은 걸 또 쌓지 않고 바로 포기한다
+      // (기록은 이 기기에 남아있고 나중에 자동으로 다시 시도된다)
+      if(err && err.message === 'TIMEOUT') break;
       if(attempt < retries){
         await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
       }
@@ -6972,9 +6987,18 @@ async function syncLogChanges(entriesToSave, idsToDelete, memberId){
    로그인 직후, 이 화면이 다시 보일 때(visibilitychange), 인터넷이 다시 연결될 때(online),
    그리고 배너의 "지금 다시 시도" 버튼을 눌렀을 때 호출된다. */
 let pendingSyncFlushInFlight = false;
-async function flushPendingSync(){
-  if(pendingSyncFlushInFlight) return;
+let pendingSyncFlushStartedAt = 0;
+async function flushPendingSync(opts){
+  opts = opts || {};
+  // 혹시 이전 시도가 어떤 이유로든 2분 넘게 끝나지 않았다면 멈춘 것으로 보고 새로 시작한다
+  if(pendingSyncFlushInFlight && Date.now() - pendingSyncFlushStartedAt < 120000){
+    if(opts.manual) showCopyToast('지금 저장을 시도하고 있어요. 잠시만 기다려주세요.');
+    return;
+  }
   pendingSyncFlushInFlight = true;
+  pendingSyncFlushStartedAt = Date.now();
+  let anyFailed = false;
+  let anyTried = false;
   try{
     const map = loadPendingSyncMap();
     for(const memberId of Object.keys(map)){
@@ -6982,9 +7006,29 @@ async function flushPendingSync(){
       const entries = Object.values((bucket && bucket.entries) || {});
       const deletes = (bucket && bucket.deletes) || [];
       if(entries.length === 0 && deletes.length === 0) continue;
-      const ok = await syncLogChanges(entries, deletes, memberId);
-      if(ok && memberId === currentMemberId){
-        entries.forEach(entry => {
+      anyTried = true;
+      // 먼저 한꺼번에 시도하고, 실패하면 하나씩 따로 시도한다 — 문제 있는 기록 하나 때문에
+      // 나머지 정상 기록까지 같이 못 올라가는 일이 없게 하려는 것
+      let savedEntries = [];
+      let ok = await syncLogChanges(entries, deletes, memberId);
+      if(ok){
+        savedEntries = entries;
+      } else {
+        anyFailed = true;
+        if(entries.length + deletes.length > 1){
+          for(const entry of entries){
+            if(await syncLogChanges([entry], [], memberId)) savedEntries.push(entry);
+          }
+          for(const id of deletes){
+            await syncLogChanges([], [id], memberId);
+          }
+        }
+        // 하나씩 시도한 결과가 전부 성공이면 실패 표시를 거둔다
+        const stillPending = hasPendingSyncFor(memberId);
+        if(!stillPending) anyFailed = false;
+      }
+      if(savedEntries.length && memberId === currentMemberId){
+        savedEntries.forEach(entry => {
           const idx = currentLogs.findIndex(e => e.id === entry.id);
           if(idx >= 0) currentLogs[idx] = entry; else currentLogs.push(entry);
         });
@@ -6996,13 +7040,19 @@ async function flushPendingSync(){
     pendingSyncFlushInFlight = false;
     updatePendingSyncBanner();
   }
+  if(opts.manual){
+    if(!anyTried) showCopyToast('저장 안 된 기록이 없어요.');
+    else if(anyFailed) showCopyToast('아직 저장하지 못했어요. 인터넷 연결을 확인하고 잠시 뒤 다시 눌러주세요.');
+    else showCopyToast('서버에 저장했어요.');
+  }
 }
 window.addEventListener('online', () => { flushPendingSync(); });
 document.addEventListener('visibilitychange', () => {
   if(document.visibilityState === 'visible') flushPendingSync();
 });
 document.getElementById('pendingSyncRetryBtn').addEventListener('click', () => {
-  flushPendingSync();
+  showCopyToast('다시 저장을 시도하고 있어요...');
+  flushPendingSync({ manual: true });
 });
 
 /* ---------- 되돌리기 (스냅샷 방식) ----------
