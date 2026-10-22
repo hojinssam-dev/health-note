@@ -1760,6 +1760,25 @@
     outline: none;
     border-color: var(--brass);
   }
+  .name-input-wrap{ position:relative; flex:1; min-width:0; display:flex; }
+  .name-input-wrap .exercise-name-input{ width:100%; }
+  .name-part-tag, .part-pill{
+    font-size:10.5px; font-weight:600; line-height:1.5;
+    padding:1px 7px; border-radius:999px; white-space:nowrap;
+    border:1px solid currentColor;
+    background: rgba(255,255,255,0.06);
+  }
+  @supports (background: color-mix(in srgb, red 10%, transparent)){
+    .name-part-tag, .part-pill{
+      background: color-mix(in srgb, currentColor 14%, transparent);
+      border-color: color-mix(in srgb, currentColor 45%, transparent);
+    }
+  }
+  .name-part-tag{
+    position:absolute; right:10px; top:50%; transform:translateY(-50%);
+    pointer-events:none;
+  }
+  .part-pill{ display:inline-block; margin-left:7px; vertical-align:2px; }
   .exercise-name-input{
     flex:1;
     min-width: 0;
@@ -5636,7 +5655,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.23';
+const APP_VERSION = '2.72.27';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6667,6 +6686,24 @@ function detectBodyPartFromName(name){
   return null;
 }
 
+/* 운동 이름 뒤에 '-가슴'처럼 부위를 붙여서 보여줄 때 쓴다. 저장된 이름은 전혀 바꾸지 않고,
+   화면에 보여줄 때만 계산한다 (달력 칩에는 쓰지 않는다). */
+function bodyPartSuffixForName(name, storedPart){
+  const part = detectBodyPartFromName(name) || storedPart || null;
+  if(!part) return '';
+  const trimmed = (name || '').trim();
+  if(trimmed.endsWith('-' + part)) return ''; // 이미 직접 적어둔 경우엔 또 붙이지 않는다
+  return '-' + part;
+}
+function partPillHtml(e){
+  const part = detectBodyPartFromName(e.exercise) || e.bodyPart;
+  if(!part) return '';
+  return `<span class="part-pill">${escapeHtml(part)}</span>`;
+}
+function exerciseDisplayName(e){
+  return (e.exercise || '') + bodyPartSuffixForName(e.exercise, e.bodyPart);
+}
+
 const BODYPART_COLOR_KEY = 'bodypart-colors';
 const BODY_PART_COLOR_CHOICES = [
   { color: '#FFFFFF', label: '기본(흰색)' },
@@ -6929,6 +6966,7 @@ function updatePendingSyncBanner(){
   } else {
     text.textContent = '⚠ 다른 회원의 기록 중 아직 서버에 저장되지 못한 게 있어요. 자동으로 계속 재시도 중이에요.';
   }
+  if(lastSyncFailureReason) text.textContent += ' (마지막 실패 이유: ' + lastSyncFailureReason + ')';
 }
 
 /* entriesToSave: 새로 만들었거나 바뀐 일지들, idsToDelete: 삭제된 일지 id들.
@@ -6936,6 +6974,19 @@ function updatePendingSyncBanner(){
    바뀌어도 엉뚱한 회원에게 저장되지 않도록, 호출하는 쪽에서 되도록 명시적으로 넘겨준다.
    바뀐 것만 정확히 골라서 쓰기 때문에, 기록이 아무리 많이 쌓여도 매번 전체를 다시 쓰지 않는다. */
 const SYNC_COMMIT_TIMEOUT_MS = 12000;
+let lastSyncFailureReason = '';
+function describeSyncError(err){
+  const code = (err && err.code) || '';
+  const msg = (err && err.message) || String(err || '');
+  if(msg === 'TIMEOUT') return '서버 응답이 없어요 (인터넷 연결을 확인해주세요)';
+  if(code === 'permission-denied') return '서버가 저장을 거부했어요 (권한 문제)';
+  if(code === 'unauthenticated') return '로그인이 풀렸어요 (다시 로그인해주세요)';
+  if(code === 'unavailable') return '서버에 연결할 수 없어요';
+  if(code === 'resource-exhausted') return '서버 사용량 한도를 넘었어요';
+  if(code === 'invalid-argument') return '기록 형식에 문제가 있어요';
+  if(code === 'failed-precondition') return '서버 설정 문제예요';
+  return (code ? code + ': ' : '') + msg.slice(0, 80);
+}
 async function syncLogChanges(entriesToSave, idsToDelete, memberId){
   memberId = memberId || currentMemberId;
   entriesToSave = entriesToSave || [];
@@ -6967,6 +7018,7 @@ async function syncLogChanges(entriesToSave, idsToDelete, memberId){
         // 그러면 '저장 중...'과 '지금 다시 시도'가 같이 멈춰버리니, 일정 시간 뒤엔 실패로 처리한다.
         await withTimeout(batch.commit(), SYNC_COMMIT_TIMEOUT_MS);
       }
+      lastSyncFailureReason = '';
       removeFromPendingSync(memberId, entriesToSave, idsToDelete);
       return true;
     }catch(err){
@@ -6980,6 +7032,8 @@ async function syncLogChanges(entriesToSave, idsToDelete, memberId){
     }
   }
   console.error('일지 저장 오류 (재시도 후에도 실패 — 이 기기에는 남아있어서 나중에 다시 시도됨):', memberId, lastErr);
+  lastSyncFailureReason = describeSyncError(lastErr);
+  updatePendingSyncBanner();
   return false;
 }
 
@@ -6988,15 +7042,34 @@ async function syncLogChanges(entriesToSave, idsToDelete, memberId){
    그리고 배너의 "지금 다시 시도" 버튼을 눌렀을 때 호출된다. */
 let pendingSyncFlushInFlight = false;
 let pendingSyncFlushStartedAt = 0;
+let pendingSyncFlushPromise = null;
+let syncToastTimer = null;
+function showSyncResultToast(message){
+  showCopyToast(message, true);
+  clearTimeout(syncToastTimer);
+  syncToastTimer = setTimeout(() => document.getElementById('copyToast').classList.remove('show'), 6000);
+}
+function reportFlushResult(result){
+  if(!result.anyTried) showSyncResultToast('저장 안 된 기록이 없어요.');
+  else if(result.anyFailed) showSyncResultToast('아직 저장하지 못했어요. 이유: ' + (lastSyncFailureReason || '알 수 없음'));
+  else showSyncResultToast('서버에 저장했어요.');
+}
 async function flushPendingSync(opts){
   opts = opts || {};
-  // 혹시 이전 시도가 어떤 이유로든 2분 넘게 끝나지 않았다면 멈춘 것으로 보고 새로 시작한다
-  if(pendingSyncFlushInFlight && Date.now() - pendingSyncFlushStartedAt < 120000){
-    if(opts.manual) showCopyToast('지금 저장을 시도하고 있어요. 잠시만 기다려주세요.');
+  // 이미 저장을 시도하는 중이면 새로 또 시작하지 않고, 그 시도가 끝나길 기다렸다가 결과만 알려준다.
+  // (혹시 2분 넘게 끝나지 않았다면 멈춘 것으로 보고 새로 시작한다)
+  if(pendingSyncFlushInFlight && pendingSyncFlushPromise && Date.now() - pendingSyncFlushStartedAt < 120000){
+    const result = await pendingSyncFlushPromise;
+    if(opts.manual) reportFlushResult(result);
     return;
   }
   pendingSyncFlushInFlight = true;
   pendingSyncFlushStartedAt = Date.now();
+  pendingSyncFlushPromise = runPendingSyncFlush();
+  const result = await pendingSyncFlushPromise;
+  if(opts.manual) reportFlushResult(result);
+}
+async function runPendingSyncFlush(){
   let anyFailed = false;
   let anyTried = false;
   try{
@@ -7023,9 +7096,7 @@ async function flushPendingSync(opts){
             await syncLogChanges([], [id], memberId);
           }
         }
-        // 하나씩 시도한 결과가 전부 성공이면 실패 표시를 거둔다
-        const stillPending = hasPendingSyncFor(memberId);
-        if(!stillPending) anyFailed = false;
+        if(!hasPendingSyncFor(memberId)) anyFailed = false;
       }
       if(savedEntries.length && memberId === currentMemberId){
         savedEntries.forEach(entry => {
@@ -7040,18 +7111,14 @@ async function flushPendingSync(opts){
     pendingSyncFlushInFlight = false;
     updatePendingSyncBanner();
   }
-  if(opts.manual){
-    if(!anyTried) showCopyToast('저장 안 된 기록이 없어요.');
-    else if(anyFailed) showCopyToast('아직 저장하지 못했어요. 인터넷 연결을 확인하고 잠시 뒤 다시 눌러주세요.');
-    else showCopyToast('서버에 저장했어요.');
-  }
+  return { anyTried, anyFailed };
 }
 window.addEventListener('online', () => { flushPendingSync(); });
 document.addEventListener('visibilitychange', () => {
   if(document.visibilityState === 'visible') flushPendingSync();
 });
 document.getElementById('pendingSyncRetryBtn').addEventListener('click', () => {
-  showCopyToast('다시 저장을 시도하고 있어요...');
+  showCopyToast('다시 저장을 시도하고 있어요... (최대 15초 정도 걸려요)', true);
   flushPendingSync({ manual: true });
 });
 
@@ -8048,7 +8115,10 @@ function makeBlock(){
   block.innerHTML = `
     <div class="block-row row-exercise">
       <button type="button" class="block-drag-handle" title="드래그해서 순서 변경">⇅</button>
-      <input autocapitalize="off" type="text" class="exercise-name-input" placeholder="운동 종목, 예: 스쿼트" maxlength="40">
+      <div class="name-input-wrap">
+        <input autocapitalize="off" type="text" class="exercise-name-input" placeholder="운동 종목, 예: 스쿼트" maxlength="40">
+        <span class="name-part-tag" style="display:none;" aria-hidden="true"></span>
+      </div>
       <button type="button" class="remove-block-btn" data-remove="${id}" title="이 운동 삭제">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3 6 5 6 21 6"></polyline>
@@ -8112,8 +8182,25 @@ function makeBlock(){
   const findExerciseRow = block.querySelector('.find-exercise-row');
   const findExerciseLink = block.querySelector('.find-exercise-link');
 
+  const partTagEl = block.querySelector('.name-part-tag');
+  function refreshNameSuffix(){
+    const v = nameInputEl.value;
+    const part = v.trim() ? detectBodyPartFromName(v) : null;
+    if(part){
+      partTagEl.textContent = part;
+      partTagEl.style.color = nameInputEl.style.color || 'var(--chalk)';
+      partTagEl.style.display = '';
+      nameInputEl.style.paddingRight = '58px'; // 긴 이름이 태그 밑으로 들어가 겹치지 않게
+    } else {
+      partTagEl.style.display = 'none';
+      nameInputEl.style.paddingRight = '';
+    }
+  }
+  nameInputEl.addEventListener('input', refreshNameSuffix);
+  block._refreshNameSuffix = refreshNameSuffix;
   function updateFindExerciseVisibility(){
     findExerciseRow.style.display = nameInputEl.value.trim() ? 'none' : 'block';
+    refreshNameSuffix();
   }
   updateFindExerciseVisibility();
   nameInputEl.addEventListener('input', updateFindExerciseVisibility);
@@ -8251,6 +8338,7 @@ function makeBlock(){
   function setColor(val){
     colorValueEl.value = val;
     nameInputEl.style.color = (val === '#FFFFFF') ? '' : val;
+    if(block._refreshNameSuffix) block._refreshNameSuffix();
     colorSwatches.forEach(s => s.classList.toggle('active', s.getAttribute('data-color') === val));
   }
   colorSwatches.forEach(sw => {
@@ -9391,7 +9479,7 @@ async function renderDayDetail(){
       ` : ''}
       <div class="log-entry ${e.locked ? 'log-entry-locked' : ''}" data-id="${e.id}">
         <div class="log-entry-body" ${canEdit ? `data-entry-click="${e.id}"` : ''}>
-          <p class="log-entry-name ${plain ? 'log-entry-name-plain' : ''}" ${plain ? '' : `style="color:${c}"`}>${e.locked ? '🔒 ' : ''}${escapeHtml(e.exercise)}</p>
+          <p class="log-entry-name ${plain ? 'log-entry-name-plain' : ''}" ${plain ? '' : `style="color:${c}"`}>${e.locked ? '🔒 ' : ''}${escapeHtml(e.exercise)}${partPillHtml(e)}</p>
           <div class="log-entry-stats">${statsLine(e)}</div>
           ${e.memo ? `<div class="log-entry-memo">${formatMemoForDisplay(e.memo)}</div>` : ''}
           ${comp ? `<div class="log-entry-compare ${compClass}">${comp.arrow} 지난 기록 대비 ${metricLabel(comp.type)} ${formatMetricDiff(comp.type, comp.diff)}</div>` : ''}
@@ -10473,7 +10561,7 @@ function buildDayText(dateStr, groupEntries){
   dayEntries.forEach((e, i) => {
     if(i > 0) lines.push(DIVIDER, '');
 
-    lines.push(`${pickExerciseEmoji(e.exercise)} ${e.exercise}`);
+    lines.push(`${pickExerciseEmoji(e.exercise)} ${exerciseDisplayName(e)}`);
     if(e.setRows && e.setRows.length){
       let mainNum = 0, dropCount = 0;
       e.setRows.forEach((s, si) => {
@@ -10508,7 +10596,7 @@ function buildDayText(dateStr, groupEntries){
         lines.push(`  최고 무게 ${formatNum(metric.maxWeight)}kg · 총 볼륨 ${formatNum(metric.value)}kg`);
         if(todayMaxWeight === null || metric.maxWeight > todayMaxWeight){
           todayMaxWeight = metric.maxWeight;
-          todayMaxWeightExercise = e.exercise;
+          todayMaxWeightExercise = exerciseDisplayName(e);
         }
         todayTotalVolume += metric.value;
       } else if(metric.type === 'reps'){
