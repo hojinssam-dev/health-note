@@ -1775,10 +1775,12 @@
     }
   }
   .name-part-tag{
-    position:absolute; right:10px; top:50%; transform:translateY(-50%);
+    position:absolute; right:10px; top:50%; transform:translateY(calc(-50% + 0.8px));
     pointer-events:none;
   }
   .part-pill{ display:inline-block; flex-shrink:0; }
+  /* 한글 글자의 시각적 중심은 줄 상자의 정중앙보다 살짝 아래라서, 캡슐 테두리를 0.8px 내려 글자 중앙선에 맞춘다 */
+  .log-entry-name.has-part .part-pill{ position:relative; top:0.8px; }
   /* 캡슐이 있는 이름 줄은 가로 정렬(flex)로 만들어서, 폰트가 달라도 캡슐이 글자 줄의 정중앙에 오게 한다 */
   .log-entry-name.has-part{ display:flex; align-items:center; gap:7px; }
   .log-entry-name.has-part .log-entry-name-text{ min-width:0; word-break:break-word; }
@@ -4172,7 +4174,8 @@
   }
   .color-swatches{
     display:flex;
-    gap: 8px;
+    flex-wrap:wrap; /* 색이 8개가 되어서, 좁은 화면에서는 휴식 타이머 버튼이 아랫줄로 내려가도록 */
+    gap: 8px 6px;
     align-items:center;
     margin-bottom: 12px;
   }
@@ -4352,9 +4355,10 @@
   }
   .bodypart-color-row{
     display:flex;
+    flex-wrap:wrap;
     align-items:center;
     justify-content:space-between;
-    gap: 10px;
+    gap: 6px 10px;
   }
   .bodypart-color-label{
     font-size: 14px;
@@ -4362,6 +4366,7 @@
   }
   .bp-swatch-group{
     display:flex;
+    flex-wrap:wrap;
     gap: 7px;
   }
   .bp-swatch{
@@ -5658,7 +5663,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.29';
+const APP_VERSION = '2.72.32';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6725,6 +6730,7 @@ const BODY_PART_COLOR_CHOICES = [
   { color: '#E8BE1F', label: '노랑' },
   { color: '#9C6FDB', label: '보라' },
   { color: '#D1548C', label: '핑크' },
+  { color: '#B98A5A', label: '황토' },
 ];
 const DEFAULT_BODYPART_COLORS = {
   '가슴': '#FFFFFF',
@@ -8145,7 +8151,7 @@ function makeBlock(){
       <button type="button" class="find-exercise-link">🔍 이름을 모르겠나요? 종목 찾기</button>
     </div>
     <div class="color-swatches">
-      ${BODY_PART_COLOR_CHOICES.map((choice, i) => `<button type="button" class="swatch ${choice.color === '#FFFFFF' ? 'swatch-default' : ''} ${i === 0 ? 'active' : ''}" data-color="${choice.color}" title="${choice.label}" ${choice.color === '#FFFFFF' ? '' : `style="background:${choice.color}"`}>${choice.color === '#FFFFFF' ? 'A' : ''}</button>`).join('')}
+      ${BODY_PART_COLOR_CHOICES.filter(choice => choice.color !== '#FFFFFF').map(choice => `<button type="button" class="swatch" data-color="${choice.color}" title="${choice.label} (한 번 더 누르면 선택 취소)" style="background:${choice.color}"></button>`).join('')}
       <input autocapitalize="off" type="hidden" class="color-value" value="#FFFFFF">
       <button type="button" class="rest-timer-trigger">휴식 타이머</button>
     </div>
@@ -8336,12 +8342,17 @@ function makeBlock(){
   let modeRowCache = {}; // 무게·횟수 ↔ 시간 모드를 오갈 때, 실수로 눌러도 이전에 입력해둔
                           // 세트 기록이 사라지지 않도록 모드별로 따로 기억해둔다
 
-  nameInputEl.addEventListener('input', () => {
-    if(manualColorOverride) return;
+  // 이름으로 알아낸 부위 색(없으면 기본 흰색)으로 되돌린다
+  function applyAutoColor(){
     const detectedPart = detectBodyPartFromName(nameInputEl.value);
     // 부위가 감지 안 되면(이름을 지웠거나 미분류 종목이면) 이전에 감지됐던 색이 남아있지
     // 않도록 기본값(무색)으로 되돌린다.
     setColor(detectedPart ? colorForBodyPart(detectedPart) : '#FFFFFF');
+    return detectedPart;
+  }
+  nameInputEl.addEventListener('input', () => {
+    if(manualColorOverride) return;
+    const detectedPart = applyAutoColor();
     // 유산소 종목(러닝머신, 로잉머신 등)이라고 감지되면, 사용자가 직접 모드를 고르지 않은
     // 이상 자동으로 '시간' 기록 모드로 바꿔준다 (무게·횟수보다 시간으로 재는 게 자연스러워서)
     if(!manualModeOverride && detectedPart === '유산소' && recordMode !== 'time'){
@@ -8357,8 +8368,19 @@ function makeBlock(){
   }
   colorSwatches.forEach(sw => {
     sw.addEventListener('click', () => {
+      const picked = sw.getAttribute('data-color');
+      // 직접 고른 색을 한 번 더 누르면 선택을 취소하고, 이름으로 알아낸 색(미분류면 기본 흰색)으로 돌아간다
+      const detectedForClick = detectBodyPartFromName(nameInputEl.value);
+      const autoColorNow = (detectedForClick ? colorForBodyPart(detectedForClick) : '#FFFFFF').toUpperCase();
+      const isCurrent = colorValueEl.value.toUpperCase() === picked.toUpperCase();
+      // (직접 고른 색이거나, 이름으로 알아낸 색과 다른 색이 이미 칠해져 있는 경우에만 '취소'로 본다)
+      if(isCurrent && (manualColorOverride || picked.toUpperCase() !== autoColorNow)){
+        manualColorOverride = false;
+        applyAutoColor();
+        return;
+      }
       manualColorOverride = true;
-      setColor(sw.getAttribute('data-color'));
+      setColor(picked);
     });
   });
 
