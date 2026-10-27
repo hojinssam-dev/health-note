@@ -5663,7 +5663,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.32';
+const APP_VERSION = '2.72.36';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -6636,11 +6636,11 @@ const BODY_PARTS = ['가슴', '등', '어깨', '팔', '복근', '하체', '유�
 /* 운동 종목 이름에 아래 글자가 포함되면 해당 부위로 자동 인식해서
    설정에서 지정한 부위 색을 이름 글자색에 자동 적용한다 */
 const BODY_PART_KEYWORDS = {
-  '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈', '핵프레스', '런지', '클램쉘', '스티프데드리프트', '어덕션', '어브덕션', '몬스터글루트'],
+  '하체': ['힙', '스쿼트', '레그', '아웃타이', '이너타이', '불스스', '불가리안', '카프레이즈', '핵프레스', '런지', '클램쉘', '스티프데드리프트', '어덕션', '어브덕션', '몬스터글루트', '월싯'],
   '어깨': ['숄더', '솔뎌', '숄뎌', '밀리터리', '사레레', '슈러그', '레터럴레이즈', '프론트레이즈', '업라이트로우', '오버헤드프레스', '페이스풀', '리어델트', '델토이', '아놀드'],
-  '가슴': ['딥스', '푸시업', '푸쉬업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이', '체스트', '덤벨프레스', '덤벨플라이', '케이블플라이', '벤치프레스'],
+  '가슴': ['딥스', '푸시업', '푸쉬업', '팔굽혀펴기', '펙덱플라이', '팩덱플라이', '팩댁플라이', '체스트프레스', '덤벨프레스', '덤벨플라이', '케이블플라이', '벤치프레스'],
   '복근': ['레그레이즈', '크런치', '플랭크', '데드버그', '싯업', '윗몸일으키기', '트위스트', '롤아웃', '버드독'],
-  '팔': ['바이셉스', '트라이셉스', '케이블푸시다운', '덤벨컬', '바벨컬', '해머컬', '오버헤드익스텐션'],
+  '팔': ['바이셉스', '트라이셉스', '케이블푸시다운', '덤벨컬', '바벨컬', '해머컬', '오버헤드익스텐션', '매달리기', '데드행'],
   '등': ['랫풀다운', '풀다운', '풀업', '롱풀', '레터럴로우', '로우로우', '어시스트풀업', '친업', '시티드로우', '바벨로우', '덤벨로우', '케이블로우', '티바로우', 'T바로우', 't바로우', '로우풀리', '루마니안데드리프트'],
   '유산소': ['유산소', '러닝', '런닝', '자전거', '싸이클', '워킹', '천국', '계단', '트레드밀', '트래드밀', '로잉'],
 };
@@ -6652,7 +6652,7 @@ const BODY_PART_KEYWORDS = {
    일반 키워드로 넣지 않고, 정확히 일치할 때만 복근/하체로 인식한다 (리버스크런치→복근, 리버스하이퍼→하체) */
 /* 이런 글자가 이름에 들어간 종목은 '무게·횟수'가 아니라 '시간'으로 재는 게 자연스러워서,
    이전 기록이 없는 새 종목일 때 기본 모드를 '시간'으로 잡아준다 */
-const TIME_MODE_KEYWORDS = ['플랭크', '매달리기', '월싯', '천국의 계단', '자전거', '사이클', '싸이클', '러닝머신', '런닝머신', '러닝', '런닝', '조깅', '산책'];
+const TIME_MODE_KEYWORDS = ['플랭크', '매달리기', '데드행', '월싯', '천국의 계단', '자전거', '사이클', '싸이클', '러닝머신', '런닝머신', '러닝', '런닝', '조깅', '산책'];
 function defaultRecordModeForName(name){
   const noSpace = (name || '').trim().replace(/\s+/g, '');
   if(!noSpace) return 'reps';
@@ -6712,13 +6712,32 @@ function bodyPartSuffixForName(name, storedPart){
   if(trimmed.endsWith('-' + part)) return ''; // 이미 직접 적어둔 경우엔 또 붙이지 않는다
   return '-' + part;
 }
+/* 사용자가 글자색을 직접 골라서 정한 부위(bodyPartManual)는 이름 키워드보다 우선한다.
+   직접 고른 게 아니면 예전처럼 이름으로 판별하고, 못 알아낼 때만 저장된 부위를 쓴다. */
+function entryBodyPart(e){
+  if(e && e.bodyPartManual && e.bodyPart) return e.bodyPart;
+  return (e && (detectBodyPartFromName(e.exercise) || e.bodyPart)) || null;
+}
+/* 이름 + 글자색 + (색을 직접 골랐는지)로 부위를 정한다.
+   직접 고른 색이 한 부위에만 지정된 색이면 그 부위가 우선이다. */
+function resolveBodyPart(name, color, manual){
+  const byColor = partFromColor(color);
+  if(manual && byColor) return { part: byColor, manual: true };
+  const byName = detectBodyPartFromName(name);
+  if(byName) return { part: byName, manual: false };
+  if(byColor) return { part: byColor, manual: false };
+  return { part: null, manual: false };
+}
 function partPillHtml(e){
-  const part = detectBodyPartFromName(e.exercise) || e.bodyPart;
+  const part = entryBodyPart(e);
   if(!part) return '';
   return `<span class="part-pill">${escapeHtml(part)}</span>`;
 }
 function exerciseDisplayName(e){
-  return (e.exercise || '') + bodyPartSuffixForName(e.exercise, e.bodyPart);
+  const part = entryBodyPart(e);
+  const base = e.exercise || '';
+  if(!part || base.trim().endsWith('-' + part)) return base;
+  return base + '-' + part;
 }
 
 const BODYPART_COLOR_KEY = 'bodypart-colors';
@@ -6778,7 +6797,7 @@ function colorForEntry(e){
   // 작성 당시에 저장된 옛 분류값이 보는 사람의 최신 색상 설정을 가로막지 않는다.
   // 어느 쪽이든 문서 자체는 전혀 건드리지 않고 화면에 보여줄 때만 계산한다.
   if(!isOwnEntry){
-    const part = detectBodyPartFromName(e.exercise) || e.bodyPart;
+    const part = entryBodyPart(e);
     if(part) return colorForBodyPart(part);
   }
   return upgradeLegacyColor(e.color || '#FFFFFF');
@@ -8205,7 +8224,7 @@ function makeBlock(){
     const v = nameInputEl.value;
     // 이름으로 부위를 알아보면 그 부위가 우선이고(글자색을 직접 바꿔도 그대로), 이름으로 못
     // 알아본 미분류 종목일 때만 사용자가 고른 글자색에 해당하는 부위를 따른다.
-    const part = v.trim() ? (detectBodyPartFromName(v) || partFromColor(colorValueEl.value)) : null;
+    const part = v.trim() ? resolveBodyPart(v, colorValueEl.value, block._manual === true).part : null;
     if(part){
       partTagEl.textContent = part;
       partTagEl.style.color = nameInputEl.style.color || 'var(--chalk)';
@@ -8376,10 +8395,12 @@ function makeBlock(){
       // (직접 고른 색이거나, 이름으로 알아낸 색과 다른 색이 이미 칠해져 있는 경우에만 '취소'로 본다)
       if(isCurrent && (manualColorOverride || picked.toUpperCase() !== autoColorNow)){
         manualColorOverride = false;
+        block._manual = false;
         applyAutoColor();
         return;
       }
       manualColorOverride = true;
+      block._manual = true;
       setColor(picked);
     });
   });
@@ -8803,6 +8824,7 @@ function makeBlock(){
   statMemoEl.addEventListener('input', autoGrowStatMemo);
 
   block._setColor = setColor;
+  block._setManualColor = (v) => { manualColorOverride = !!v; block._manual = !!v; if(block._refreshNameSuffix) block._refreshNameSuffix(); };
   block._setMode = setMode;
   block._getMode = () => recordMode;
   block._setRowsEl = setRowsEl;
@@ -10273,6 +10295,7 @@ async function editEntry(entryId){
     block.querySelector('.exercise-name-input').value = dayEntry.exercise;
     block._updateFindExerciseVisibility();
     block._setColor(colorForEntry(dayEntry));
+    if(dayEntry.bodyPartManual) block._setManualColor(true); // 직접 고른 부위/색은 다시 저장해도 그대로 유지
     block.querySelector('.stat-memo').value = dayEntry.memo || '';
     block._updatePrevHint();
     block._updateExerciseMemoHint();
@@ -11051,7 +11074,10 @@ async function addLogEntry(opts){
       exercise,
       exerciseKey: computeExerciseKey(exercise),
       color: block.querySelector('.color-value').value,
-      bodyPart: detectBodyPartFromName(exercise) || partFromColor(block.querySelector('.color-value').value) || null,
+      ...(() => {
+        const rp = resolveBodyPart(exercise, block.querySelector('.color-value').value, block._manual === true);
+        return { bodyPart: rp.part || null, bodyPartManual: rp.manual };
+      })(),
       recordMode: mode,
       setRows,
       memo: block.querySelector('.stat-memo').value.trim(),
@@ -13678,7 +13704,8 @@ async function repaintOwnEntriesWithCurrentColors(){
   const batchUpdates = [];
   snap.docs.forEach(docSnap => {
     const entry = docSnap.data();
-    const part = detectBodyPartFromName(entry.exercise);
+    // 직접 고른 부위가 있으면 그 부위를, 아니면 이름으로 판별한 부위를 새 색으로 다시 칠한다
+    const part = (entry.bodyPartManual && entry.bodyPart) ? entry.bodyPart : detectBodyPartFromName(entry.exercise);
     if(!part) return; // 부위를 못 알아내는 종목은 원래 고정색이라 건드리지 않는다
     const newColor = colorForBodyPart(part);
     batchUpdates.push({ id: docSnap.id, bodyPart: part, color: newColor });
