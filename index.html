@@ -1674,17 +1674,32 @@
     white-space: pre-wrap;
     word-break: break-word;
   }
-  .memo-pin-row{
-    display:flex; align-items:center; gap:8px;
-    margin: 2px 2px 0;
-    font-size:13px; color: var(--chalk);
-    cursor:pointer;
+  /* 메모칸 안쪽 아래의 '항상 보기' 푸터 */
+  .memo-box{
+    flex:1; min-width:0;
+    display:flex; flex-direction:column;
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
+    overflow:hidden;
   }
-  .memo-pin-row input[type=checkbox]{
-    width:18px; height:18px; margin:0; flex-shrink:0;
+  .memo-box:focus-within{ border-color: var(--brass); }
+  .row-memo .memo-box textarea{
+    border:none; background:transparent; border-radius:0; outline:none; box-shadow:none;
+  }
+  .memo-pin-row{
+    display:flex; align-items:center; gap:6px;
+    border-top: 1px solid var(--line);
+    padding: 6px 12px;
+    font-size:12px; color: var(--muted);
+    cursor:pointer;
+    user-select:none;
+  }
+  .memo-pin-row:has(input:checked){ color: var(--brass-bright); }
+  .block-row .memo-pin-row input[type=checkbox]{
+    width:15px; height:15px; margin:0; padding:0; flex-shrink:0; background:transparent; border:none;
     accent-color: var(--brass);
   }
-  .memo-pin-sub{ font-size:11px; color: var(--muted); margin: 2px 0 0 28px; }
   .prev-note-actions{
     display:flex;
     justify-content:flex-end;
@@ -5688,7 +5703,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.38';
+const APP_VERSION = '2.72.39';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8248,10 +8263,11 @@ function makeBlock(){
       </div>
     </div>
     <div class="block-row row-memo">
-      <textarea autocapitalize="off" class="stat-memo" placeholder="이 운동 종목을 다시 할 때 볼 수 있는 메모예요. 기억해야할 게 있다면 남겨보세요."></textarea>
+      <div class="memo-box">
+        <textarea autocapitalize="off" class="stat-memo" placeholder="이 운동 종목을 다시 할 때 볼 수 있는 메모예요. 기억해야할 게 있다면 남겨보세요."></textarea>
+        <label class="memo-pin-row"><input type="checkbox" class="memo-pin-check"><span>항상 보기</span></label>
+      </div>
     </div>
-    <label class="memo-pin-row"><input type="checkbox" class="memo-pin-check"><span>📌 이 메모는 항상 보기</span></label>
-    <div class="memo-pin-sub">체크하면 다음에 이 종목을 입력할 때마다 계속 보여요</div>
   `;
 
   const nameInputEl = block.querySelector('.exercise-name-input');
