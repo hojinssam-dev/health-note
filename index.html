@@ -1687,19 +1687,22 @@
   .row-memo .memo-box textarea{
     border:none; background:transparent; border-radius:0; outline:none; box-shadow:none;
   }
-  .memo-pin-row{
-    display:flex; align-items:center; gap:6px;
-    border-top: 1px solid var(--line);
-    padding: 6px 12px;
+  .memo-box-label{
+    font-size:11px; font-weight:600; color: var(--muted);
+    padding: 7px 12px 0;
+  }
+  .memo-box-label.is-pinned{ color: var(--brass-bright); }
+  .memo-box-pinned{ border-color: rgba(201,162,39,0.5); }
+  .memo-pin-toggle{
+    display:block; width:100%; text-align:left;
+    background: none; border: none; border-top: 1px solid var(--line);
+    padding: 7px 12px;
     font-size:12px; color: var(--muted);
+    font-family: inherit;
     cursor:pointer;
-    user-select:none;
   }
-  .memo-pin-row:has(input:checked){ color: var(--brass-bright); }
-  .block-row .memo-pin-row input[type=checkbox]{
-    width:15px; height:15px; margin:0; padding:0; flex-shrink:0; background:transparent; border:none;
-    accent-color: var(--brass);
-  }
+  .memo-pin-toggle:hover{ color: var(--brass-bright); }
+  .memo-box-pinned .memo-pin-toggle{ color: var(--muted); }
   .prev-note-actions{
     display:flex;
     justify-content:flex-end;
@@ -3650,6 +3653,24 @@
     display: flex;
     gap: 8px;
     flex-shrink: 0;
+  }
+  /* '연결된 회원' 창: 이름 한 줄, 그 아래에 버튼 3개를 같은 폭으로 나란히 (좁은 화면에서도 테두리 안에 들어오게) */
+  .employer-member-row-stacked{
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .employer-member-row-stacked .employer-member-row-actions{
+    flex-shrink: 1;
+    width: 100%;
+    gap: 6px;
+  }
+  .employer-member-row-stacked .employer-member-row-actions button{
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 10px 4px;
+    font-size: 13px;
+    white-space: nowrap;
   }
   .employer-member-rate-btn{
     flex-shrink: 0;
@@ -5710,7 +5731,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.41';
+const APP_VERSION = '2.72.45';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8272,8 +8293,16 @@ function makeBlock(){
     </div>
     <div class="block-row row-memo">
       <div class="memo-box">
+        <div class="memo-box-label">다음에 한 번만 보기</div>
         <textarea autocapitalize="off" class="stat-memo" placeholder="이 운동 종목을 다시 할 때 볼 수 있는 메모예요. 기억해야할 게 있다면 남겨보세요."></textarea>
-        <label class="memo-pin-row"><input type="checkbox" class="memo-pin-check"><span>항상 보기</span></label>
+        <button type="button" class="memo-pin-toggle memo-pin-add-btn">＋ 📌 고정 메모 추가</button>
+      </div>
+    </div>
+    <div class="block-row row-memo memo-pinned-row" style="display:none;">
+      <div class="memo-box memo-box-pinned">
+        <div class="memo-box-label is-pinned">📌 항상 보기</div>
+        <textarea autocapitalize="off" class="stat-memo-pinned" placeholder="이 종목을 할 때마다 계속 보고 싶은 멘트를 적어두세요."></textarea>
+        <button type="button" class="memo-pin-toggle memo-pin-fold-btn">－ 고정 메모 접기</button>
       </div>
     </div>
   `;
@@ -8425,7 +8454,7 @@ function makeBlock(){
   });
   pinBanner.querySelector('.pinned-memo-edit-btn').addEventListener('click', () => {
     if(!pinnedInfo) return;
-    pinEditInput.value = pinnedInfo.latest.memo;
+    pinEditInput.value = pinnedTextOf(pinnedInfo.latest);
     pinEditBox.style.display = 'block';
     pinActions.style.display = 'none';
     pinEditInput.focus();
@@ -8439,7 +8468,7 @@ function makeBlock(){
       return;
     }
     try{
-      await updatePinnedSourceEntry(pinnedInfo.latest, { memo: newText });
+      await updatePinnedSourceEntry(pinnedInfo.latest, isLegacyPinnedEntry(pinnedInfo.latest) ? { memo: newText } : { pinnedMemo: newText });
       pinTextEl.textContent = newText;
       closePinEdit();
       showCopyToast('고정 메모를 수정했어요.');
@@ -8455,7 +8484,7 @@ function makeBlock(){
     // 이 종목의 고정 메모를 모두 푼다 (예전에 고정했던 메모가 다시 나타나지 않게)
     let failedLatest = false;
     for(const e of pinnedInfo.all){
-      try{ await updatePinnedSourceEntry(e, { memoPinned: false }); }
+      try{ await updatePinnedSourceEntry(e, { pinnedMemo: '', memoPinned: false }); }
       catch(err){
         console.error('고정해제 오류:', err);
         if(e === pinnedInfo.latest) failedLatest = true;
@@ -8489,16 +8518,15 @@ function makeBlock(){
     // 고정 메모 배너
     pinnedInfo = pinned;
     if(pinned && !pinnedDismissedByUser){
-      pinTextEl.textContent = repeatLeadingEmojiPerLine(pinned.latest.memo);
+      pinTextEl.textContent = repeatLeadingEmojiPerLine(pinnedTextOf(pinned.latest));
       pinBanner.style.display = 'flex';
       closePinEdit();
     } else {
       pinBanner.style.display = 'none';
     }
-    // 직전 메모 배너 (고정 메모와 같은 기록이면 한 번만 보이도록 이쪽은 숨긴다)
-    const samePinned = pinned && memoEntry && pinned.latest.id === memoEntry.id;
-    if(memoEntry && !memoHintDismissedByUser && !(samePinned && !pinnedDismissedByUser)){
-      exMemoText.textContent = repeatLeadingEmojiPerLine(memoEntry.memo);
+    // 직전 메모 배너 ('한 번만 보기' 메모)
+    if(memoEntry && !memoHintDismissedByUser){
+      exMemoText.textContent = repeatLeadingEmojiPerLine(oneTimeTextOf(memoEntry));
       exMemoBanner.style.display = 'flex';
     } else {
       exMemoBanner.style.display = 'none';
@@ -8967,10 +8995,38 @@ function makeBlock(){
   makeBlockReorderable(block);
 
   const statMemoEl = block.querySelector('.stat-memo');
+  const pinMemoEl = block.querySelector('.stat-memo-pinned');
+  const pinMemoRow = block.querySelector('.memo-pinned-row');
+  const pinMemoAddBtn = block.querySelector('.memo-pin-add-btn');
+  const pinMemoFoldBtn = block.querySelector('.memo-pin-fold-btn');
   function autoGrowStatMemo(){
     statMemoEl.style.height = 'auto';
     statMemoEl.style.height = statMemoEl.scrollHeight + 'px';
+    pinMemoEl.style.height = 'auto';
+    pinMemoEl.style.height = pinMemoEl.scrollHeight + 'px';
   }
+  // 고정 메모칸: 평소엔 접혀 있고, '+ 고정 메모 추가'를 누르면 펼쳐진다. 내용이 있으면 접을 수 없다(실수로 숨겨 잃지 않게).
+  function syncPinMemoUi(){
+    const open = pinMemoRow.style.display !== 'none';
+    pinMemoAddBtn.style.display = open ? 'none' : '';
+    pinMemoFoldBtn.style.display = pinMemoEl.value.trim() ? 'none' : '';
+  }
+  pinMemoAddBtn.addEventListener('click', () => {
+    pinMemoRow.style.display = '';
+    syncPinMemoUi();
+    autoGrowStatMemo();
+    pinMemoEl.focus();
+  });
+  pinMemoFoldBtn.addEventListener('click', () => {
+    pinMemoRow.style.display = 'none';
+    syncPinMemoUi();
+  });
+  pinMemoEl.addEventListener('input', () => { autoGrowStatMemo(); syncPinMemoUi(); });
+  block._setPinnedMemo = (text) => {
+    pinMemoEl.value = text || '';
+    pinMemoRow.style.display = (text && text.trim()) ? '' : 'none';
+    syncPinMemoUi();
+  };
   statMemoEl.addEventListener('input', autoGrowStatMemo);
 
   block._setColor = setColor;
@@ -9692,7 +9748,8 @@ async function renderDayDetail(){
         <div class="log-entry-body" ${canEdit ? `data-entry-click="${e.id}"` : ''}>
           <p class="log-entry-name ${plain ? 'log-entry-name-plain' : ''} ${partPillHtml(e) ? 'has-part' : ''}" ${plain ? '' : `style="color:${c}"`}><span class="log-entry-name-text">${e.locked ? '🔒 ' : ''}${escapeHtml(e.exercise)}</span>${partPillHtml(e)}</p>
           <div class="log-entry-stats">${statsLine(e)}</div>
-          ${e.memo ? `<div class="log-entry-memo">${formatMemoForDisplay(e.memo)}</div>` : ''}
+          ${oneTimeTextOf(e) ? `<div class="log-entry-memo">${formatMemoForDisplay(oneTimeTextOf(e))}</div>` : ''}
+          ${pinnedTextOf(e) ? `<div class="log-entry-memo">📌 ${formatMemoForDisplay(pinnedTextOf(e))}</div>` : ''}
           ${comp ? `<div class="log-entry-compare ${compClass}">${comp.arrow} 지난 기록 대비 ${metricLabel(comp.type)} ${formatMetricDiff(comp.type, comp.diff)}</div>` : ''}
         </div>
         ${canEdit ? `<button class="log-del" data-logdel="${e.id}" title="기록 삭제">×</button>` : ''}
@@ -10449,8 +10506,8 @@ async function editEntry(entryId){
     block._updateFindExerciseVisibility();
     block._setColor(colorForEntry(dayEntry));
     if(dayEntry.bodyPartManual) block._setManualColor(true); // 직접 고른 부위/색은 다시 저장해도 그대로 유지
-    block.querySelector('.stat-memo').value = dayEntry.memo || '';
-    block.querySelector('.memo-pin-check').checked = dayEntry.memoPinned === true;
+    block.querySelector('.stat-memo').value = oneTimeTextOf(dayEntry);
+    block._setPinnedMemo(pinnedTextOf(dayEntry));
     block._updatePrevHint();
     block._updateExerciseMemoHint();
 
@@ -10687,12 +10744,26 @@ async function findBestExerciseRecord(exerciseName, beforeDate, extraEntry){
 async function findPreviousExerciseMemo(exerciseName, beforeDate){
   const latest = await findPreviousExercise(exerciseName, beforeDate);
   if(!latest) return null;
-  return (latest.memo && latest.memo.trim()) ? latest : null;
+  return oneTimeTextOf(latest) ? latest : null;
 }
 
 /* '📌 항상 보기'로 저장된 메모를 찾는다. 같은 종목의 이 날짜 이전 기록들 중 고정 메모가 있는 것 가운데
    가장 최근 것(latest)과, 고정 상태인 기록 전부(all, 고정해제할 때 한꺼번에 풀기 위해)를 돌려준다.
    기존 '이전 기록' 조회와 같은 조건·정렬(exerciseKey + date + 날짜 내림차순)이라 새 색인이 필요 없다. */
+/* 메모는 두 종류다: 'memo'(다음에 한 번만 보기)와 'pinnedMemo'(항상 보기).
+   예전 방식('memoPinned: true'로 memo 하나를 고정)으로 저장된 기록은 그 memo를 고정 메모로 취급한다. */
+function isLegacyPinnedEntry(e){
+  return !!e && e.memoPinned === true && !(e.pinnedMemo && e.pinnedMemo.trim()) && !!(e.memo && e.memo.trim());
+}
+function pinnedTextOf(e){
+  if(!e) return '';
+  if(e.pinnedMemo && e.pinnedMemo.trim()) return e.pinnedMemo.trim();
+  return isLegacyPinnedEntry(e) ? e.memo.trim() : '';
+}
+function oneTimeTextOf(e){
+  if(!e) return '';
+  return isLegacyPinnedEntry(e) ? '' : (e.memo || '').trim();
+}
 async function findPinnedExerciseMemo(exerciseName, beforeDate){
   const nameNorm = computeExerciseKey(exerciseName);
   if(!nameNorm) return null;
@@ -10702,7 +10773,7 @@ async function findPinnedExerciseMemo(exerciseName, beforeDate){
       .where('date', '<', beforeDate)
       .orderBy('date', 'desc')
       .get();
-    const all = snap.docs.map(d => d.data()).filter(e => e.memoPinned === true && e.memo && e.memo.trim());
+    const all = snap.docs.map(d => d.data()).filter(e => !!pinnedTextOf(e));
     if(all.length === 0) return null;
     return { latest: all[0], all };
   }catch(err){
@@ -10849,18 +10920,18 @@ function buildDayText(dateStr, groupEntries){
     const compText = comparisonTextLocal(e, dateStr);
     if(compText) lines.push(`  ${compText}`);
 
-    if(e.memo){
+    [oneTimeTextOf(e), pinnedTextOf(e)].forEach((memoText, memoIdx) => {
+      if(!memoText) return;
       lines.push('');
-      const memoLines = e.memo.split('\n');
-      memoLines.forEach(line => {
+      memoText.split('\n').forEach(line => {
         if(!line.trim()){
           lines.push('');
           return;
         }
         const alreadyHasEmoji = /^\p{Extended_Pictographic}\uFE0F?/u.test(line.trim());
-        lines.push(`  ${alreadyHasEmoji ? '' : '💬 '}${line}`);
+        lines.push(`  ${alreadyHasEmoji ? '' : (memoIdx === 1 ? '📌 ' : '💬 ')}${line}`);
       });
-    }
+    });
 
     lines.push('');
   });
@@ -11263,7 +11334,8 @@ async function addLogEntry(opts){
       recordMode: mode,
       setRows,
       memo: block.querySelector('.stat-memo').value.trim(),
-      memoPinned: !!(block.querySelector('.stat-memo').value.trim() && block.querySelector('.memo-pin-check').checked),
+      pinnedMemo: block.querySelector('.stat-memo-pinned').value.trim(),
+      memoPinned: false, // 예전 방식 표시. 이제는 pinnedMemo 칸으로 따로 저장한다
       ptTotal: sessionPtTotal,
       sessionNo: (() => {
         if(!isPtRecognized) return null;
@@ -12643,9 +12715,12 @@ const employerSettingsModal = document.getElementById('employerSettingsModal');
 const employerSettingsCloseBtn = document.getElementById('employerSettingsCloseBtn');
 const employerSettingsLogoutBtn = document.getElementById('employerSettingsLogoutBtn');
 const employerSettingsCheckUpdateBtn = document.getElementById('employerSettingsCheckUpdateBtn');
+let employerMembersModalReturnUid = null; // 회원 달력을 열기 직전에 보던 '연결된 회원' 창의 트레이너 (돌아올 때 그 창을 다시 연다)
+let employerLastRenderedHtml = ''; // 마지막으로 그린 트레이너 카드 HTML (같으면 다시 그리지 않으려고)
+let employerDashboardScrollY = 0;  // 회원 달력을 보러 나가기 전 스크롤 위치
 let employerDashboardRowsCache = []; // [{uid, name, isRegularEmployee}] — 마지막으로 불러온 트레이너 목록
 
-function showEmployerDashboardView(){
+function showEmployerDashboardView(opts){
   viewLanding.classList.remove('active');
   viewLogin.classList.remove('active');
   viewLog.classList.remove('active');
@@ -12654,6 +12729,11 @@ function showEmployerDashboardView(){
   document.getElementById('view-trainer-members').classList.remove('active');
   viewTrainerEarnings.classList.remove('active');
   viewEmployerDashboard.classList.add('active');
+  if(opts && opts.keep){
+    window.scrollTo(0, employerDashboardScrollY || 0);
+    loadEmployerDashboard({ silent: true });
+    return;
+  }
   loadEmployerDashboard();
 }
 
@@ -12694,13 +12774,16 @@ employerConnectTrainerBtn.addEventListener('click', async () => {
   }
 });
 
-async function loadEmployerDashboard(){
-  employerTrainerList.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
+async function loadEmployerDashboard(opts){
+  // silent: 이미 그려둔 화면이 있으면 '불러오는 중'으로 바꾸지 않고 그대로 보여준 채, 뒤에서 조용히 최신 내용으로 맞춘다
+  const silent = !!(opts && opts.silent) && !!employerTrainerList.querySelector('.employer-trainer-card');
+  if(!silent) employerTrainerList.innerHTML = '<div class="admin-loading">불러오는 중...</div>';
   try{
     // 트레이너·회원이 많으면 시간이 오래 걸릴 수 있어서, 8초 안에 안 끝나면 화면을 계속
     // '불러오는 중'으로 묶어두지 않고 대신 안내를 보여준다.
-    await withTimeout(loadEmployerDashboardCore(), 8000);
+    await withTimeout(loadEmployerDashboardCore(silent), 8000);
   }catch(err){
+    if(silent){ console.error('센터장 대시보드 조용한 갱신 지연:', err); return; } // 기존 화면 유지
     // Core 안의 일반적인 오류는 이미 그 안의 try/catch가 처리하고 정상적으로 끝나기 때문에,
     // 여기로 올라오는 에러는 사실상 항상 시간초과다.
     console.error('센터장 대시보드 응답 지연:', err);
@@ -12709,7 +12792,7 @@ async function loadEmployerDashboard(){
   }
 }
 
-async function loadEmployerDashboardCore(){
+async function loadEmployerDashboardCore(silent){
   try{
     const myUid = auth.currentUser.uid;
     const trainersSnap = await db.collection('users').where('employerId', '==', myUid).get();
@@ -12763,7 +12846,7 @@ async function loadEmployerDashboardCore(){
     });
     // '전체 트레이너 지난달 기록' 버튼이 같은 순서·같은 이름으로 쓰도록 목록을 기억해둔다
     employerDashboardRowsCache = rows.map(r => ({ uid: r.uid, name: r.name, isRegularEmployee: r.isRegularEmployee, memberIds: r.memberIds }));
-    employerTrainerList.innerHTML = rows.map(r => {
+    const newHtml = rows.map(r => {
       const offset = employerTrainerMonthOffset[r.uid] || 0;
       const ctx = getEmployerMonthContext(offset);
       return `
@@ -12802,6 +12885,26 @@ async function loadEmployerDashboardCore(){
       </div>
     `;
     }).join('');
+    if(silent && newHtml === employerLastRenderedHtml){
+      // 바뀐 게 없으면 화면은 건드리지 않고, 수업료 금액만 조용히 새로 계산해서 맞춘다
+      employerDashboardRowsCache.forEach(t => updateEmployerTrainerEarningsSub(t, employerTrainerMonthOffset[t.uid] || 0, true));
+      return;
+    }
+    const prevSubTexts = {};
+    if(silent){
+      employerTrainerList.querySelectorAll('.employer-action-sub[data-earnings-sub]').forEach(el => {
+        prevSubTexts[el.getAttribute('data-earnings-sub')] = el.textContent;
+      });
+    }
+    employerTrainerList.innerHTML = newHtml;
+    employerLastRenderedHtml = newHtml;
+    if(silent){
+      // 바뀐 카드는 새로 그리되, 금액 칸은 직전에 보이던 값을 먼저 채워서 깜빡이지 않게 한다
+      employerTrainerList.querySelectorAll('.employer-action-sub[data-earnings-sub]').forEach(el => {
+        const prev = prevSubTexts[el.getAttribute('data-earnings-sub')];
+        if(prev){ el.textContent = prev; el.classList.remove('is-loading'); }
+      });
+    }
     employerTrainerList.querySelectorAll('.employer-trainer-edit-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const trainerUid = btn.getAttribute('data-trainer-uid');
@@ -12896,9 +12999,10 @@ async function loadEmployerDashboardCore(){
       });
     });
     // 화면은 먼저 보여주고, 수업료 금액은 계산되는 대로 채운다
-    employerDashboardRowsCache.forEach(t => updateEmployerTrainerEarningsSub(t, employerTrainerMonthOffset[t.uid] || 0));
+    employerDashboardRowsCache.forEach(t => updateEmployerTrainerEarningsSub(t, employerTrainerMonthOffset[t.uid] || 0, silent));
   }catch(err){
     console.error('센터장 대시보드 조회 오류:', err);
+    if(silent) return; // 기존 화면 유지
     employerTrainerList.innerHTML = '<div class="admin-empty">불러오지 못했어요.</div>';
   }
 }
@@ -13100,14 +13204,14 @@ async function computeEmployerDashboardCounts(memberIds, offset){
 
 // 카드의 '수업료 달력' 버튼 글자 아래에 고른 달의 수업료를 채운다. 계산이 느릴 수 있어서
 // 대시보드 표시를 막지 않고 끝나는 대로 채운다.
-async function updateEmployerTrainerEarningsSub(trainer, offset){
+async function updateEmployerTrainerEarningsSub(trainer, offset, silent){
   const uid = trainer.uid;
   const token = (employerEarningsSubToken[uid] || 0) + 1;
   employerEarningsSubToken[uid] = token;
   const ctx = getEmployerMonthContext(offset);
   const findEl = () => employerTrainerList.querySelector(`.employer-action-sub[data-earnings-sub="${uid}"]`);
   const loadingEl = findEl();
-  if(loadingEl){
+  if(loadingEl && !silent){
     loadingEl.textContent = `${ctx.subLabel} 계산 중…`;
     loadingEl.classList.add('is-loading');
   }
@@ -13119,6 +13223,7 @@ async function updateEmployerTrainerEarningsSub(trainer, offset){
     text = `${ctx.subLabel} ${formatWon(data.monthTotal)}원`;
   }catch(err){
     console.error('트레이너 수업료 계산 오류:', uid, err);
+    if(silent) return; // 조용히 갱신하다 실패하면 직전 값을 그대로 둔다
   }
   if(employerEarningsSubToken[uid] !== token) return;
   const el = findEl();
@@ -13208,7 +13313,7 @@ async function renderEmployerTrainerMembersList(trainerUid){
     return;
   }
   employerTrainerMembersList.innerHTML = rows.map(r => `
-    <div class="employer-member-row">
+    <div class="employer-member-row employer-member-row-stacked">
       <span class="employer-member-row-name">${escapeHtml(r.name)}</span>
       <div class="employer-member-row-actions">
         <button type="button" class="employer-member-rate-btn employer-member-cal-btn" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}" data-act="cal">달력 보기</button>
@@ -13219,9 +13324,12 @@ async function renderEmployerTrainerMembersList(trainerUid){
   `).join('');
   employerTrainerMembersList.querySelectorAll('.employer-member-cal-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      employerDashboardScrollY = window.scrollY || 0;
+      employerMembersModalReturnUid = trainerUid;
       isViewingAsEmployer = true;
       isViewingAsTrainer = false;
       trainerBackToListBtn.style.display = 'inline-flex';
+      employerTrainerMembersModal.classList.remove('open'); // '연결된 회원' 창은 닫고 달력 화면으로 바로 넘어간다
       openMember(btn.getAttribute('data-uid'));
     });
   });
@@ -15179,7 +15287,14 @@ trainerBackToListBtn.addEventListener('click', () => {
   if(isViewingAsEmployer){
     isViewingAsEmployer = false;
     document.body.classList.remove('employer-readonly');
-    showEmployerDashboardView();
+    showEmployerDashboardView({ keep: true }); // 기존 화면을 그대로 먼저 보여주고, 뒤에서 조용히 갱신
+    // 달력을 열기 전에 보던 '연결된 회원' 창이 있었다면 그 창을 (기존 목록 그대로) 다시 연다
+    if(employerMembersModalReturnUid){
+      const returnUid = employerMembersModalReturnUid;
+      employerMembersModalReturnUid = null;
+      employerTrainerMembersModal.classList.add('open');
+      renderEmployerTrainerMembersList(returnUid).catch(err => console.error('연결된 회원 조용한 갱신 오류:', err));
+    }
     return;
   }
   showTrainerMemberListView();
