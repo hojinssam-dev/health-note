@@ -232,7 +232,7 @@
   #trainerEarningsRefreshBtn, #trainerEarningsBackBtn, #employerRefreshBtn{
     font-size: 20px;
   }
-  #bodyPartSettingsBtn{
+  #bodyPartSettingsBtn, #swipeToggleBtn{
     width: 38px;
     height: 38px;
     font-size: 18px;
@@ -1864,6 +1864,21 @@
     touch-action: pan-y;
     -webkit-user-select: none;
     user-select: none;
+  }
+  /* 스와이프 조절을 끈 상태: 일반 입력칸처럼 (키패드로 직접 입력) */
+  body.swipe-adjust-off .swipe-adjustable{
+    cursor: text;
+    touch-action: auto;
+    -webkit-user-select: auto;
+    user-select: auto;
+  }
+  .swipe-toggle-btn{ font-size: 17px; font-weight: 700; }
+  .swipe-toggle-btn.on{ border-color: var(--brass); color: var(--brass-bright); background: rgba(201,162,39,0.12); }
+  .swipe-toggle-btn:hover{ border-color: var(--brass); color: var(--brass-bright); }
+  .swipe-toggle-btn:not(.on){ position: relative; }
+  .swipe-toggle-btn:not(.on)::after{
+    content:''; position:absolute; left:6px; right:6px; top:50%;
+    height:2px; background: var(--muted); transform: rotate(-35deg); border-radius:1px;
   }
   .block-summary{
     display:flex;
@@ -4796,6 +4811,7 @@
           <span class="week-count-badge" id="entryWeekCountBadge"></span>
         </div>
       </div>
+      <button class="logout-btn swipe-toggle-btn on" id="swipeToggleBtn" type="button" title="좌우 스와이프로 값 조절 (켜짐)" aria-pressed="true">↔</button>
       <button class="logout-btn" id="bodyPartSettingsBtn" title="부위별 글자 색상 설정">🎨</button>
     </div>
 
@@ -5731,7 +5747,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.45';
+const APP_VERSION = '2.72.46';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8096,6 +8112,19 @@ restTimePickerConfirmBtn.addEventListener('click', () => {
 
 /* ---------- 운동 종목 입력 블록 (일지 작성 화면에서 재사용) ---------- */
 
+/* 스와이프 조절 켜짐/꺼짐 (이 기기에 기억, 기본은 켜짐) */
+const SWIPE_ADJUST_KEY = 'swipe-adjust-enabled';
+let swipeAdjustEnabled = true;
+try{ if(localStorage.getItem(SWIPE_ADJUST_KEY) === 'false') swipeAdjustEnabled = false; }catch(err){ /* 저장소를 못 쓰면 기본값(켜짐) */ }
+function applySwipeAdjustUi(){
+  document.body.classList.toggle('swipe-adjust-off', !swipeAdjustEnabled);
+  const btn = document.getElementById('swipeToggleBtn');
+  if(btn){
+    btn.classList.toggle('on', swipeAdjustEnabled);
+    btn.setAttribute('aria-pressed', swipeAdjustEnabled ? 'true' : 'false');
+    btn.title = swipeAdjustEnabled ? '좌우 스와이프로 값 조절 (켜짐)' : '좌우 스와이프로 값 조절 (꺼짐 - 키패드로 직접 입력)';
+  }
+}
 /* 무게/횟수/시간 입력칸을 좌우로 스와이프해서 값 조절 */
 function makeSwipeAdjustable(inputEl){
   const step = parseFloat(inputEl.getAttribute('step')) || 1;
@@ -8122,6 +8151,7 @@ function makeSwipeAdjustable(inputEl){
   }
 
   inputEl.addEventListener('touchstart', (e) => {
+    if(!swipeAdjustEnabled) return;
     if(e.touches.length !== 1) return;
     startX = e.touches[0].clientX;
     startVal = parseFloat(inputEl.value) || 0;
@@ -8130,7 +8160,7 @@ function makeSwipeAdjustable(inputEl){
   }, { passive: true });
 
   inputEl.addEventListener('touchmove', (e) => {
-    if(!dragging) return;
+    if(!dragging || !swipeAdjustEnabled) return;
     const dx = e.touches[0].clientX - startX;
     if(Math.abs(dx) > 4) moved = true;
     const steps = Math.round(dx / PX_PER_STEP);
@@ -13973,6 +14003,13 @@ function closeBodyPartColorModal(){
   bodyPartColorModal.classList.remove('open');
 }
 
+applySwipeAdjustUi();
+document.getElementById('swipeToggleBtn').addEventListener('click', () => {
+  swipeAdjustEnabled = !swipeAdjustEnabled;
+  try{ localStorage.setItem(SWIPE_ADJUST_KEY, swipeAdjustEnabled ? 'true' : 'false'); }catch(err){ /* 저장 실패해도 이번 화면에서는 적용됨 */ }
+  applySwipeAdjustUi();
+  showCopyToast(swipeAdjustEnabled ? '좌우 스와이프 조절을 켰어요.' : '좌우 스와이프 조절을 껐어요. 키패드로 직접 입력해주세요.');
+});
 bodyPartSettingsBtn.addEventListener('click', () => {
   renderBodyPartColorModal();
   bodyPartColorModal.classList.add('open');
