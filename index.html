@@ -4811,7 +4811,7 @@
           <span class="week-count-badge" id="entryWeekCountBadge"></span>
         </div>
       </div>
-      <button class="logout-btn swipe-toggle-btn on" id="swipeToggleBtn" type="button" title="좌우 스와이프로 값 조절 (켜짐)" aria-pressed="true">↔</button>
+      <button class="logout-btn swipe-toggle-btn" id="swipeToggleBtn" type="button" title="좌우 스와이프로 값 조절 (꺼짐 - 키패드로 직접 입력)" aria-pressed="false">↔</button>
       <button class="logout-btn" id="bodyPartSettingsBtn" title="부위별 글자 색상 설정">🎨</button>
     </div>
 
@@ -5747,7 +5747,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.46';
+const APP_VERSION = '2.72.47';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -8112,10 +8112,10 @@ restTimePickerConfirmBtn.addEventListener('click', () => {
 
 /* ---------- 운동 종목 입력 블록 (일지 작성 화면에서 재사용) ---------- */
 
-/* 스와이프 조절 켜짐/꺼짐 (이 기기에 기억, 기본은 켜짐) */
+/* 스와이프 조절 켜짐/꺼짐 (이 기기에 기억, 기본은 꺼짐) */
 const SWIPE_ADJUST_KEY = 'swipe-adjust-enabled';
-let swipeAdjustEnabled = true;
-try{ if(localStorage.getItem(SWIPE_ADJUST_KEY) === 'false') swipeAdjustEnabled = false; }catch(err){ /* 저장소를 못 쓰면 기본값(켜짐) */ }
+let swipeAdjustEnabled = false;
+try{ if(localStorage.getItem(SWIPE_ADJUST_KEY) === 'true') swipeAdjustEnabled = true; }catch(err){ /* 저장소를 못 쓰면 기본값(꺼짐) */ }
 function applySwipeAdjustUi(){
   document.body.classList.toggle('swipe-adjust-off', !swipeAdjustEnabled);
   const btn = document.getElementById('swipeToggleBtn');
