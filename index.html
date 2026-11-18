@@ -241,7 +241,7 @@
   #trainerEarningsRefreshBtn, #trainerEarningsBackBtn, #employerRefreshBtn{
     font-size: calc(20px * var(--fs, 1));
   }
-  #bodyPartSettingsBtn, #swipeToggleBtn{
+  #bodyPartSettingsBtn, #swipeToggleBtn, #fontScaleBtn{
     width: 38px;
     height: 38px;
     font-size: calc(18px * var(--fs, 1));
@@ -1881,6 +1881,8 @@
     -webkit-user-select: auto;
     user-select: auto;
   }
+  .fontscale-btn{ font-size: 17px; font-weight: 700; }
+  html.fs-lg .fontscale-btn, html.fs-xl .fontscale-btn{ border-color: var(--brass); color: var(--brass-bright); background: rgba(201,162,39,0.12); }
   .swipe-toggle-btn{ font-size: calc(17px * var(--fs, 1)); font-weight: 700; }
   .swipe-toggle-btn.on{ border-color: var(--brass); color: var(--brass-bright); background: rgba(201,162,39,0.12); }
   .swipe-toggle-btn:hover{ border-color: var(--brass); color: var(--brass-bright); }
@@ -4827,6 +4829,7 @@
           <span class="week-count-badge" id="entryWeekCountBadge"></span>
         </div>
       </div>
+      <button class="logout-btn fontscale-btn" id="fontScaleBtn" type="button" title="글자 크기 바꾸기">가</button>
       <button class="logout-btn swipe-toggle-btn" id="swipeToggleBtn" type="button" title="좌우 스와이프로 값 조절 (꺼짐 - 키패드로 직접 입력)" aria-pressed="false">↔</button>
       <button class="logout-btn" id="bodyPartSettingsBtn" title="부위별 글자 색상 설정">🎨</button>
     </div>
@@ -5763,7 +5766,7 @@ document.addEventListener('click', (ev) => {
 });
 
 /* 이 앱의 버전. 코드가 바뀔 때마다 올려준다: 큰 변화는 앞자리(major), 작은 변화는 뒷자리(patch)를 올린다. */
-const APP_VERSION = '2.72.48';
+const APP_VERSION = '2.72.49';
 function renderAppVersionLabels(){
   const el = document.getElementById('appVersionLabel');
   if(el) el.textContent = `버전 ${APP_VERSION}`;
@@ -5819,6 +5822,14 @@ function setFontScale(level){
   applyFontScale(level);
   try{ localStorage.setItem(FONT_SCALE_KEY, level); }catch(err){}
 }
+// 일지 화면 위쪽의 '가' 버튼: 누를 때마다 보통 → 크게 → 아주 크게 → 보통 순서로 바뀐다
+document.getElementById('fontScaleBtn').addEventListener('click', () => {
+  const root = document.documentElement;
+  const cur = root.classList.contains('fs-xl') ? 'xl' : (root.classList.contains('fs-lg') ? 'lg' : 'md');
+  const next = cur === 'md' ? 'lg' : (cur === 'lg' ? 'xl' : 'md');
+  setFontScale(next);
+  showCopyToast('글자 크기: ' + (next === 'md' ? '보통' : (next === 'lg' ? '크게' : '아주 크게')));
+});
 // 설정 창(회원·트레이너·센터장)마다 '화면 테마' 아래에 '글자 크기' 줄을 넣는다
 document.querySelectorAll('.theme-option-row').forEach(themeRow => {
   const label = document.createElement('div');
